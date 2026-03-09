@@ -1,0 +1,6 @@
+name = "ctxnote-worker"
+main = "src/index.ts"
+compatibility_date = "2024-03-09"
+
+[observability]
+enabled = true

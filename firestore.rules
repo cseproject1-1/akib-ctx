@@ -1,0 +1,83 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    function isAdmin() {
+      // Check if user is the designated admin based on email
+      return request.auth != null && request.auth.token.email == 'mm.adnanakib@gmail.com';
+    }
+
+    // --- Users Collection ---
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+      // Admin overrides
+      allow read, write, delete: if isAdmin();
+    }
+
+    // --- Workspace Shares Collection ---
+    match /workspace_shares/{shareId} {
+      // Users can read if they created the share or are the recipient, or Admin
+      allow read: if request.auth != null && (
+        resource.data.shared_by == request.auth.uid || 
+        resource.data.shared_with_email == request.auth.token.email ||
+        isAdmin()
+      );
+      
+      // Only the workspace owner can create/update shares
+      allow create, update: if request.auth != null && 
+        get(/databases/$(database)/documents/workspaces/$(request.resource.data.workspace_id)).data.user_id == request.auth.uid;
+        
+      // Only the workspace owner can delete shares
+      allow delete: if request.auth != null && 
+        get(/databases/$(database)/documents/workspaces/$(resource.data.workspace_id)).data.user_id == request.auth.uid;
+    }
+
+    // --- Workspaces Collection ---
+    match /workspaces/{workspaceId} {
+      function isSharedWithMe(res) {
+        return request.auth != null && 
+               request.auth.token.email in res.data.shared_with;
+      }
+
+      // Anyone can read if it's public. Otherwise, only the owner, shared users, or Admin can read.
+      allow read: if resource.data.is_public == true || 
+                  (request.auth != null && resource.data.user_id == request.auth.uid) ||
+                  isSharedWithMe(resource) ||
+                  isAdmin();
+      
+      // User can create a workspace if they assign themselves as the owner
+      allow create: if request.auth != null && request.resource.data.user_id == request.auth.uid;
+      
+      // Only the owner or Admin can update or delete their workspace
+      allow update, delete: if (request.auth != null && resource.data.user_id == request.auth.uid) || isAdmin();
+
+      // --- Workspace Canvas Subcollections (nodes, edges, snapshots) ---
+      match /{subcollection}/{document=**} {
+        // Function to get the parent workspace data
+        function getWorkspace() {
+          return get(/databases/$(database)/documents/workspaces/$(workspaceId));
+        }
+
+        function isParentSharedWithMe() {
+            let ws = getWorkspace();
+            return request.auth != null && 
+                   request.auth.token.email in ws.data.shared_with;
+        }
+
+        // Anyone can read nodes/edges if the parent workspace is public.
+        // Otherwise, only the owner, shared users, or Admin can read them directly.
+        allow read: if getWorkspace().data.is_public == true ||
+                    (request.auth != null && getWorkspace().data.user_id == request.auth.uid) ||
+                    isParentSharedWithMe() ||
+                    isAdmin();
+        
+        // Members, Owners and Admins can write
+        allow write: if (request.auth != null && getWorkspace().data.user_id == request.auth.uid) ||
+                     isParentSharedWithMe() || 
+                     isAdmin();
+      }
+    }
+  }
+}

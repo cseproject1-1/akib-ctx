@@ -1,0 +1,80 @@
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+/* Full-perimeter connector handles — invisible strips along each edge */
+.react-flow__handle.perimeter-handle {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+/* Show handle strips on node hover */
+.react-flow__node:hover .react-flow__handle.perimeter-handle,
+.react-flow__node.selected .react-flow__handle.perimeter-handle {
+  opacity: 1;
+  background: hsl(var(--primary) / 0.15) !important;
+}
+
+.react-flow__handle.perimeter-handle:hover {
+  background: hsl(var(--primary) / 0.35) !important;
+}
+
+/* Anchor visual dots — midpoints only, visible on node hover */
+.anchor-dot {
+  pointer-events: none;
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 5;
+}
+
+.group\/node:hover .anchor-dot,
+.group:hover .anchor-dot {
+  opacity: 0.8;
+}

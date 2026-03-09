@@ -1,0 +1,97 @@
+import { memo, useState, useCallback } from 'react';
+import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { useCanvasStore } from '@/store/canvasStore';
+
+const shapeColors: Record<string, string> = {
+  default: 'hsl(0 0% 25%)',
+  blue: 'hsl(217, 91%, 60%)',
+  green: 'hsl(142, 76%, 46%)',
+  red: 'hsl(0, 84%, 60%)',
+  purple: 'hsl(262, 83%, 58%)',
+  yellow: 'hsl(52, 100%, 50%)',
+  orange: 'hsl(25, 95%, 53%)',
+  cyan: 'hsl(188, 85%, 50%)',
+};
+
+function ShapeSVG({ shapeType, color, w, h }: { shapeType: string; color: string; w: number; h: number }) {
+  const fill = shapeColors[color] || shapeColors.default;
+  const fillOpacity = '0.15';
+  const stroke = fill;
+
+  switch (shapeType) {
+    case 'circle':
+      return (
+        <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+          <ellipse cx={w / 2} cy={h / 2} rx={w / 2 - 4} ry={h / 2 - 4} fill={fill} fillOpacity={fillOpacity} stroke={stroke} strokeWidth={2.5} />
+        </svg>
+      );
+    case 'diamond':
+      return (
+        <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+          <polygon points={`${w / 2},4 ${w - 4},${h / 2} ${w / 2},${h - 4} 4,${h / 2}`} fill={fill} fillOpacity={fillOpacity} stroke={stroke} strokeWidth={2.5} />
+        </svg>
+      );
+    case 'triangle':
+      return (
+        <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+          <polygon points={`${w / 2},4 ${w - 4},${h - 4} 4,${h - 4}`} fill={fill} fillOpacity={fillOpacity} stroke={stroke} strokeWidth={2.5} />
+        </svg>
+      );
+    default: // rect
+      return (
+        <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`}>
+          <rect x={3} y={3} width={w - 6} height={h - 6} rx={4} fill={fill} fillOpacity={fillOpacity} stroke={stroke} strokeWidth={2.5} />
+        </svg>
+      );
+  }
+}
+
+export const ShapeNode = memo(({ id, data, selected }: NodeProps) => {
+  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const d = data as { shapeType?: string; color?: string; label?: string; locked?: boolean };
+  const [editing, setEditing] = useState(false);
+  const w = 160;
+  const h = 120;
+
+  const handleLabelChange = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
+    setEditing(false);
+    updateNodeData(id, { label: e.target.value });
+  }, [id, updateNodeData]);
+
+  return (
+    <div className="relative" style={{ width: w, height: h }}>
+      <ShapeSVG shapeType={d.shapeType || 'rect'} color={d.color || 'default'} w={w} h={h} />
+      <div className="absolute inset-0 flex items-center justify-center">
+        {editing ? (
+          <input
+            className="bg-transparent text-center text-sm font-bold text-foreground outline-none w-[80%]"
+            defaultValue={d.label || ''}
+            onBlur={handleLabelChange}
+            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+            autoFocus
+          />
+        ) : (
+          <span
+            className="text-sm font-bold text-foreground cursor-default"
+            onDoubleClick={() => !d.locked && setEditing(true)}
+          >
+            {d.label || ''}
+          </span>
+        )}
+      </div>
+      {selected && (
+        <div className="absolute -top-0.5 -left-0.5 -right-0.5 -bottom-0.5 border-2 border-primary rounded pointer-events-none" />
+      )}
+      <Handle type="source" position={Position.Top} id="top" className="perimeter-handle !-top-1 !left-0 !w-full !h-2.5 !rounded-none !transform-none" />
+      <Handle type="source" position={Position.Bottom} id="bottom" className="perimeter-handle !-bottom-1 !left-0 !w-full !h-2.5 !rounded-none !transform-none" />
+      <Handle type="source" position={Position.Left} id="left" className="perimeter-handle !-left-1 !top-0 !h-full !w-2.5 !rounded-none !transform-none" />
+      <Handle type="source" position={Position.Right} id="right" className="perimeter-handle !-right-1 !top-0 !h-full !w-2.5 !rounded-none !transform-none" />
+      <div className="anchor-dot top-0 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+      <div className="anchor-dot bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2" />
+      <div className="anchor-dot left-0 top-1/2 -translate-x-1/2 -translate-y-1/2" />
+      <div className="anchor-dot right-0 top-1/2 translate-x-1/2 -translate-y-1/2" />
+    </div>
+  );
+});
+
+ShapeNode.displayName = 'ShapeNode';

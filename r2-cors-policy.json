@@ -1,0 +1,22 @@
+[
+    {
+        "AllowedOrigins": [
+            "http://localhost:5173",
+            "https://ctxnote.com",
+            "https://*.ctxnote.com"
+        ],
+        "AllowedMethods": [
+            "GET",
+            "PUT",
+            "DELETE",
+            "HEAD"
+        ],
+        "AllowedHeaders": [
+            "*"
+        ],
+        "ExposeHeaders": [
+            "ETag"
+        ],
+        "MaxAgeSeconds": 3600
+    }
+]

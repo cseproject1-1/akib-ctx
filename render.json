@@ -1,0 +1,18 @@
+{
+    "services": [
+        {
+            "type": "web",
+            "name": "ctxnote-web",
+            "env": "static",
+            "buildCommand": "npm install && npm run build",
+            "staticPublishPath": "./dist",
+            "routes": [
+                {
+                    "type": "rewrite",
+                    "source": "/*",
+                    "destination": "/index.html"
+                }
+            ]
+        }
+    ]
+}
