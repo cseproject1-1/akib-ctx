@@ -4,13 +4,19 @@
             "type": "web",
             "name": "ctxnote-web",
             "env": "static",
-            "buildCommand": "npm install && npm run build",
+            "buildCommand": "npm install && NODE_OPTIONS=--max_old_space_size=400 npm run build",
             "staticPublishPath": "./dist",
             "routes": [
                 {
                     "type": "rewrite",
                     "source": "/*",
                     "destination": "/index.html"
+                }
+            ],
+            "envVars": [
+                {
+                    "key": "SKIP_INSTALL_DEPS",
+                    "value": "true"
                 }
             ]
         }
