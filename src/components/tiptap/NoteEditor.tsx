@@ -58,6 +58,27 @@ marked.setOptions({
   breaks: false,
 });
 
+// Use a custom renderer to force code blocks to output classes that Tiptap CodeBlockLowlight expects
+const renderer = new marked.Renderer();
+renderer.code = function(codeBase) {
+  let lang = '';
+  let code = '';
+
+  // Handle marked 14+ string vs object token differences
+  if (typeof codeBase === 'string') {
+    code = codeBase;
+    lang = arguments.length > 1 ? arguments[1] : '';
+  } else if (typeof codeBase === 'object' && codeBase !== null) {
+    code = (codeBase as any).text || '';
+    lang = (codeBase as any).lang || '';
+  }
+
+  const languageClass = lang ? `language-${lang}` : 'language-plaintext';
+  const escapedCode = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  return `<pre><code class="${languageClass}">${escapedCode}</code></pre>`;
+};
+marked.use({ renderer });
+
 /**
  * Pre-process LaTeX math delimiters before passing to marked.
  * Converts $$...$$ (display) and $...$ (inline) to KaTeX-rendered HTML.
@@ -87,7 +108,13 @@ export function markdownToHtml(md: string): string {
   // Pre-process LaTeX math before markdown parsing
   const processed = preprocessMath(md);
 
-  let html = marked.parse(processed, { async: false }) as string;
+  let html = '';
+  // Handle marked 15+ synchronous parsing
+  if (typeof (marked as any).parseSync === 'function') {
+    html = (marked as any).parseSync(processed) as string;
+  } else {
+    html = marked.parse(processed, { async: false }) as string;
+  }
 
   // Convert GFM task-list markup to Tiptap-compatible data attributes
   html = html
@@ -170,7 +197,25 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function
         const clipboardText = event.clipboardData?.getData('text/plain') || '';
         const clipboardHtml = event.clipboardData?.getData('text/html') || '';
 
-        // 2. If clipboard has semantic HTML (from ChatGPT/Claude/web/spreadsheets), use it directly
+        // 2. Intercept AI Chat Markdown (ChatGPT/Claude)
+        // AI chats often put broken HTML into the clipboard but perfect markdown into text/plain.
+        // If we detect strong markdown signatures like code blocks or math, parse the markdown explicitly.
+        const isStrongMarkdown = /```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`]+`|^\s{4,}.+$|\$\$[\s\S]+?\$\$|\|[-:\s]+\|[-:\s]+\|/m.test(clipboardText);
+        const isCodeFallback = !isStrongMarkdown && /^(const|let|var|function|class|import|export|if|for|while)\b/m.test(clipboardText);
+        
+        if (isStrongMarkdown || isCodeFallback) {
+          event.preventDefault();
+          // If we fallback because of code keywords, wrap in a codeblock so marked parses it correctly
+          let textToParse = clipboardText;
+          if (isCodeFallback) {
+            textToParse = `\`\`\`javascript\n${clipboardText}\n\`\`\``;
+          }
+          const html = markdownToHtml(textToParse);
+          editor?.commands.insertContent(html);
+          return true;
+        }
+
+        // 3. If clipboard has semantic HTML (from web/spreadsheets), use it directly
         //    If it contains KaTeX-rendered HTML, sanitize it first to extract LaTeX
         if (clipboardHtml.trim().length > 0) {
           const hasKatex = /class="katex/i.test(clipboardHtml);

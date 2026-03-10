@@ -1,11 +1,12 @@
 import type { Node } from '@xyflow/react';
 
-function extractTiptapText(content: any): string {
+function extractTiptapText(content: any, depth = 0): string {
+  if (depth > 50) return '';
   if (!content) return '';
   if (typeof content === 'string') return content;
   if (content.text) return content.text;
   if (content.content && Array.isArray(content.content)) {
-    return content.content.map(extractTiptapText).join('');
+    return content.content.map((c: any) => extractTiptapText(c, depth + 1)).join('');
   }
   return '';
 }
@@ -127,13 +128,18 @@ function nodeToPlainText(node: Node): string {
 }
 
 function downloadFile(content: string, filename: string, mimeType: string) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  try {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('Failed to download file:', err);
+    alert('Browser blocked the download. Please check your security settings.');
+  }
 }
 
 function buildContent(nodes: Node[], workspaceName: string | undefined, formatter: (node: Node) => string, separator: string, headerFn: (name: string) => string) {

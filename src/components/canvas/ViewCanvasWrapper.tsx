@@ -9,8 +9,10 @@ import { useCanvasStore } from '@/store/canvasStore';
 import { nodeTypes } from './nodeTypes';
 import { edgeTypes } from './edgeTypes';
 import { Eye, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export function ViewCanvasWrapper() {
+  const navigate = useNavigate();
   const { nodes, edges, workspaceName } = useCanvasStore();
 
   // Make all nodes non-interactive
@@ -49,13 +51,13 @@ export function ViewCanvasWrapper() {
         />
 
         <Panel position="top-left" className="flex items-center gap-2">
-          <a
-            href="/"
+          <button
+            onClick={() => navigate('/')}
             className="brutal-btn rounded-lg bg-card p-2 text-foreground"
             title="Back"
           >
             <ArrowLeft className="h-4 w-4" />
-          </a>
+          </button>
           <div className="flex items-center gap-2 rounded-lg border-2 border-border bg-card px-3 py-1.5">
             <Eye className="h-4 w-4 text-primary" />
             <span className="text-sm font-bold text-foreground">{workspaceName}</span>

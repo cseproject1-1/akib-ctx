@@ -1,7 +1,8 @@
 import { useNavigate } from 'react-router-dom';
 import { Plus, Brain, Trash2, LogOut, Loader2, Layers, Star, Search, SortAsc, LayoutGrid, List, Copy, BookOpen, Beaker, Briefcase, Code, Palette, Music, Lightbulb, GraduationCap, Rocket, type LucideIcon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { createWorkspace, deleteWorkspace, duplicateWorkspace, type Workspace } from '@/lib/firebase/workspaces';
 import { cachedGetWorkspaces, cachedGetNodeCount, invalidateWorkspaceList, invalidateWorkspaceCache, saveNode } from '@/lib/cache/canvasCache';
 import { formatDistanceToNow } from 'date-fns';
@@ -81,11 +82,11 @@ const Dashboard = () => {
     loadWorkspaces();
   }, [user]);
 
-  const loadWorkspaces = async () => {
+  const loadWorkspaces = useCallback(async () => {
     try {
       const { cached, fresh } = await cachedGetWorkspaces((freshData) => {
         setWorkspaces(freshData);
-        // Refresh node counts with fresh workspace list
+        // Refresh node counts incrementally
         freshData.forEach(async (ws) => {
           const count = await cachedGetNodeCount(ws.id);
           setNodeCounts((prev) => ({ ...prev, [ws.id]: count }));
@@ -96,30 +97,33 @@ const Dashboard = () => {
       if (cached) {
         setWorkspaces(cached);
         setLoading(false);
-        // Load cached node counts
-        const counts: Record<string, number> = {};
-        await Promise.all(cached.map(async (ws) => {
-          counts[ws.id] = await cachedGetNodeCount(ws.id);
-        }));
-        setNodeCounts(counts);
+        // Load cached node counts incrementally
+        cached.forEach(async (ws) => {
+          const count = await cachedGetNodeCount(ws.id);
+          setNodeCounts((prev) => ({ ...prev, [ws.id]: count }));
+        });
       }
 
       // Wait for fresh if no cache
       if (!cached) {
         const data = await fresh;
         setWorkspaces(data);
-        const counts: Record<string, number> = {};
-        await Promise.all(data.map(async (ws) => {
-          counts[ws.id] = await cachedGetNodeCount(ws.id);
-        }));
-        setNodeCounts(counts);
+        data.forEach(async (ws) => {
+          const count = await cachedGetNodeCount(ws.id);
+          setNodeCounts((prev) => ({ ...prev, [ws.id]: count }));
+        });
       }
     } catch (err) {
       toast.error('Failed to load workspaces');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    loadWorkspaces();
+  }, [user, loadWorkspaces]);
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
@@ -183,10 +187,8 @@ const Dashboard = () => {
       <header className="border-b-2 border-border px-6 py-4 animate-slide-down">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-border bg-primary shadow-[3px_3px_0px_hsl(0,0%,15%)]">
-              <Brain className="h-6 w-6 text-primary-foreground" />
-            </div>
-            <h1 className="text-xl font-bold uppercase tracking-wider">crxnote</h1>
+            <img src="/favicon.png" alt="ctxnote" className="h-10 w-10 rounded-lg border-2 border-border shadow-[3px_3px_0px_hsl(0,0%,15%)] object-cover" />
+            <h1 className="text-xl font-bold uppercase tracking-wider">ctxnote</h1>
           </div>
           <button
             onClick={signOut}
@@ -264,11 +266,13 @@ const Dashboard = () => {
                 </button>
               )}
               {sortedWorkspaces.map((ws, idx) => (
-                <div
+                <motion.div
                   key={ws.id}
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: idx * 0.05, duration: 0.2 }}
                   onClick={() => navigate(`/workspace/${ws.id}`)}
-                  className="brutal-card group relative flex h-44 cursor-pointer flex-col justify-between rounded-xl p-4 text-left transition-all duration-200 hover:scale-[1.02] hover:shadow-[6px_6px_0px_hsl(0,0%,15%)] active:scale-[0.98] animate-fade-in"
-                  style={{ animationDelay: `${idx * 50}ms`, animationFillMode: 'both' }}
+                  className="brutal-card group relative flex h-44 cursor-pointer flex-col justify-between rounded-xl p-4 text-left transition-all duration-200 hover:scale-[1.02] hover:shadow-[6px_6px_0px_hsl(0,0%,15%)] active:scale-[0.98]"
                 >
                   {(() => {
                     const { icon: WsIcon, color: iconColor } = getIconForColor(ws.color); return (
@@ -310,7 +314,7 @@ const Dashboard = () => {
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           ) : (
@@ -329,11 +333,13 @@ const Dashboard = () => {
                 </button>
               )}
               {sortedWorkspaces.map((ws, idx) => (
-                <div
+                <motion.div
                   key={ws.id}
+                  initial={{ opacity: 0, x: -15 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: idx * 0.03, duration: 0.2 }}
                   onClick={() => navigate(`/workspace/${ws.id}`)}
-                  className="brutal-card group flex cursor-pointer items-center gap-4 rounded-lg px-4 py-3 transition-all hover:scale-[1.01] active:scale-[0.99] animate-fade-in"
-                  style={{ animationDelay: `${idx * 30}ms`, animationFillMode: 'both' }}
+                  className="brutal-card group flex cursor-pointer items-center gap-4 rounded-lg px-4 py-3 transition-all hover:scale-[1.01] active:scale-[0.99]"
                 >
                   {(() => {
                     const { icon: WsIcon, color: iconColor } = getIconForColor(ws.color); return (
@@ -356,7 +362,7 @@ const Dashboard = () => {
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                </div>
+                </motion.div>
               ))}
             </div>
           )}

@@ -17,7 +17,7 @@ import Color from '@tiptap/extension-color';
 import { TextStyle } from '@tiptap/extension-text-style';
 import Superscript from '@tiptap/extension-superscript';
 import Subscript from '@tiptap/extension-subscript';
-import { common, createLowlight } from 'lowlight';
+import { all, createLowlight } from 'lowlight';
 import SlashCommand from './SlashCommandExtension';
 import { CalloutExtension } from './CalloutExtension';
 import { ToggleExtension } from './ToggleExtension';
@@ -34,7 +34,7 @@ import {
   FootnoteItemExtension,
 } from './CustomBlockExtensions';
 
-const lowlight = createLowlight(common);
+const lowlight = createLowlight(all);
 
 export function getEditorExtensions(placeholder = 'Type / for commands, or start typing…') {
   return [

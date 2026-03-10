@@ -48,16 +48,22 @@ export function NodeSelectionToolbar() {
 
   const nodeWidth = (node.measured?.width ?? node.width ?? 200) as number;
 
-  const pos = flowToScreenPosition({
+  const rawPos = flowToScreenPosition({
     x: node.position.x + nodeWidth / 2,
     y: node.position.y,
   });
 
+  const SAFE_TOP = 70; // Header clearance
+  const SAFE_SIDE = 120;
+  
+  const topPos = Math.max(rawPos.y - 52, SAFE_TOP);
+  const leftPos = Math.max(Math.min(rawPos.x, window.innerWidth - SAFE_SIDE), SAFE_SIDE);
+
   // Position toolbar centered above the node, high z-index to never overlap
   const toolbarStyle: React.CSSProperties = {
     position: 'fixed',
-    left: pos.x,
-    top: pos.y - 52,
+    left: leftPos,
+    top: topPos,
     transform: 'translateX(-50%)',
     zIndex: 1000,
   };

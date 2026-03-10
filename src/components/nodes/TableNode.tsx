@@ -1,5 +1,5 @@
 import { memo, useState, useCallback } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { Handle, Position, type NodeProps, NodeResizer } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { Table2, Plus, Trash2, Expand } from 'lucide-react';
 
@@ -52,16 +52,25 @@ export const TableNode = memo(({ id, data, selected }: NodeProps) => {
       {/* Header */}
       <div className="flex items-center gap-2 border-b-2 border-border px-3 py-2 cursor-grab active:cursor-grabbing">
         <Table2 className="h-4 w-4 text-cyan" />
+        {!isView && !d.locked && (
+          <NodeResizer
+            isVisible={selected}
+            minWidth={250}
+            minHeight={150}
+            lineClassName="!border-primary/50"
+            handleClassName="!w-2.5 !h-2.5 !bg-primary !border-2 !border-background !rounded-sm"
+          />
+        )}
         {!isView ? (
           <input
             className="flex-1 bg-transparent text-sm font-bold uppercase tracking-wide text-foreground outline-none placeholder:text-muted-foreground"
-            value={d.title || 'Table'}
+            value={d.title ?? 'Table'}
             onChange={(e) => updateNodeData(id, { title: e.target.value })}
             onClick={(e) => e.stopPropagation()}
             placeholder="Table"
           />
         ) : (
-          <span className="flex-1 text-sm font-bold uppercase tracking-wide text-foreground">{d.title || 'Table'}</span>
+          <span className="flex-1 text-sm font-bold uppercase tracking-wide text-foreground">{d.title ?? 'Table'}</span>
         )}
         <button
           className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover:opacity-100"
@@ -72,8 +81,8 @@ export const TableNode = memo(({ id, data, selected }: NodeProps) => {
         </button>
       </div>
 
-      {/* Table */}
-      <div className="flex-1 overflow-auto" onClick={(e) => e.stopPropagation()}>
+      {/* Table - Wrapped in a resizer-friendly flex box */}
+      <div className="flex-1 overflow-auto custom-scrollbar" onClick={(e) => e.stopPropagation()}>
         <table className="w-full border-collapse text-xs">
           <thead>
             <tr>

@@ -47,10 +47,14 @@ export const AINoteNode = memo(({ id, data, selected }: NodeProps) => {
       icon={<FileText className="h-4 w-4" />}
       selected={selected}
       onTitleChange={(title) => updateNodeData(id, { title })}
-      bodyClassName="min-h-[120px] overflow-auto"
+      bodyClassName="flex-1 overflow-y-auto min-h-[120px] h-full"
       tags={nodeData.tags}
       collapsed={nodeData.collapsed}
-      onToggleCollapse={() => updateNodeData(id, { collapsed: !nodeData.collapsed })}
+      onToggleCollapse={() => {
+        const isCollapsed = !nodeData.collapsed;
+        updateNodeData(id, { collapsed: isCollapsed });
+        useCanvasStore.getState().updateNodeStyle(id, { height: 'auto' });
+      }}
       emoji={nodeData.emoji}
       dueDate={nodeData.dueDate}
       opacity={nodeData.opacity}

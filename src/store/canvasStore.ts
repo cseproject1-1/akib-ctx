@@ -58,6 +58,7 @@ interface CanvasState {
   deleteNode: (id: string) => void;
   duplicateNode: (id: string) => void;
   updateNodeData: (id: string, data: Record<string, unknown>) => void;
+  updateNodeStyle: (id: string, style: Record<string, unknown>) => void;
   setContextMenu: (menu: CanvasState['contextMenu']) => void;
   setNodeContextMenu: (menu: CanvasState['nodeContextMenu']) => void;
   setExpandedNode: (id: string | null) => void;
@@ -90,7 +91,10 @@ interface CanvasState {
   redo: () => void;
   clearResyncNeeded: () => void;
   setVersionHistoryOpen: (open: boolean) => void;
+  resetState: () => void;
 }
+
+let skipSyncTimeout: ReturnType<typeof setTimeout> | null = null;
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
   nodes: [],
@@ -194,6 +198,18 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     });
   },
 
+  updateNodeStyle: (id, style) => {
+    // Filter out undefined values to prevent Firestore sync errors
+    const sanitizedStyle = Object.fromEntries(
+      Object.entries(style).filter(([_, v]) => v !== undefined)
+    );
+    set({
+      nodes: get().nodes.map((n) =>
+        n.id === id ? { ...n, style: { ...n.style, ...sanitizedStyle } } : n
+      ),
+    });
+  },
+
   setContextMenu: (menu) => set({ contextMenu: menu }),
   setNodeContextMenu: (menu) => set({ nodeContextMenu: menu }),
   setExpandedNode: (id) => set({ expandedNode: id }),
@@ -217,9 +233,13 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   loadCanvas: (nodes, edges) => {
+    if (skipSyncTimeout) clearTimeout(skipSyncTimeout);
     set({ nodes, edges, past: [], future: [], _skipSync: true });
     // Use setTimeout instead of queueMicrotask for safer timing
-    setTimeout(() => set({ _skipSync: false }), 100);
+    skipSyncTimeout = setTimeout(() => {
+      set({ _skipSync: false });
+      skipSyncTimeout = null;
+    }, 150); // Slightly longer delay to be safe
   },
 
   toggleMinimap: () => set({ showMinimap: !get().showMinimap }),
@@ -335,7 +355,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   pushSnapshot: () => {
     const { nodes, edges, past } = get();
-    const snapshot = { nodes: nodes.map(n => ({ ...n })), edges: edges.map(e => ({ ...e })) };
+    // Deep clone data to prevent reference leakage across history states
+    const snapshot = { 
+      nodes: nodes.map(n => ({ ...n, data: JSON.parse(JSON.stringify(n.data || {})) })), 
+      edges: edges.map(e => ({ ...e, data: JSON.parse(JSON.stringify(e.data || {})) })) 
+    };
     set({
       past: [...past.slice(-49), snapshot],
       future: [],
@@ -346,10 +370,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const { past, nodes, edges, future } = get();
     if (past.length === 0) return;
     const prev = past[past.length - 1];
+    const currentSnapshot = { 
+      nodes: nodes.map(n => ({ ...n, data: JSON.parse(JSON.stringify(n.data || {})) })), 
+      edges: edges.map(e => ({ ...e, data: JSON.parse(JSON.stringify(e.data || {})) })) 
+    };
+    
     set({
       _skipSync: true,
       past: past.slice(0, -1),
-      future: [{ nodes, edges }, ...future],
+      future: [currentSnapshot, ...future],
       nodes: prev.nodes,
       edges: prev.edges,
     });
@@ -357,13 +386,18 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   redo: () => {
-    const { future, nodes, edges } = get();
+    const { future, nodes, edges, past } = get();
     if (future.length === 0) return;
     const next = future[0];
+    const currentSnapshot = { 
+      nodes: nodes.map(n => ({ ...n, data: JSON.parse(JSON.stringify(n.data || {})) })), 
+      edges: edges.map(e => ({ ...e, data: JSON.parse(JSON.stringify(e.data || {})) })) 
+    };
+
     set({
       _skipSync: true,
       future: future.slice(1),
-      past: [...get().past, { nodes, edges }],
+      past: [...past, currentSnapshot],
       nodes: next.nodes,
       edges: next.edges,
     });
@@ -376,4 +410,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   setConnectMode: (on) => set({ connectMode: on, connectSourceId: null }),
   setConnectSourceId: (id) => set({ connectSourceId: id }),
   setLastCursorFlowPosition: (pos) => set({ lastCursorFlowPosition: pos }),
+
+  resetState: () => set({
+    nodes: [],
+    edges: [],
+    past: [],
+    future: [],
+    workspaceId: null,
+    saveStatus: 'idle',
+    _saveCounter: 0,
+    clipboard: []
+  }),
 }));

@@ -27,7 +27,7 @@ import { toast } from 'sonner';
 const WorkspacePage = () => {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const [loading, setLoading] = useState(true);
-  const { loadCanvas, setWorkspaceId, setWorkspaceMeta } = useCanvasStore();
+  const { loadCanvas, setWorkspaceId, setWorkspaceMeta, resetState } = useCanvasStore();
   const changesSinceSnapshot = useRef(0);
   // Track whether initial load is fully complete — subscriber is inert until this is true
   const loadComplete = useRef(false);
@@ -71,7 +71,7 @@ const WorkspacePage = () => {
         getWorkspaces().then((workspaces) => {
           const ws = workspaces?.find(w => w.id === workspaceId);
           if (ws) setWorkspaceMeta(ws.name, ws.color);
-        }).catch(() => { });
+        }).catch(() => toast.error('Failed to load workspace metadata'));
 
         // Wait for fresh data if no cache
         if (!nodesResult.cached || !edgesResult.cached) {
@@ -84,7 +84,7 @@ const WorkspacePage = () => {
           Promise.all([nodesResult.fresh, edgesResult.fresh]).then(([nodes, edges]) => {
             serverNodeIds.current = new Set(nodes.map(n => n.id));
             serverEdgeIds.current = new Set(edges.map(e => e.id));
-          }).catch(() => { });
+          }).catch(() => toast.error('Failed to sync fresh canvas data'));
         }
 
         // Replay pending ops after data is loaded to avoid race conditions
@@ -95,12 +95,16 @@ const WorkspacePage = () => {
         setTimeout(() => { loadComplete.current = true; }, 200);
       } catch (err) {
         toast.error('Failed to load canvas');
-      } finally {
         setLoading(false);
       }
     };
     load();
-  }, [workspaceId, loadCanvas, setWorkspaceId, setWorkspaceMeta]);
+
+    return () => {
+      // CLEAR STATE ON UNMOUNT OR WORKSPACE SWITCH
+      resetState();
+    };
+  }, [workspaceId, loadCanvas, setWorkspaceId, setWorkspaceMeta, resetState]);
 
   // Subscribe to store changes and persist (using cached write-through wrappers)
   useEffect(() => {
@@ -119,15 +123,21 @@ const WorkspacePage = () => {
 
     const unsub = useCanvasStore.subscribe((state, prev) => {
       if (state._skipSync) return;
+      if (!loadComplete.current) return;
+      if (state.workspaceId !== workspaceId) return;
+      // Also ensure we aren't comparing nodes from a previous workspace that haven't been cleared yet
+      if (prev.workspaceId !== workspaceId) return;
 
       // Save new nodes
       const newNodes = state.nodes.filter(n => !prev.nodes.find(pn => pn.id === n.id));
+      if (newNodes.length > 0) console.log(`[sync] Detected ${newNodes.length} new nodes`);
       newNodes.forEach(n => {
         trackSave(saveNode(workspaceId, n));
       });
 
       // Save new edges
       const newEdges = state.edges.filter(e => !prev.edges.find(pe => pe.id === e.id));
+      if (newEdges.length > 0) console.log(`[sync] Detected ${newEdges.length} new edges`);
       newEdges.forEach(e => {
         trackSave(saveEdge(workspaceId, e));
       });
@@ -135,6 +145,7 @@ const WorkspacePage = () => {
       // Detect deleted nodes — update local cache immediately so deletes survive refresh
       const deletedNodes = prev.nodes.filter(pn => !state.nodes.find(n => n.id === pn.id));
       if (deletedNodes.length > 0) {
+        console.log(`[sync] Detected ${deletedNodes.length} deleted nodes`);
         // Eagerly update local cache with current state
         import('@/lib/cache/indexedDB').then(({ cacheSet }) => {
           cacheSet('canvas-nodes', workspaceId, state.nodes);
@@ -144,6 +155,10 @@ const WorkspacePage = () => {
         trackSave(deleteCanvasNode(workspaceId, n.id));
         const storageKey = (n.data as any)?.storageKey;
         if (storageKey) deleteCanvasFile(storageKey).catch(() => { });
+        // Clean up pending timeouts to avoid auto-saving a deleted node
+        if (dataTimers.has(n.id)) { clearTimeout(dataTimers.get(n.id)); dataTimers.delete(n.id); }
+        if (posTimers.has(n.id)) { clearTimeout(posTimers.get(n.id)); posTimers.delete(n.id); }
+        if (styleTimers.has(n.id)) { clearTimeout(styleTimers.get(n.id)); styleTimers.delete(n.id); }
       });
 
       // Detect deleted edges — update local cache immediately
@@ -155,6 +170,7 @@ const WorkspacePage = () => {
       }
       deletedEdges.forEach(e => {
         trackSave(deleteCanvasEdge(workspaceId, e.id));
+        if (edgeTimers.has(e.id)) { clearTimeout(edgeTimers.get(e.id)); edgeTimers.delete(e.id); }
       });
 
       // Position, data, and style updates for existing nodes
@@ -225,6 +241,8 @@ const WorkspacePage = () => {
     if (!workspaceId) return;
     let syncing = false;
     const unsub = useCanvasStore.subscribe((state, prev) => {
+      if (!loadComplete.current) return;
+      if (state.workspaceId !== workspaceId) return;
       if (state._resyncNeeded && !prev._resyncNeeded && !syncing) {
         syncing = true;
         const { nodes, edges, incSave, decSave, clearResyncNeeded } = useCanvasStore.getState();

@@ -114,9 +114,9 @@ export const CustomEdge = memo(({
   }, [sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, pathType]);
 
   // Spring simulation for bezier edges
-  const SPRING = 0.12;
-  const DAMPING = 0.78;
-  const INFLUENCE = 0.8;
+  const SPRING = 0.08;
+  const DAMPING = 0.85;
+  const INFLUENCE = 0.9;
 
   const minFrames = useRef(0);
 
@@ -175,8 +175,19 @@ export const CustomEdge = memo(({
 
     // Keep animating if offsets are still significant or minimum frames not reached
     minFrames.current = Math.max(0, minFrames.current - 1);
+    
+    // Check if the change since last frame is practically zero to sleep early
     const mag = Math.abs(off.cx1) + Math.abs(off.cy1) + Math.abs(off.cx2) + Math.abs(off.cy2);
-    if (mag > 0.05 || minFrames.current > 0 || Math.abs(vel.sx) + Math.abs(vel.sy) + Math.abs(vel.tx) + Math.abs(vel.ty) > 0.05) {
+    const velMag = Math.abs(vel.sx) + Math.abs(vel.sy) + Math.abs(vel.tx) + Math.abs(vel.ty);
+    
+    // If movement has settled and velocity is zero, stop the loop explicitly
+    if (mag < 0.5 && velMag < 0.1 && minFrames.current === 0) {
+      // Snap exactly to base positions so we aren't microscopically offset
+      off.cx1 = 0; off.cy1 = 0; off.cx2 = 0; off.cy2 = 0;
+      return; 
+    }
+
+    if (mag > 0.05 || minFrames.current > 0 || velMag > 0.05) {
       rafId.current = requestAnimationFrame(simulateSpring);
     }
   }, [sourceX, sourceY, targetX, targetY]);

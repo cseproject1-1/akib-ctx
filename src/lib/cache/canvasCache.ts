@@ -249,14 +249,26 @@ async function ensureSession(): Promise<boolean> {
 }
 
 function isAuthError(err: any): boolean {
-  const msg = err?.message || '';
-  const code = err?.code || '';
-  return msg.includes('JWT') || msg.includes('not authenticated') ||
-    code === '401' || code === 'PGRST301' || code === '403';
+  const msg = String(err?.message || '').toLowerCase();
+  const code = String(err?.code || '').toLowerCase();
+  return msg.includes('jwt') || msg.includes('not authenticated') ||
+    msg.includes('unauthenticated') || msg.includes('permission-denied') ||
+    code === '401' || code === '403' || code === 'permission-denied' || 
+    code === 'unauthenticated' || code.includes('auth/');
 }
 
 function isNetworkError(err: any): boolean {
-  return !navigator.onLine || err?.message === 'Failed to fetch' || err?.name === 'TypeError';
+  const code = String(err?.code || '');
+  const msg = String(err?.message || '');
+  return !navigator.onLine || 
+         msg.includes('Failed to fetch') || 
+         err?.name === 'TypeError' ||
+         code === 'unavailable' || 
+         code === 'deadline-exceeded' || 
+         code === 'cancelled' ||
+         msg.includes('network') ||
+         msg.includes('channel') ||
+         msg.includes('Failed to get document');
 }
 
 async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
@@ -426,9 +438,16 @@ export async function replayPendingOps() {
 
       try {
         switch (op.type) {
-          case 'saveNode':
-            await serverSaveNode(op.args[0] as string, op.args[1] as Node);
+          case 'saveNode': {
+            const node = op.args[1] as Node;
+            // Normalize sizing for legacy stuck ops
+            if (node.style) {
+              if (typeof node.style.width !== 'number') node.style.width = 300;
+              if (typeof node.style.height !== 'number') node.style.height = 200;
+            }
+            await serverSaveNode(op.args[0] as string, node);
             break;
+          }
           case 'saveEdge': {
             const edge = op.args[1] as Edge;
             const fixedEdge = isValidUUID(edge.id) ? edge : { ...edge, id: crypto.randomUUID() };
@@ -456,9 +475,12 @@ export async function replayPendingOps() {
           case 'updateData':
             await serverUpdateData(op.args[0] as string, op.args[1] as string, op.args[2] as Record<string, unknown>);
             break;
-          case 'updateStyle':
-            await serverUpdateStyle(op.args[0] as string, op.args[1] as string, op.args[2] as number, op.args[3] as number, op.args[4] as number);
+          case 'updateStyle': {
+            const w = typeof op.args[2] === 'number' ? op.args[2] : 300;
+            const h = typeof op.args[3] === 'number' ? op.args[3] : 200;
+            await serverUpdateStyle(op.args[0] as string, op.args[1] as string, w, h, op.args[4] as number);
             break;
+          }
           case 'updateEdgeData': {
             const wsId = op.args[0] as string;
             const eId = op.args[1] as string;
@@ -475,8 +497,8 @@ export async function replayPendingOps() {
         replayed++;
       } catch (err: any) {
         // If it's a 400/422 (bad data), remove the op — it will never succeed
-        if (err?.code === '22P02' || err?.code === '23503' || err?.code === '23505' ||
-          err?.message?.includes('invalid input syntax') || err?.message?.includes('violates')) {
+        if (err?.code === 'invalid-argument' || err?.code === '22P02' || 
+            err?.message?.includes('invalid-argument') || err?.message?.includes('invalid input syntax')) {
           console.warn('[sync] Removing permanently failed op:', op.type, err?.message);
           await removePendingOp(op.id);
           purged++;

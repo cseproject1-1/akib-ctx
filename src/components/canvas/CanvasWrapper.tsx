@@ -7,6 +7,7 @@ import {
   SelectionMode,
   ConnectionMode,
   useReactFlow,
+  useViewport,
   type Node,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -28,6 +29,21 @@ import { AlignmentGuidesLayer } from './AlignmentGuidesLayer';
 import { PresentationMode } from './PresentationMode';
 import { nodeTypes } from './nodeTypes';
 import { edgeTypes } from './edgeTypes';
+import { NodeErrorBoundary } from './NodeErrorBoundary';
+
+const withErrorBoundary = (Component: React.ComponentType<any>) => {
+  const Wrapped = (props: any) => (
+    <NodeErrorBoundary nodeId={props.id}>
+      <Component {...props} />
+    </NodeErrorBoundary>
+  );
+  Wrapped.displayName = `WithErrorBoundary(${Component.displayName || Component.name || 'Component'})`;
+  return Wrapped;
+};
+
+const safeNodeTypes = Object.fromEntries(
+  Object.entries(nodeTypes).map(([key, Component]) => [key, withErrorBoundary(Component as React.ComponentType<any>)])
+);
 
 /** Compute the best source/target handle IDs based on relative node positions */
 function computeBestHandles(sourceNode: any, targetNode: any): { sourceHandle: string; targetHandle: string } {
@@ -64,6 +80,7 @@ function computeBestHandles(sourceNode: any, targetNode: any): { sourceHandle: s
 import { useIsMobile } from '@/hooks/use-mobile';
 import { uploadCanvasFile } from '@/lib/r2/storage';
 import { toast } from 'sonner';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 export function CanvasWrapper() {
   const {
@@ -99,6 +116,9 @@ export function CanvasWrapper() {
   } = useCanvasStore();
 
   const reactFlowInstance = useRef<any>(null);
+  const routerNavigate = useNavigate();
+  const routerLocation = useLocation();
+
   const isMobile = useIsMobile();
   const [mobileBannerDismissed, setMobileBannerDismissed] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -113,10 +133,14 @@ export function CanvasWrapper() {
   // Compute alignment guides while dragging
   const handleNodeDrag = useCallback((_: any, draggedNode: Node) => {
     if (isViewMode) return;
+    const rf = reactFlowInstance.current;
+    const zoom = rf ? rf.getZoom() : 1;
+    // Magnetic intensity scales inversely with zoom (easier to snap when zoomed out)
+    const dynamicThreshold = SNAP_THRESHOLD / zoom;
     const newGuides: { type: 'v' | 'h'; pos: number; start: number; end: number }[] = [];
 
-    const dw = (draggedNode.style?.width as number) || (draggedNode.measured?.width as number) || 300;
-    const dh = (draggedNode.style?.height as number) || (draggedNode.measured?.height as number) || 200;
+    const dw = (typeof draggedNode.style?.width === 'number' ? draggedNode.style.width : draggedNode.measured?.width) || 300;
+    const dh = (typeof draggedNode.style?.height === 'number' ? draggedNode.style.height : draggedNode.measured?.height) || 200;
     const dl = draggedNode.position.x;
     const dr = dl + dw;
     const dt = draggedNode.position.y;
@@ -126,8 +150,8 @@ export function CanvasWrapper() {
 
     for (const other of nodes) {
       if (other.id === draggedNode.id) continue;
-      const ow = (other.style?.width as number) || (other.measured?.width as number) || 300;
-      const oh = (other.style?.height as number) || (other.measured?.height as number) || 200;
+      const ow = (typeof other.style?.width === 'number' ? other.style.width : other.measured?.width) || 300;
+      const oh = (typeof other.style?.height === 'number' ? other.style.height : other.measured?.height) || 200;
       const ol = other.position.x;
       const or2 = ol + ow;
       const ot = other.position.y;
@@ -137,13 +161,13 @@ export function CanvasWrapper() {
 
       // Vertical guides
       for (const [dv, ov] of [[dl, ol], [dl, or2], [dr, ol], [dr, or2], [dcx, ocx]]) {
-        if (Math.abs(dv - ov) < SNAP_THRESHOLD) {
+        if (Math.abs(dv - ov) < dynamicThreshold) {
           newGuides.push({ type: 'v', pos: ov, start: Math.min(dt, ot) - 20, end: Math.max(db, ob) + 20 });
         }
       }
       // Horizontal guides
       for (const [dv, ov] of [[dt, ot], [dt, ob], [db, ot], [db, ob], [dcy, ocy]]) {
-        if (Math.abs(dv - ov) < SNAP_THRESHOLD) {
+        if (Math.abs(dv - ov) < dynamicThreshold) {
           newGuides.push({ type: 'h', pos: ov, start: Math.min(dl, ol) - 20, end: Math.max(dr, or2) + 20 });
         }
       }
@@ -155,18 +179,44 @@ export function CanvasWrapper() {
     setGuides([]);
   }, []);
 
-  // Apply locked state, view mode, and focus mode to nodes
-  const processedNodes = nodes.map((n) => ({
-    ...n,
-    draggable: isViewMode ? false : !(n.data as any)?.locked,
-    connectable: isViewMode ? false : !(n.data as any)?.locked,
-    selectable: isViewMode ? false : true,
-    style: {
-      ...n.style,
-      opacity: focusMode && focusedNodeId && focusedNodeId !== n.id ? 0.15 : 1,
-      transition: 'opacity 0.3s ease',
-    },
-  }));
+  // Viewport for virtualization
+  const { x: vx, y: vy, zoom } = useViewport();
+  // We need to determine the screen dimensions. Defaulting to standard sizes or window if available
+  const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
+  const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
+  
+  // Viewport bounds in graph coordinates (with a safe padding so things don't pop-in too obviously)
+  const padding = 500 / zoom;
+  const vLeft = -vx / zoom - padding;
+  const vRight = (-vx + screenWidth) / zoom + padding;
+  const vTop = -vy / zoom - padding;
+  const vBottom = (-vy + screenHeight) / zoom + padding;
+
+  // Apply locked state, view mode, focus mode and Virtualization filter
+  const processedNodes = useMemo(() => {
+    return nodes
+      .filter((n) => {
+        // Find rough bounds of node
+        const nw = (typeof n.style?.width === 'number' ? n.style.width : n.measured?.width) || 300;
+        const nh = (typeof n.style?.height === 'number' ? n.style.height : n.measured?.height) || 200;
+        const nx = n.position.x;
+        const ny = n.position.y;
+        
+        // Check intersection with viewport bounds
+        return !(nx + nw < vLeft || nx > vRight || ny + nh < vTop || ny > vBottom);
+      })
+      .map((n) => ({
+        ...n,
+        draggable: isViewMode ? false : !(n.data as any)?.locked,
+        connectable: isViewMode ? false : !(n.data as any)?.locked,
+        selectable: isViewMode ? false : true,
+        style: {
+          ...n.style,
+          opacity: focusMode && focusedNodeId && focusedNodeId !== n.id ? 0.15 : 1,
+          transition: 'opacity 0.3s ease',
+        },
+      })) as Node[];
+  }, [nodes, isViewMode, focusMode, focusedNodeId, vLeft, vRight, vTop, vBottom]);
 
   // Pro-level paste type detection with smart title extraction
   const detectPasteType = (text: string, html?: string): { type: string; data: Record<string, unknown>; style?: { width: number; height: number } } => {
@@ -181,115 +231,8 @@ export function CanvasWrapper() {
       return words.length > 50 ? words.slice(0, 47) + '...' : words || fallback;
     };
 
-    // 1. YouTube URL (multiple formats)
-    const ytMatch = trimmed.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]+)/);
-    if (ytMatch) {
-      return {
-        type: 'video',
-        data: { url: trimmed, title: 'YouTube Video', videoId: ytMatch[1] },
-        style: { width: 480, height: 320 }
-      };
-    }
-
-    // 2. Vimeo URL
-    const vimeoMatch = trimmed.match(/vimeo\.com\/(\d+)/);
-    if (vimeoMatch) {
-      return {
-        type: 'video',
-        data: { url: trimmed, title: 'Vimeo Video', videoId: vimeoMatch[1] },
-        style: { width: 480, height: 320 }
-      };
-    }
-
-    // 3. Loom video
-    if (/loom\.com\/(share|embed)\/[\w-]+/.test(trimmed)) {
-      return {
-        type: 'video',
-        data: { url: trimmed, title: 'Loom Recording' },
-        style: { width: 480, height: 320 }
-      };
-    }
-
-    // 4. Image URL (extended formats)
-    if (/^https?:\/\/.+\.(png|jpe?g|gif|webp|svg|bmp|ico|avif|tiff?)(\?.*)?$/i.test(trimmed)) {
-      return {
-        type: 'image',
-        data: { storageUrl: trimmed, altText: 'Linked image' },
-        style: { width: 400, height: 350 }
-      };
-    }
-
-    // 5. PDF URL
-    if (/^https?:\/\/.+\.pdf(\?.*)?$/i.test(trimmed)) {
-      const fileName = decodeURIComponent(trimmed.split('/').pop()?.split('?')[0] || 'Document.pdf');
-      return {
-        type: 'pdf',
-        data: { storageUrl: trimmed, fileName },
-        style: { width: 320, height: 400 }
-      };
-    }
-
-    // 6. Spotify/Apple Music/SoundCloud embed
-    if (/spotify\.com\/(track|album|playlist|episode)/.test(trimmed) ||
-      /music\.apple\.com/.test(trimmed) ||
-      /soundcloud\.com/.test(trimmed)) {
-      return {
-        type: 'embed',
-        data: { url: trimmed, title: 'Audio Embed' },
-        style: { width: 400, height: 160 }
-      };
-    }
-
-    // 7. Twitter/X post
-    if (/(?:twitter|x)\.com\/\w+\/status\/\d+/.test(trimmed)) {
-      return {
-        type: 'embed',
-        data: { url: trimmed, title: 'X Post' },
-        style: { width: 400, height: 500 }
-      };
-    }
-
-    // 8. GitHub repo/gist/file
-    if (/github\.com\/[\w-]+\/[\w.-]+/.test(trimmed)) {
-      return {
-        type: 'embed',
-        data: { url: trimmed, title: 'GitHub' },
-        style: { width: 450, height: 400 }
-      };
-    }
-
-    // 9. Figma/FigJam
-    if (/figma\.com\/(file|design|proto|board)/.test(trimmed)) {
-      return {
-        type: 'embed',
-        data: { url: trimmed, title: 'Figma Design' },
-        style: { width: 600, height: 450 }
-      };
-    }
-
-    // 10. Google Docs/Sheets/Slides
-    if (/docs\.google\.com\/(document|spreadsheets|presentation)/.test(trimmed)) {
-      const docType = trimmed.includes('spreadsheets') ? 'Google Sheet' :
-        trimmed.includes('presentation') ? 'Google Slides' : 'Google Doc';
-      return {
-        type: 'embed',
-        data: { url: trimmed, title: docType },
-        style: { width: 550, height: 450 }
-      };
-    }
-
-    // 11. Notion page
-    if (/notion\.(so|site)\//.test(trimmed)) {
-      return {
-        type: 'embed',
-        data: { url: trimmed, title: 'Notion Page' },
-        style: { width: 500, height: 450 }
-      };
-    }
-
-    // 12. General URL (after specific checks)
+    // Keep URL detection: Turn pasted links into embed nodes
     if (/^https?:\/\/[^\s]+$/.test(trimmed) && !trimmed.includes('\n')) {
-      // Try to extract domain as title
       try {
         const domain = new URL(trimmed).hostname.replace('www.', '');
         return {
@@ -306,121 +249,13 @@ export function CanvasWrapper() {
       }
     }
 
-    // 13. Fenced code block
-    if (trimmed.startsWith('```') && trimmed.includes('\n')) {
-      const langMatch = lines[0].match(/^```(\w+)?/);
-      const lang = langMatch?.[1] || 'plaintext';
-      const codeEnd = trimmed.lastIndexOf('```');
-      const code = codeEnd > 3 ? trimmed.slice(lines[0].length + 1, codeEnd).trim() : lines.slice(1).join('\n');
-      return {
-        type: 'codeSnippet',
-        data: { code, language: lang, title: `${lang.charAt(0).toUpperCase() + lang.slice(1)} Code` },
-        style: { width: 450, height: Math.min(400, 150 + code.split('\n').length * 20) }
-      };
-    }
-
-    // 14. LaTeX math block
-    if (/^\$\$[\s\S]+\$\$$/m.test(trimmed) || /^\\\[[\s\S]+\\\]$/.test(trimmed)) {
-      const latex = trimmed.replace(/^\$\$|\$\$$/g, '').replace(/^\\\[|\\\]$/g, '').trim();
-      return {
-        type: 'math',
-        data: { latex, title: 'Math Equation' },
-        style: { width: 400, height: 200 }
-      };
-    }
-
-    // 15. Table (markdown or tab-separated)
-    const isMarkdownTable = lines.length >= 2 &&
-      lines[0].includes('|') &&
-      lines[1].includes('|') &&
-      /^[\s|:-]+$/.test(lines[1].replace(/\|/g, '').replace(/[-:]/g, '').trim() || '-');
-    const isTabTable = lines.length >= 2 && lines.every(l => l.includes('\t') || l.trim() === '');
-
-    if (isMarkdownTable || isTabTable) {
-      // Parse into table data
-      const separator = isMarkdownTable ? '|' : '\t';
-      const dataLines = isMarkdownTable ? lines.filter((_, i) => i !== 1) : lines;
-      const rows = dataLines
-        .filter(l => l.trim())
-        .map(l => l.split(separator).map(c => c.trim()).filter(c => c || !isMarkdownTable));
-
-      if (rows.length > 0) {
-        const columns = rows[0].map((header, i) => ({
-          id: `col-${i}`,
-          name: header || `Column ${i + 1}`,
-          width: 120,
-        }));
-        const tableRows = rows.slice(1).map((cells, ri) => ({
-          id: `row-${ri}`,
-          cells: Object.fromEntries(columns.map((col, ci) => [col.id, cells[ci] || ''])),
-        }));
-
-        return {
-          type: 'table',
-          data: { columns, rows: tableRows, title: 'Data Table' },
-          style: { width: Math.min(600, 120 * columns.length + 60), height: Math.min(400, 60 + tableRows.length * 36) }
-        };
-      }
-    }
-
-    // 16. Checklist (lines starting with - [ ] or - [x] or ☐ ☑)
-    const checklistPattern = /^[-*]\s*\[([ xX])\]|^[☐☑✓✗]/;
-    const checklistLines = lines.filter(l => checklistPattern.test(l.trim()));
-    if (checklistLines.length >= 2 && checklistLines.length / lines.length > 0.5) {
-      const items = lines
-        .filter(l => l.trim())
-        .map((l, i) => {
-          const match = l.match(/^[-*]\s*\[([ xX])\]\s*(.*)/) || l.match(/^([☑✓])(.*)/) || l.match(/^([☐✗])(.*)/);
-          const completed = match ? ['x', 'X', '☑', '✓'].includes(match[1]) : false;
-          const text = match ? match[2].trim() : l.replace(/^[-*]\s*/, '').trim();
-          return { id: `item-${i}`, text, completed };
-        });
-
-      return {
-        type: 'checklist',
-        data: { items, title: extractTitle(trimmed, 'Checklist') },
-        style: { width: 320, height: Math.min(400, 100 + items.length * 32) }
-      };
-    }
-
-    // 17. Bullet points → Summary node
-    const bulletLines = lines.filter(l => /^[-*•]\s+/.test(l.trim()));
-    if (bulletLines.length >= 3 && bulletLines.length / lines.filter(l => l.trim()).length > 0.6) {
-      const bullets = bulletLines.map(l => l.replace(/^[-*•]\s+/, '').trim());
-      return {
-        type: 'summary',
-        data: { bullets, title: extractTitle(trimmed, 'Summary'), color: 'yellow' },
-        style: { width: 340, height: Math.min(400, 100 + bullets.length * 28) }
-      };
-    }
-
-    // 18. Flashcard format (Q: / A: or Question: / Answer:)
-    const qaMatch = trimmed.match(/^(?:Q(?:uestion)?[:\.]?\s*)(.+?)[\n\r]+(?:A(?:nswer)?[:\.]?\s*)(.+)$/is);
-    if (qaMatch) {
-      return {
-        type: 'flashcard',
-        data: { front: qaMatch[1].trim(), back: qaMatch[2].trim(), title: 'Flashcard' },
-        style: { width: 320, height: 240 }
-      };
-    }
-
-    // 19. Term/Definition (Term: definition or **Term**: definition)
-    const termMatch = trimmed.match(/^\*{0,2}([^*:\n]+)\*{0,2}[:\-]\s*(.+)/s);
-    if (termMatch && trimmed.split('\n').length <= 5) {
-      return {
-        type: 'termQuestion',
-        data: { term: termMatch[1].trim(), definition: termMatch[2].trim(), title: 'Term' },
-        style: { width: 340, height: 200 }
-      };
-    }
-
-    // 20. Default: AI note with markdown + smart title
+    // Default: AI note with markdown/html + smart title. Tiptap engine handles UI rendering.
     return {
       type: 'aiNote',
       data: {
         title: extractTitle(trimmed, 'Pasted Note'),
         pasteContent: trimmed,
-        pasteFormat: 'markdown'
+        pasteFormat: html ? 'html' : 'markdown'
       },
       style: { width: 420, height: Math.min(600, 150 + lines.length * 24) }
     };
@@ -824,11 +659,30 @@ export function CanvasWrapper() {
       )}
       <ReactFlow
         nodes={processedNodes}
-        edges={edges}
+        edges={edges.map(e => {
+          const sourceNode = nodes.find(n => n.id === e.source);
+          const targetNode = nodes.find(n => n.id === e.target);
+          const sourceZ = (sourceNode?.style?.zIndex as number) || 0;
+          const targetZ = (targetNode?.style?.zIndex as number) || 0;
+          const edgeZ = Math.max(0, Math.min(sourceZ, targetZ) - 1);
+          return { ...e, zIndex: edgeZ };
+        })}
         onNodesChange={isViewMode ? undefined : onNodesChange}
         onEdgesChange={isViewMode ? undefined : onEdgesChange}
         onConnect={isViewMode ? undefined : onConnect}
-        onInit={(instance) => { reactFlowInstance.current = instance; }}
+        onInit={(instance) => { 
+          reactFlowInstance.current = instance; 
+          // Restore viewport from URL hash on load
+          if (routerLocation.hash.startsWith('#viewport=')) {
+            const [x, y, z] = routerLocation.hash.replace('#viewport=', '').split(',');
+            if (x && y && z) {
+              // use timeout to ensure nodes have rendered bounds
+              setTimeout(() => {
+                instance.setViewport({ x: parseFloat(x), y: parseFloat(y), zoom: parseFloat(z) });
+              }, 50);
+            }
+          }
+        }}
         onPaneClick={handlePaneClick}
         onDoubleClick={handlePaneDoubleClick}
         onNodeClick={handleNodeClick}
@@ -841,6 +695,13 @@ export function CanvasWrapper() {
             }
           }
         }, [])}
+        onMoveEnd={useCallback((_, viewport) => {
+          // Sync viewport state to URL immediately
+          const hash = `#viewport=${Math.round(viewport.x)},${Math.round(viewport.y)},${viewport.zoom.toFixed(2)}`;
+          if (routerLocation.hash !== hash) {
+            routerNavigate({ hash }, { replace: true });
+          }
+        }, [routerLocation, routerNavigate])}
         onPaneContextMenu={isViewMode ? undefined : handleContextMenu}
         onNodeContextMenu={isViewMode ? undefined : handleNodeContextMenu}
         onNodeDrag={isViewMode ? undefined : handleNodeDrag}

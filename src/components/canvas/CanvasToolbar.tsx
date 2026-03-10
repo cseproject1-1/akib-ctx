@@ -15,6 +15,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { formatDistanceToNow } from 'date-fns';
 import { usePendingOpsCount } from '@/hooks/usePendingOpsCount';
 import { replayPendingOps } from '@/lib/cache/canvasCache';
+import { Upload } from 'lucide-react';
 
 interface CanvasToolbarProps {
   drawingMode?: boolean;
@@ -23,7 +24,7 @@ interface CanvasToolbarProps {
 
 export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarProps) {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
-  const { undo, redo, past, future, workspaceId, workspaceName, workspaceColor, saveStatus, lastSavedAt, nodes, edges, canvasMode, toggleCanvasMode, focusMode, toggleFocusMode, setNodes, snapEnabled, toggleSnap, gridStyle, cycleGridStyle, allLocked, toggleLockAll, deleteSelected, connectMode, setConnectMode, versionHistoryOpen, setVersionHistoryOpen } = useCanvasStore();
+  const { undo, redo, past, future, workspaceId, workspaceName, workspaceColor, saveStatus, lastSavedAt, nodes, edges, canvasMode, toggleCanvasMode, focusMode, toggleFocusMode, setNodes, snapEnabled, toggleSnap, gridStyle, cycleGridStyle, allLocked, toggleLockAll, deleteSelected, connectMode, setConnectMode, versionHistoryOpen, setVersionHistoryOpen, loadCanvas } = useCanvasStore();
   const navigate = useNavigate();
   const [shareOpen, setShareOpen] = useState(false);
   const [branchOpen, setBranchOpen] = useState(false);
@@ -72,16 +73,69 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
     toast.success('Nodes arranged');
   };
 
+  const handleImportJson = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const content = event.target?.result as string;
+          const data = JSON.parse(content);
+          
+          if (Array.isArray(data)) {
+            // It might be just nodes
+            loadCanvas(data, []);
+            toast.success('Nodes imported successfully!');
+          } else if (data && typeof data === 'object') {
+            const importNodes = Array.isArray(data.nodes) ? data.nodes : [];
+            const importEdges = Array.isArray(data.edges) ? data.edges : [];
+            
+            // Re-map IDs to prevent collisions if pasting into same workspace
+            const idMap = new Map<string, string>();
+            const newNodes = importNodes.map(n => {
+              const newId = crypto.randomUUID();
+              idMap.set(n.id, newId);
+              return { ...n, id: newId };
+            });
+            const newEdges = importEdges.map(e => ({
+              ...e,
+              id: crypto.randomUUID(),
+              source: idMap.get(e.source) || e.source,
+              target: idMap.get(e.target) || e.target,
+            }));
+            
+            loadCanvas([...nodes, ...newNodes], [...edges, ...newEdges]);
+            toast.success(`Imported ${newNodes.length} nodes and ${newEdges.length} edges.`);
+          } else {
+            toast.error('Invalid JSON structure. Needs nodes/edges arrays.');
+          }
+        } catch (err) {
+          toast.error('Failed to parse JSON file');
+          console.error(err);
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+    setShowExportMenu(false);
+  };
+
   const gridLabel = gridStyle === 'dots' ? 'Dots' : gridStyle === 'lines' ? 'Lines' : 'Cross';
 
   return (
     <TooltipProvider delayDuration={300}>
-      {/* Top-left: back + workspace switcher + save */}
+      {/* Top-left: back + breadcrumb + workspace switcher + save */}
       <Panel position="top-left" className="!max-w-[calc(100vw-60px)]">
         <div className="flex flex-wrap items-center gap-1.5 animate-slide-down">
           <TipBtn tip="Back to Dashboard" onClick={() => { setShowExportMenu(false); navigate('/'); }} className="brutal-btn rounded-lg bg-card p-2 text-foreground flex-shrink-0 transition-transform hover:scale-105 active:scale-95">
             <ArrowLeft className="h-4 w-4" />
           </TipBtn>
+          <span className="text-muted-foreground font-bold mx-1 opacity-50">/</span>
           <WorkspaceSwitcher
             currentId={workspaceId || ''}
             currentName={workspaceName}
@@ -199,7 +253,10 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
                   <FileText className="h-3.5 w-3.5" /> Plain Text
                 </button>
                 <button onClick={handleExportJson} className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-accent hover:text-foreground">
-                  <FileJson className="h-3.5 w-3.5" /> JSON
+                  <FileJson className="h-3.5 w-3.5" /> Export JSON
+                </button>
+                <button onClick={handleImportJson} className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-accent hover:text-foreground border-t border-border/50 mt-1 pt-2">
+                  <Upload className="h-3.5 w-3.5" /> Import JSON
                 </button>
               </div>
             )}

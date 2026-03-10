@@ -21,13 +21,16 @@ export const TextNode = memo(({ id, data, selected }: NodeProps) => {
 
   return (
     <div
-      className="relative min-w-[60px] min-h-[30px] group"
+      className="relative min-w-[100px] min-h-[40px] max-h-[60vh] flex flex-col group p-2 rounded-md hover:bg-accent/10 transition-colors"
       style={{ opacity: (d.opacity ?? 100) / 100 }}
       onDoubleClick={() => !d.locked && setEditing(true)}
     >
+      <div className="absolute top-0 right-0 p-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none text-[9px] text-muted-foreground bg-background/50 rounded-bl">
+        Double-click to edit
+      </div>
       {editing ? (
         <textarea
-          className="w-full h-full bg-transparent text-foreground outline-none resize-none"
+          className="w-full flex-1 bg-transparent text-foreground outline-none resize-none overflow-y-auto custom-scrollbar"
           style={{ fontSize: d.fontSize || 16 }}
           defaultValue={text}
           onBlur={handleBlur}
@@ -37,10 +40,10 @@ export const TextNode = memo(({ id, data, selected }: NodeProps) => {
         />
       ) : (
         <p
-          className="whitespace-pre-wrap text-foreground"
+          className="whitespace-pre-wrap text-foreground flex-1 overflow-hidden"
           style={{ fontSize: d.fontSize || 16 }}
         >
-          {text || 'Double-click to edit'}
+          {text || 'Empty Text'}
         </p>
       )}
       {wordCount && !editing && (

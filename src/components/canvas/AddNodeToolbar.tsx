@@ -54,26 +54,26 @@ const defaultDataForType = (type: NodeType): Record<string, unknown> => {
   }
 };
 
-const defaultSizeForType = (type: NodeType): { width: number; height: number } => {
+const defaultSizeForType = (type: NodeType): { width: number; height?: number | 'auto' } => {
   switch (type) {
-    case 'aiNote': return { width: 380, height: 500 };
-    case 'summary': return { width: 280, height: 340 };
-    case 'termQuestion': return { width: 300, height: 420 };
-    case 'lectureNotes': return { width: 420, height: 600 };
-    case 'pdf': return { width: 300, height: 180 };
-    case 'image': return { width: 320, height: 280 };
-    case 'group': return { width: 700, height: 500 };
-    case 'flashcard': return { width: 320, height: 300 };
-    case 'stickyNote': return { width: 200, height: 160 };
-    case 'checklist': return { width: 280, height: 320 };
-    case 'text': return { width: 240, height: 60 };
-    case 'shape': return { width: 160, height: 120 };
-    case 'drawing': return { width: 400, height: 300 };
-    case 'embed': return { width: 420, height: 340 };
-    case 'math': return { width: 500, height: 260 };
-    case 'video': return { width: 420, height: 320 };
-    case 'table': return { width: 400, height: 300 };
-    case 'codeSnippet': return { width: 420, height: 320 };
+    case 'aiNote': return { width: 380, height: 'auto' };
+    case 'summary': return { width: 280, height: 'auto' };
+    case 'termQuestion': return { width: 300, height: 'auto' };
+    case 'lectureNotes': return { width: 420, height: 'auto' };
+    case 'pdf': return { width: 300, height: 180 }; // Fixed for PDF embed
+    case 'image': return { width: 320, height: 'auto' };
+    case 'group': return { width: 700, height: 500 }; // Fixed for Group container
+    case 'flashcard': return { width: 320, height: 'auto' };
+    case 'stickyNote': return { width: 200, height: 'auto' };
+    case 'checklist': return { width: 280, height: 'auto' };
+    case 'text': return { width: 240, height: 'auto' };
+    case 'shape': return { width: 160, height: 120 }; // Fixed for SVGs
+    case 'drawing': return { width: 400, height: 300 }; // Fixed for Canvas bounds
+    case 'embed': return { width: 420, height: 340 }; // Fixed for Website iframe
+    case 'math': return { width: 500, height: 'auto' };
+    case 'video': return { width: 420, height: 320 }; // Fixed for Video iframe
+    case 'table': return { width: 600, height: 'auto' };
+    case 'codeSnippet': return { width: 420, height: 'auto' };
   }
 };
 

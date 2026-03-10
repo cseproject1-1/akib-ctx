@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { useCanvasStore } from '@/store/canvasStore';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const NODE_COLORS: Record<string, { border: string; bg: string }> = {
   blue:    { border: 'border-l-blue-500',   bg: 'bg-blue-500/5' },
@@ -121,18 +122,22 @@ export function BaseNode({
   const accent = resolvedType ? NODE_TYPE_ACCENTS[resolvedType] : undefined;
   const userColor = color && color !== 'default' ? NODE_COLORS[color] : undefined;
 
+  const Wrapper = motion.div;
   const nodeContent = (
-    <div
+    <Wrapper
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: (opacity ?? 100) / 100, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ duration: 0.15, ease: 'easeOut' }}
       className={cn(
         'animate-node-appear border-2 bg-canvas-node',
-        'rounded-lg relative transition-all duration-200 group/node',
+        'rounded-lg relative transition-all duration-200 group/node flex flex-col h-full',
         selected
           ? 'border-primary shadow-[4px_4px_0px_hsl(var(--primary)),0_0_20px_hsla(52,100%,50%,0.15)] scale-[1.01]'
           : 'border-border shadow-[4px_4px_0px_hsl(0,0%,15%)] hover:shadow-[5px_5px_0px_hsl(0,0%,15%)]',
         userColor ? `border-l-4 ${userColor.border} ${userColor.bg}` : accent && !selected ? `border-l-4 ${accent.border}` : '',
         className
       )}
-      style={{ opacity: (opacity ?? 100) / 100 }}
     >
       {locked && (
         <div className="absolute top-1.5 right-1.5 z-10 rounded bg-destructive/80 p-0.5">
@@ -159,7 +164,7 @@ export function BaseNode({
       {title !== undefined && (
         <div
           className={cn(
-            'group/header flex items-center gap-2 border-b-2 border-border px-3 py-2.5',
+            'group/header flex flex-shrink-0 items-center gap-2 px-3 py-2.5 transition-colors',
             locked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing',
             headerClassName
           )}
@@ -220,13 +225,13 @@ export function BaseNode({
       )}
 
       {/* Due date badge */}
-      {dueDate && (
+      {dueDate && !collapsed && (
         <div className={`flex items-center gap-1.5 px-3 py-1 border-b border-border/50 text-[10px] font-bold uppercase tracking-wider ${getDueDateColor(dueDate)}`}>
           📅 {new Date(dueDate).toLocaleDateString()}
         </div>
       )}
 
-      {nodeTags.length > 0 && (
+      {nodeTags.length > 0 && !collapsed && (
         <div className="flex flex-wrap gap-1 px-2 py-1 border-b border-border/50">
           {nodeTags.map((tag) => (
             <span
@@ -240,7 +245,7 @@ export function BaseNode({
       )}
 
       {!collapsed && (
-        <div className={cn('overflow-auto nodrag nowheel nopan', bodyClassName)} onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+        <div className={cn('flex-1 overflow-auto nodrag nowheel nopan', bodyClassName)} onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
           {children}
         </div>
       )}
@@ -273,7 +278,7 @@ export function BaseNode({
           <Handle type="target" position={Position.Right} id="t-right" className="!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary opacity-0 group-hover/node:opacity-100 transition-opacity" style={{ top: '50%', transform: 'translateY(-50%)' }} />
         </>
       )}
-    </div>
+    </Wrapper>
   );
 
   return nodeContent;

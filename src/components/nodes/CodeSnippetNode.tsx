@@ -4,10 +4,10 @@ import { Code2, Copy, Check, Expand, ChevronDown } from 'lucide-react';
 import { BaseNode } from './BaseNode';
 import { useCanvasStore } from '@/store/canvasStore';
 import { toast } from 'sonner';
-import { createLowlight, common } from 'lowlight';
+import { createLowlight, all } from 'lowlight';
 import { toHtml } from 'hast-util-to-html';
 
-const lowlight = createLowlight(common);
+const lowlight = createLowlight(all);
 
 const LANGUAGES = [
   'plaintext', 'javascript', 'typescript', 'python', 'java', 'c', 'cpp', 'csharp',
@@ -64,7 +64,7 @@ export const CodeSnippetNode = memo(({ id, data, selected }: NodeProps) => {
       icon={<Code2 className="h-4 w-4" />}
       selected={selected}
       onTitleChange={(title) => updateNodeData(id, { title })}
-      bodyClassName="p-0 overflow-hidden"
+      bodyClassName="p-0 overflow-auto flex flex-col"
       tags={(data as any)?.tags}
       onMenuClick={(e) => setNodeContextMenu({ x: e.clientX, y: e.clientY, nodeId: id })}
       color={(data as any).color}
@@ -126,7 +126,7 @@ export const CodeSnippetNode = memo(({ id, data, selected }: NodeProps) => {
                 ta.selectionStart = ta.selectionEnd = start + 2;
               }
             }}
-            className="w-full min-h-[120px] resize-none bg-muted p-4 font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground"
+            className="w-full flex-1 min-h-[120px] resize-none bg-muted p-4 font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground"
             placeholder="Paste or type your code here..."
             spellCheck={false}
           />
@@ -159,7 +159,7 @@ function HighlightedCode({ code, language, onDoubleClick }: { code: string; lang
 
   return (
     <pre
-      className="code-highlight w-full min-h-[120px] overflow-auto bg-muted p-4 font-mono text-xs text-foreground cursor-text"
+      className="code-highlight w-full flex-1 overflow-auto bg-muted p-4 font-mono text-xs text-foreground cursor-text"
       onDoubleClick={onDoubleClick}
     >
       <code dangerouslySetInnerHTML={{ __html: html }} />

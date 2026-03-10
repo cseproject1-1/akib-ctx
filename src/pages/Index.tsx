@@ -19,10 +19,8 @@ const Index = () => {
       <nav className="border-b-2 border-border px-6 py-4 animate-slide-down">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg border-2 border-border bg-primary shadow-[3px_3px_0px_hsl(0,0%,15%)]">
-              <Brain className="h-6 w-6 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold uppercase tracking-wider">crxnote</span>
+            <img src="/favicon.png" alt="ctxnote" className="h-10 w-10 rounded-lg border-2 border-border shadow-[3px_3px_0px_hsl(0,0%,15%)] object-cover" />
+            <span className="text-xl font-bold uppercase tracking-wider">ctxnote</span>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -139,9 +137,9 @@ const Index = () => {
       {/* Footer */}
       <footer className="border-t-2 border-border px-6 py-6">
         <div className="mx-auto flex max-w-6xl items-center justify-between text-xs font-bold uppercase tracking-wider text-muted-foreground">
-          <span>© 2026 crxnote</span>
+          <span>© 2026 ctxnote</span>
           <div className="flex items-center gap-1">
-            <Brain className="h-3.5 w-3.5 text-primary" />
+            <img src="/favicon.png" alt="ctxnote" className="h-3.5 w-3.5 rounded-sm object-cover" />
             <span>Built with love</span>
           </div>
         </div>

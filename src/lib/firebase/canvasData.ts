@@ -44,8 +44,8 @@ export async function saveNode(workspaceId: string, node: Node) {
         type: node.type || 'aiNote',
         position_x: node.position.x,
         position_y: node.position.y,
-        width: (node.style?.width as number) || 300,
-        height: (node.style?.height as number) || 200,
+        width: typeof node.style?.width === 'number' ? node.style.width : 300,
+        height: typeof node.style?.height === 'number' ? node.style.height : 200,
         data: node.data as unknown as Json,
         z_index: (node.style?.zIndex as number) || 0,
     }, { merge: true });
@@ -96,7 +96,9 @@ export async function updateNodeDataInDb(workspaceId: string, nodeId: string, da
 
 export async function updateNodeStyle(workspaceId: string, nodeId: string, width: number, height: number, zIndex: number) {
     const nodeRef = doc(db, `workspaces/${workspaceId}/nodes`, nodeId);
-    await updateDoc(nodeRef, { width, height, z_index: zIndex });
+    const w = typeof width === 'number' ? width : 300;
+    const h = typeof height === 'number' ? height : 200;
+    await updateDoc(nodeRef, { width: w, height: h, z_index: zIndex });
 }
 
 export async function getNodeCount(workspaceId: string): Promise<number> {
