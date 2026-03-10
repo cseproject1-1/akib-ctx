@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef, forwardRef } from 'react';
+import { useNodes } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { X, ChevronLeft, ChevronRight, Maximize, Minimize } from 'lucide-react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
 export const PresentationMode = forwardRef<HTMLDivElement>(function PresentationMode(_props, ref) {
-  const { nodes } = useCanvasStore();
+  const nodes = useNodes();
   const [active, setActive] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [fullscreen, setFullscreen] = useState(false);
@@ -22,7 +23,7 @@ export const PresentationMode = forwardRef<HTMLDivElement>(function Presentation
   // Render KaTeX for math nodes
   useEffect(() => {
     if (!active || !current || current.type !== 'math' || !mathRef.current) return;
-    const latex = (current.data as any)?.latex || '';
+    const latex = (current.data as { latex?: string })?.latex || '';
     if (!latex.trim()) {
       mathRef.current.innerHTML = '<span class="text-muted-foreground italic">No equation</span>';
       return;
@@ -75,7 +76,10 @@ export const PresentationMode = forwardRef<HTMLDivElement>(function Presentation
 
   if (!active || total === 0) return null;
 
-  const nodeTitle = (current?.data as any)?.title || (current?.data as any)?.text || (current?.data as any)?.fileName || `Slide ${currentIndex + 1}`;
+  const nodeTitle = (current?.data as { title?: string; text?: string; fileName?: string })?.title || 
+                   (current?.data as { title?: string; text?: string; fileName?: string })?.text || 
+                   (current?.data as { title?: string; text?: string; fileName?: string })?.fileName || 
+                   `Slide ${currentIndex + 1}`;
 
   return (
     <div ref={ref} className="fixed inset-0 z-[80] flex flex-col bg-background">
@@ -137,9 +141,30 @@ export const PresentationMode = forwardRef<HTMLDivElement>(function Presentation
 
 PresentationMode.displayName = 'PresentationMode';
 
-function renderSlideContent(current: any, mathRef: React.RefObject<HTMLDivElement | null>) {
+interface SlideNode {
+  type?: string;
+  data?: {
+    title?: string;
+    text?: string;
+    fileName?: string;
+    bullets?: string[];
+    items?: Array<{ id: string; text: string; done: boolean }>;
+    storageUrl?: string;
+    altText?: string;
+    latex?: string;
+    url?: string;
+    headers?: string[];
+    rows?: Array<Array<{ value: string }>>;
+    flashcards?: Array<{ question: string; answer: string }>;
+    year?: string;
+    questions?: string[];
+    content?: unknown;
+  };
+}
+
+function renderSlideContent(current: SlideNode, mathRef: React.RefObject<HTMLDivElement | null>) {
   if (!current) return null;
-  const d = current.data as any;
+  const d = current.data || {};
 
   switch (current.type) {
     case 'aiNote':
@@ -162,7 +187,7 @@ function renderSlideContent(current: any, mathRef: React.RefObject<HTMLDivElemen
     case 'checklist':
       return (
         <ul className="space-y-1">
-          {(d.items || []).map((item: any) => (
+          {(d.items || []).map((item: { id: string; text: string; done: boolean }) => (
             <li key={item.id} className={`flex items-center gap-2 ${item.done ? 'line-through opacity-50' : ''}`}>
               <input type="checkbox" checked={item.done} readOnly className="accent-primary" />
               <span className="text-foreground">{item.text}</span>
@@ -200,9 +225,9 @@ function renderSlideContent(current: any, mathRef: React.RefObject<HTMLDivElemen
               </tr>
             </thead>
             <tbody>
-              {(d.rows || []).map((row: any[], ri: number) => (
+              {(d.rows || []).map((row: Array<{ value: string }>, ri: number) => (
                 <tr key={ri}>
-                  {row.map((cell: any, ci: number) => (
+                  {row.map((cell: { value: string }, ci: number) => (
                     <td key={ci} className="border border-border px-3 py-2 text-foreground">{cell.value || '—'}</td>
                   ))}
                 </tr>
@@ -215,7 +240,7 @@ function renderSlideContent(current: any, mathRef: React.RefObject<HTMLDivElemen
     case 'flashcard':
       return (
         <div className="space-y-3">
-          {(d.flashcards || []).map((fc: any, i: number) => (
+          {(d.flashcards || []).map((fc: { question: string; answer: string }, i: number) => (
             <div key={i} className="rounded-lg border border-border p-3">
               <p className="text-xs font-bold uppercase text-muted-foreground mb-1">Q{i + 1}</p>
               <p className="text-foreground font-semibold">{fc.question}</p>
@@ -247,61 +272,68 @@ function renderSlideContent(current: any, mathRef: React.RefObject<HTMLDivElemen
   }
 }
 
-function getNodeHtml(node: any): string {
+function getNodeHtml(node: SlideNode): string {
   const content = node.data?.content;
   if (!content) return '<p class="text-muted-foreground italic">Empty note</p>';
-  if (typeof content === 'object' && content.type === 'doc') {
-    return renderTiptapJson(content);
+  if (typeof content === 'object' && (content as { type?: string }).type === 'doc') {
+    return renderTiptapJson(content as { content?: unknown[] });
   }
   return '<p class="text-muted-foreground italic">Content available in editor</p>';
 }
 
-function renderTiptapJson(doc: any): string {
+function renderTiptapJson(doc: { content?: unknown[] }): string {
   if (!doc.content) return '';
-  return doc.content.map((node: any) => renderTiptapNode(node)).join('');
+  return doc.content.map((node: unknown) => renderTiptapNode(node as { type: string; content?: unknown[]; attrs?: Record<string, unknown> })).join('');
 }
 
-function renderTiptapNode(node: any): string {
+function renderTiptapNode(node: { type: string; content?: unknown[]; attrs?: Record<string, unknown> }): string {
   switch (node.type) {
     case 'paragraph':
-      return `<p>${renderInline(node.content)}</p>`;
+      return `<p>${renderInline(node.content as unknown[])}</p>`;
     case 'heading':
-      return `<h${node.attrs?.level || 2}>${renderInline(node.content)}</h${node.attrs?.level || 2}>`;
+      return `<h${(node.attrs?.level as number) || 2}>${renderInline(node.content as unknown[])}</h${(node.attrs?.level as number) || 2}>`;
     case 'bulletList':
-      return `<ul>${(node.content || []).map((li: any) => renderTiptapNode(li)).join('')}</ul>`;
+      return `<ul>${(node.content || []).map((li: unknown) => renderTiptapNode(li as { type: string; content?: unknown[] })).join('')}</ul>`;
     case 'orderedList':
-      return `<ol>${(node.content || []).map((li: any) => renderTiptapNode(li)).join('')}</ol>`;
+      return `<ol>${(node.content || []).map((li: unknown) => renderTiptapNode(li as { type: string; content?: unknown[] })).join('')}</ol>`;
     case 'listItem':
-      return `<li>${(node.content || []).map((c: any) => renderTiptapNode(c)).join('')}</li>`;
+      return `<li>${(node.content || []).map((c: unknown) => renderTiptapNode(c as { type: string; content?: unknown[] })).join('')}</li>`;
     case 'blockquote':
-      return `<blockquote>${(node.content || []).map((c: any) => renderTiptapNode(c)).join('')}</blockquote>`;
+      return `<blockquote>${(node.content || []).map((c: unknown) => renderTiptapNode(c as { type: string; content?: unknown[] })).join('')}</blockquote>`;
     case 'codeBlock':
-      return `<pre><code>${renderInline(node.content)}</code></pre>`;
+      return `<pre><code>${renderInline(node.content as unknown[])}</code></pre>`;
     case 'horizontalRule':
       return '<hr>';
     default:
-      return renderInline(node.content);
+      return renderInline(node.content as unknown[]);
   }
 }
 
-function renderInline(content: any[]): string {
+interface TextNode {
+  type: string;
+  text?: string;
+  marks?: Array<{ type: string }>;
+}
+
+function renderInline(content: unknown[]): string {
   if (!content) return '';
-  return content.map((node: any) => {
-    if (node.type === 'text') {
-      let text = node.text || '';
+  return content.map((node: unknown) => {
+    const textNode = node as TextNode;
+    if (textNode.type === 'text') {
+      let text = textNode.text || '';
       text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      if (node.marks) {
-        for (const mark of node.marks) {
+      if (textNode.marks) {
+        for (const mark of textNode.marks) {
           if (mark.type === 'bold') text = `<strong>${text}</strong>`;
           if (mark.type === 'italic') text = `<em>${text}</em>`;
           if (mark.type === 'strike') text = `<s>${text}</s>`;
           if (mark.type === 'code') text = `<code>${text}</code>`;
-          if (mark.type === 'link') text = `<a href="${mark.attrs?.href || '#'}">${text}</a>`;
+          if (mark.type === 'link') text = `<a href="${(mark as { attrs?: { href?: string } })?.attrs?.href || '#'}">${text}</a>`;
         }
       }
       return text;
     }
-    if (node.type === 'hardBreak') return '<br>';
+    if ((node as { type?: string }).type === 'hardBreak') return '<br>';
     return '';
   }).join('');
 }

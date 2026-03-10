@@ -8,7 +8,9 @@ interface CellData {
 }
 
 export const TableNode = memo(({ id, data, selected }: NodeProps) => {
-  const { updateNodeData, canvasMode, setExpandedNode } = useCanvasStore();
+  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const canvasMode = useCanvasStore((s) => s.canvasMode);
+  const setExpandedNode = useCanvasStore((s) => s.setExpandedNode);
   const d = data as { title?: string; rows?: CellData[][]; headers?: string[]; locked?: boolean };
   const isView = canvasMode === 'view';
 
@@ -42,6 +44,38 @@ export const TableNode = memo(({ id, data, selected }: NodeProps) => {
     const newRows = rows.map((r) => [...r, { value: '' }]);
     updateNodeData(id, { headers: newHeaders, rows: newRows });
   }, [id, headers, rows, updateNodeData]);
+
+  const removeColumn = useCallback((ci: number) => {
+    if (headers.length <= 1) return;
+    const newHeaders = headers.filter((_, i) => i !== ci);
+    const newRows = rows.map((r) => r.filter((_, i) => i !== ci));
+    updateNodeData(id, { headers: newHeaders, rows: newRows });
+  }, [id, headers, rows, updateNodeData]);
+
+  const downloadCsv = useCallback(() => {
+    const csvContent = [headers.join(',')]
+      .concat(rows.map(r => r.map(c => `"${c.value.replace(/"/g, '""')}"`).join(',')))
+      .join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `${d.title || 'Table'}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }, [headers, rows, d.title]);
+
+  const safeEvaluate = (val: string) => {
+    if (!val.startsWith('=')) return val;
+    try {
+      // Evaluate simple math
+      const mathExp = val.substring(1).replace(/[^0-9+\-*/().]/g, '');
+      return new Function(`return ${mathExp}`)();
+    } catch {
+      return '!ERR';
+    }
+  };
 
   return (
     <div
@@ -83,19 +117,36 @@ export const TableNode = memo(({ id, data, selected }: NodeProps) => {
 
       {/* Table - Wrapped in a resizer-friendly flex box */}
       <div className="flex-1 overflow-auto custom-scrollbar" onClick={(e) => e.stopPropagation()}>
+        {!isView && (
+          <div className="flex items-center gap-2 p-1 border-b border-border bg-muted/30 px-3">
+            <button
+              onClick={downloadCsv}
+              className="text-xs font-bold uppercase tracking-wider text-primary hover:text-primary/80 flex items-center gap-1"
+            >
+              CSV Exp
+            </button>
+          </div>
+        )}
         <table className="w-full border-collapse text-xs">
           <thead>
             <tr>
               {headers.map((h, ci) => (
-                <th key={ci} className="border-b border-r border-border bg-muted px-2 py-1.5 text-left font-bold uppercase tracking-wider text-muted-foreground">
-                  {!isView ? (
-                    <input
-                      className="w-full bg-transparent outline-none text-muted-foreground font-bold uppercase tracking-wider"
-                      value={h}
-                      onChange={(e) => updateHeader(ci, e.target.value)}
-                      onKeyDown={(e) => e.stopPropagation()}
-                    />
-                  ) : h}
+                <th key={ci} className="border-b border-r border-border bg-muted px-2 py-1.5 text-left font-bold uppercase tracking-wider text-muted-foreground group">
+                  <div className="flex items-center justify-between">
+                    {!isView ? (
+                      <input
+                        className="w-full bg-transparent outline-none text-muted-foreground font-bold uppercase tracking-wider"
+                        value={h}
+                        onChange={(e) => updateHeader(ci, e.target.value)}
+                        onKeyDown={(e) => e.stopPropagation()}
+                      />
+                    ) : h}
+                    {!isView && (
+                        <button onClick={() => removeColumn(ci)} className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Trash2 className="h-3 w-3" />
+                        </button>
+                    )}
+                  </div>
                 </th>
               ))}
               {!isView && (
@@ -109,9 +160,9 @@ export const TableNode = memo(({ id, data, selected }: NodeProps) => {
           </thead>
           <tbody>
             {rows.map((row, ri) => (
-              <tr key={ri} className="hover:bg-accent/30">
+              <tr key={ri} className="hover:bg-accent/30 odd:bg-transparent even:bg-muted/10 transition-colors">
                 {row.map((cell, ci) => (
-                  <td key={ci} className="border-b border-r border-border px-2 py-1">
+                  <td key={ci} className="border-b border-r border-border px-2 py-1 relative group/cell">
                     {!isView ? (
                       <input
                         className="w-full bg-transparent text-foreground outline-none"
@@ -121,8 +172,13 @@ export const TableNode = memo(({ id, data, selected }: NodeProps) => {
                         placeholder="—"
                       />
                     ) : (
-                      <span className="text-foreground">{cell.value || '—'}</span>
+                      <span className="text-foreground">{cell.value.startsWith('=') ? safeEvaluate(cell.value) : cell.value || '—'}</span>
                     )}
+                     {!isView && cell.value.startsWith('=') && (
+                       <div className="absolute top-full left-0 z-10 bg-black text-white text-[10px] px-1 rounded opacity-0 group-hover/cell:opacity-100 pointer-events-none whitespace-nowrap">
+                         Output: {safeEvaluate(cell.value)}
+                       </div>
+                     )}
                   </td>
                 ))}
                 {!isView && (

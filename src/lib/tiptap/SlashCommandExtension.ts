@@ -2,6 +2,7 @@ import { Extension } from '@tiptap/react';
 import Suggestion from '@tiptap/suggestion';
 import { ReactRenderer } from '@tiptap/react';
 import tippy, { type Instance } from 'tippy.js';
+import Fuse from 'fuse.js';
 import { SlashMenuList, slashMenuItems, type SlashMenuItem } from '@/components/tiptap/SlashMenu';
 
 const SlashCommand = Extension.create({
@@ -29,9 +30,12 @@ const SlashCommand = Extension.create({
         editor: this.editor,
         ...this.options.suggestion,
         items: ({ query }: { query: string }) => {
-          return slashMenuItems.filter((item) =>
-            item.title.toLowerCase().includes(query.toLowerCase())
-          );
+          if (!query) return slashMenuItems;
+          const fuse = new Fuse(slashMenuItems, {
+            keys: ['title', 'group'],
+            threshold: 0.3,
+          });
+          return fuse.search(query).map((res) => res.item);
         },
         render: () => {
           let component: ReactRenderer | null = null;

@@ -9,7 +9,8 @@ interface Flashcard {
 }
 
 export const FlashcardNode = memo(({ id, data, selected }: NodeProps) => {
-  const { setNodeContextMenu, setExpandedNode } = useCanvasStore();
+  const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
+  const setExpandedNode = useCanvasStore((s) => s.setExpandedNode);
   const nodeData = data as { flashcards: Flashcard[]; sourceTitle?: string; tags?: string[]; opacity?: number };
   const cards = nodeData.flashcards || [];
   const [currentIndex, setCurrentIndex] = useState(0);

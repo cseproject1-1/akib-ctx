@@ -459,9 +459,7 @@ export const slashMenuItems: SlashMenuItem[] = [
     group: 'Insert',
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).run();
-      editor.chain().focus().setCodeBlock({ language: 'mermaid' }).insertContent(
-        'graph TD\n    A[Start] --> B[End]'
-      ).run();
+      (editor.commands as any).insertMermaidBlock();
     },
   },
   // Alignment

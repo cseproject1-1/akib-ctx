@@ -5,7 +5,7 @@ import { getSnapshots, createSnapshot, deleteSnapshot, pruneSnapshots } from '@/
 import { auth } from '@/lib/firebase/client';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
-import type { Node, Edge } from '@xyflow/react';
+import { useNodes, useEdges, type Node, type Edge } from '@xyflow/react';
 
 interface Snapshot {
   id: string;
@@ -16,7 +16,11 @@ interface Snapshot {
 }
 
 export function VersionHistoryPanel() {
-  const { workspaceId, nodes, edges, loadCanvas, setVersionHistoryOpen } = useCanvasStore();
+  const workspaceId = useCanvasStore((s) => s.workspaceId);
+  const nodes = useNodes();
+  const edges = useEdges();
+  const loadCanvas = useCanvasStore((s) => s.loadCanvas);
+  const setVersionHistoryOpen = useCanvasStore((s) => s.setVersionHistoryOpen);
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

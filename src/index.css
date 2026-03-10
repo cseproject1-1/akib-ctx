@@ -314,6 +314,38 @@
   to { stroke-dashoffset: -12; }
 }
 
+@keyframes dash-flow-reverse {
+  to { stroke-dashoffset: 12; }
+}
+
+@keyframes edge-pulse-primary {
+  0%, 100% { stroke-opacity: 0.1; stroke-width: var(--stroke-width); }
+  50% { stroke-opacity: 0.3; stroke-width: calc(var(--stroke-width) + 4px); }
+}
+
+.edge-pulse-glow {
+  animation: edge-pulse-primary 2s ease-in-out infinite;
+}
+
+.edge-dash-animated {
+  stroke-dasharray: 8 4;
+  animation: dash-flow 0.6s linear infinite;
+}
+
+.edge-dash-animated-reverse {
+  stroke-dasharray: 8 4;
+  animation: dash-flow-reverse 0.6s linear infinite;
+}
+
+@keyframes edge-new-connection-pulse {
+  0% { stroke-width: 8; stroke-opacity: 0.8; }
+  100% { stroke-width: 2; stroke-opacity: 0; }
+}
+
+.edge-new-pulse {
+  animation: edge-new-connection-pulse 0.8s ease-out forwards;
+}
+
 @keyframes pulse-handle {
   0%, 100% { box-shadow: 0 0 0 0 hsla(52, 100%, 50%, 0); }
   50% { box-shadow: 0 0 8px 3px hsla(52, 100%, 50%, 0.2); }

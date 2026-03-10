@@ -14,7 +14,8 @@ const colorMap: Record<string, { bg: string; num: string; text: string }> = {
 };
 
 export const TermQuestionNode = memo(forwardRef<HTMLDivElement, NodeProps>(({ id, data, selected }, ref) => {
-  const { updateNodeData, setNodeContextMenu } = useCanvasStore();
+  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
   const nodeData = data as { year: string; questions: string[]; color?: string };
   const colors = colorMap[nodeData.color || 'yellow'] || colorMap.yellow;
 

@@ -1,4 +1,5 @@
 import { useCanvasStore } from '@/store/canvasStore';
+import { useNodes } from '@xyflow/react';
 import { NoteEditor, type NoteEditorHandle } from '@/components/tiptap/NoteEditor';
 import { X, Maximize2, Minimize2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -8,11 +9,11 @@ import katex from 'katex';
 /* ─── Checklist helpers ─── */
 interface CheckItem { id: string; text: string; done: boolean; }
 
-function ChecklistFullscreen({ items, onUpdate }: { items: CheckItem[]; onUpdate: (items: CheckItem[]) => void }) {
-  const toggle = (itemId: string) => onUpdate(items.map(i => i.id === itemId ? { ...i, done: !i.done } : i));
-  const updateText = (itemId: string, text: string) => onUpdate(items.map(i => i.id === itemId ? { ...i, text } : i));
-  const add = () => onUpdate([...items, { id: crypto.randomUUID(), text: '', done: false }]);
-  const remove = (itemId: string) => onUpdate(items.filter(i => i.id !== itemId));
+function ChecklistFullscreen({ items, onUpdate, editable }: { items: CheckItem[]; onUpdate: (items: CheckItem[]) => void; editable: boolean }) {
+  const toggle = (itemId: string) => editable && onUpdate(items.map(i => i.id === itemId ? { ...i, done: !i.done } : i));
+  const updateText = (itemId: string, text: string) => editable && onUpdate(items.map(i => i.id === itemId ? { ...i, text } : i));
+  const add = () => editable && onUpdate([...items, { id: crypto.randomUUID(), text: '', done: false }]);
+  const remove = (itemId: string) => editable && onUpdate(items.filter(i => i.id !== itemId));
   const doneCount = items.filter(i => i.done).length;
 
   return (
@@ -27,30 +28,37 @@ function ChecklistFullscreen({ items, onUpdate }: { items: CheckItem[]; onUpdate
         <div key={item.id} className="flex items-center gap-3 group">
           <button
             onClick={() => toggle(item.id)}
-            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors ${item.done ? 'border-primary bg-primary text-primary-foreground' : 'border-border'}`}
+            disabled={!editable}
+            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors ${item.done ? 'border-primary bg-primary text-primary-foreground' : 'border-border'} ${!editable ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             {item.done && <span className="text-xs font-bold">✓</span>}
           </button>
           <input
-            className={`flex-1 bg-transparent text-sm outline-none ${item.done ? 'line-through text-muted-foreground' : 'text-foreground'}`}
+            className={`flex-1 bg-transparent text-sm outline-none ${item.done ? 'line-through text-muted-foreground' : 'text-foreground'} ${!editable ? 'cursor-default' : ''}`}
             value={item.text}
             onChange={e => updateText(item.id, e.target.value)}
             placeholder="To-do item..."
+            readOnly={!editable}
           />
-          <button onClick={() => remove(item.id)} className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
-            <X className="h-3.5 w-3.5" />
-          </button>
+          {editable && (
+            <button onClick={() => remove(item.id)} className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
       ))}
-      <button onClick={add} className="text-xs font-semibold text-muted-foreground hover:text-foreground mt-2">+ Add item</button>
+      {editable && (
+        <button onClick={add} className="text-xs font-semibold text-muted-foreground hover:text-foreground mt-2">+ Add item</button>
+      )}
     </div>
   );
 }
 
 /* ─── Summary fullscreen ─── */
-function SummaryFullscreen({ bullets, onChange }: { bullets: string[]; onChange: (b: string[]) => void }) {
-  const update = (i: number, v: string) => { const b = [...bullets]; b[i] = v; onChange(b); };
+function SummaryFullscreen({ bullets, onChange, editable }: { bullets: string[]; onChange: (b: string[]) => void; editable: boolean }) {
+  const update = (i: number, v: string) => { if (!editable) return; const b = [...bullets]; b[i] = v; onChange(b); };
   const handleKey = (i: number, e: React.KeyboardEvent) => {
+    if (!editable) return;
     if (e.key === 'Enter') { e.preventDefault(); const b = [...bullets]; b.splice(i + 1, 0, ''); onChange(b); }
     if (e.key === 'Backspace' && !bullets[i] && bullets.length > 1) { e.preventDefault(); onChange(bullets.filter((_, j) => j !== i)); }
   };
@@ -59,7 +67,14 @@ function SummaryFullscreen({ bullets, onChange }: { bullets: string[]; onChange:
       {bullets.map((b, i) => (
         <li key={i} className="flex items-start gap-3">
           <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-primary" />
-          <input className="flex-1 bg-transparent text-sm text-foreground outline-none" value={b} onChange={e => update(i, e.target.value)} onKeyDown={e => handleKey(i, e)} placeholder="Type a point…" />
+          <input 
+            className={`flex-1 bg-transparent text-sm text-foreground outline-none ${!editable ? 'cursor-default' : ''}`} 
+            value={b} 
+            onChange={e => update(i, e.target.value)} 
+            onKeyDown={e => handleKey(i, e)} 
+            placeholder="Type a point…" 
+            readOnly={!editable}
+          />
         </li>
       ))}
     </ul>
@@ -67,19 +82,20 @@ function SummaryFullscreen({ bullets, onChange }: { bullets: string[]; onChange:
 }
 
 /* ─── Code fullscreen ─── */
-function CodeFullscreen({ code, onChange }: { code: string; onChange: (c: string) => void }) {
+function CodeFullscreen({ code, onChange, editable }: { code: string; onChange: (c: string) => void; editable: boolean }) {
   return (
     <textarea
-      className="w-full h-full min-h-[400px] resize-none bg-muted rounded-lg p-4 font-mono text-sm text-foreground outline-none"
+      className={`w-full h-full min-h-[400px] resize-none bg-muted rounded-lg p-4 font-mono text-sm text-foreground outline-none ${!editable ? 'cursor-default' : ''}`}
       value={code}
-      onChange={e => onChange(e.target.value)}
+      onChange={e => editable && onChange(e.target.value)}
       spellCheck={false}
+      readOnly={!editable}
     />
   );
 }
 
 /* ─── Math fullscreen ─── */
-function MathFullscreen({ latex, onChange }: { latex: string; onChange: (l: string) => void }) {
+function MathFullscreen({ latex, onChange, editable }: { latex: string; onChange: (l: string) => void; editable: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!ref.current) return;
@@ -88,27 +104,48 @@ function MathFullscreen({ latex, onChange }: { latex: string; onChange: (l: stri
   }, [latex]);
   return (
     <div className="flex gap-4 h-full min-h-[300px]">
-      <textarea className="flex-1 resize-none bg-muted rounded-lg p-4 font-mono text-sm text-foreground outline-none" value={latex} onChange={e => onChange(e.target.value)} spellCheck={false} placeholder="\\int_0^\\infty e^{-x^2} dx" />
+      <textarea 
+        className={`flex-1 resize-none bg-muted rounded-lg p-4 font-mono text-sm text-foreground outline-none ${!editable ? 'cursor-default' : ''}`} 
+        value={latex} 
+        onChange={e => editable && onChange(e.target.value)} 
+        spellCheck={false} 
+        placeholder="\\int_0^\\infty e^{-x^2} dx" 
+        readOnly={!editable}
+      />
       <div ref={ref} className="flex-1 flex items-center justify-center text-foreground overflow-auto" style={{ fontSize: '1.4rem' }} />
     </div>
   );
 }
 
 /* ─── Term/Question fullscreen ─── */
-function TermQuestionFullscreen({ year, questions, onUpdate }: { year: string; questions: string[]; onUpdate: (d: any) => void }) {
-  const updateQ = (i: number, v: string) => { const q = [...questions]; q[i] = v; onUpdate({ questions: q }); };
+function TermQuestionFullscreen({ year, questions, onUpdate, editable }: { year: string; questions: string[]; onUpdate: (d: { year?: string; questions?: string[] }) => void; editable: boolean }) {
+  const updateQ = (i: number, v: string) => { if (!editable) return; const q = [...questions]; q[i] = v; onUpdate({ questions: q }); };
   const handleKey = (i: number, e: React.KeyboardEvent) => {
+    if (!editable) return;
     if (e.key === 'Enter') { e.preventDefault(); const q = [...questions]; q.splice(i + 1, 0, ''); onUpdate({ questions: q }); }
     if (e.key === 'Backspace' && !questions[i] && questions.length > 1) { e.preventDefault(); onUpdate({ questions: questions.filter((_, j) => j !== i) }); }
   };
   return (
     <div>
-      <input className="w-full bg-transparent text-3xl font-bold text-foreground outline-none mb-4" value={year} onChange={e => onUpdate({ year: e.target.value })} placeholder="Title / Year…" />
+      <input 
+        className={`w-full bg-transparent text-3xl font-bold text-foreground outline-none mb-4 ${!editable ? 'cursor-default' : ''}`} 
+        value={year} 
+        onChange={e => editable && onUpdate({ year: e.target.value })} 
+        placeholder="Title / Year…"
+        readOnly={!editable}
+      />
       <ol className="space-y-2">
         {questions.map((q, i) => (
           <li key={i} className="flex items-start gap-3">
             <span className="mt-1 text-sm font-mono text-muted-foreground">{i + 1}.</span>
-            <input className="flex-1 bg-transparent text-sm text-foreground outline-none" value={q} onChange={e => updateQ(i, e.target.value)} onKeyDown={e => handleKey(i, e)} placeholder="Type a question…" />
+            <input 
+              className={`flex-1 bg-transparent text-sm text-foreground outline-none ${!editable ? 'cursor-default' : ''}`} 
+              value={q} 
+              onChange={e => updateQ(i, e.target.value)} 
+              onKeyDown={e => handleKey(i, e)} 
+              placeholder="Type a question…"
+              readOnly={!editable}
+            />
           </li>
         ))}
       </ol>
@@ -117,8 +154,16 @@ function TermQuestionFullscreen({ year, questions, onUpdate }: { year: string; q
 }
 
 /* ─── Sticky note fullscreen ─── */
-function StickyNoteFullscreen({ text, onChange }: { text: string; onChange: (t: string) => void }) {
-  return <textarea className="w-full h-full min-h-[300px] resize-none bg-transparent p-2 text-lg font-semibold text-foreground outline-none" value={text} onChange={e => onChange(e.target.value)} placeholder="Quick note..." />;
+function StickyNoteFullscreen({ text, onChange, editable }: { text: string; onChange: (t: string) => void; editable: boolean }) {
+  return (
+    <textarea 
+      className={`w-full h-full min-h-[300px] resize-none bg-transparent p-2 text-lg font-semibold text-foreground outline-none ${!editable ? 'cursor-default' : ''}`} 
+      value={text} 
+      onChange={e => editable && onChange(e.target.value)} 
+      placeholder="Quick note..."
+      readOnly={!editable}
+    />
+  );
 }
 
 /* ─── Flashcard fullscreen ─── */
@@ -145,12 +190,14 @@ function FlashcardFullscreen({ flashcards }: { flashcards: { question: string; a
 }
 
 /* ─── Table fullscreen ─── */
-function TableFullscreen({ headers, rows, onUpdate }: { headers: string[]; rows: { value: string }[][]; onUpdate: (d: any) => void }) {
+function TableFullscreen({ headers, rows, onUpdate, editable }: { headers: string[]; rows: { value: string }[][]; onUpdate: (d: { headers?: string[]; rows?: { value: string }[][] }) => void; editable: boolean }) {
   const updateCell = (ri: number, ci: number, value: string) => {
+    if (!editable) return;
     const newRows = rows.map((r, i) => i === ri ? r.map((c, j) => j === ci ? { value } : c) : r);
     onUpdate({ rows: newRows });
   };
   const updateHeader = (ci: number, value: string) => {
+    if (!editable) return;
     onUpdate({ headers: headers.map((h, i) => i === ci ? value : h) });
   };
   return (
@@ -159,7 +206,7 @@ function TableFullscreen({ headers, rows, onUpdate }: { headers: string[]; rows:
         <thead>
           <tr>{headers.map((h, ci) => (
             <th key={ci} className="border border-border bg-muted px-3 py-2 text-left font-bold uppercase tracking-wider text-muted-foreground">
-              <input className="w-full bg-transparent outline-none" value={h} onChange={e => updateHeader(ci, e.target.value)} />
+              <input className={`w-full bg-transparent outline-none ${!editable ? 'cursor-default' : ''}`} value={h} onChange={e => updateHeader(ci, e.target.value)} readOnly={!editable} />
             </th>
           ))}</tr>
         </thead>
@@ -168,7 +215,7 @@ function TableFullscreen({ headers, rows, onUpdate }: { headers: string[]; rows:
             <tr key={ri} className="hover:bg-accent/30">
               {row.map((cell, ci) => (
                 <td key={ci} className="border border-border px-3 py-2">
-                  <input className="w-full bg-transparent text-foreground outline-none" value={cell.value} onChange={e => updateCell(ri, ci, e.target.value)} placeholder="—" />
+                  <input className={`w-full bg-transparent text-foreground outline-none ${!editable ? 'cursor-default' : ''}`} value={cell.value} onChange={e => updateCell(ri, ci, e.target.value)} placeholder="—" readOnly={!editable} />
                 </td>
               ))}
             </tr>
@@ -184,7 +231,12 @@ function TableFullscreen({ headers, rows, onUpdate }: { headers: string[]; rows:
    ═══════════════════════════════════════════════════════ */
 
 export function NodeExpandModal() {
-  const { expandedNode, setExpandedNode, nodes, updateNodeData } = useCanvasStore();
+  const expandedNode = useCanvasStore((s) => s.expandedNode);
+  const setExpandedNode = useCanvasStore((s) => s.setExpandedNode);
+  const nodes = useNodes();
+  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const canvasMode = useCanvasStore((s) => s.canvasMode);
+  const isViewMode = canvasMode === 'view';
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -204,7 +256,29 @@ export function NodeExpandModal() {
 
   if (!node || !expandedNode) return null;
 
-  const nodeData = node.data as Record<string, any>;
+  const nodeData = node.data as {
+    title?: string;
+    content?: JSONContent;
+    pasteContent?: string;
+    pasteFormat?: 'markdown' | 'html';
+    items?: CheckItem[];
+    bullets?: string[];
+    code?: string;
+    latex?: string;
+    year?: string;
+    questions?: string[];
+    text?: string;
+    flashcards?: Array<{ question: string; answer: string }>;
+    headers?: string[];
+    rows?: { value: string }[][];
+    url?: string;
+    width?: number;
+    height?: number;
+    paths?: Array<{ d: string; color: string; width: number }>;
+    storageUrl?: string;
+    fileType?: string;
+    fileName?: string;
+  };
   const nodeType = node.type || 'aiNote';
 
   const handleContentChange = (json: JSONContent) => {
@@ -227,6 +301,7 @@ export function NodeExpandModal() {
             placeholder="Start typing…"
             pasteContent={nodeData.pasteContent}
             pasteFormat={nodeData.pasteFormat}
+            editable={!isViewMode}
           />
         );
 
@@ -235,6 +310,7 @@ export function NodeExpandModal() {
           <ChecklistFullscreen
             items={nodeData.items || []}
             onUpdate={(items) => updateNodeData(expandedNode, { items })}
+            editable={!isViewMode}
           />
         );
 
@@ -243,6 +319,7 @@ export function NodeExpandModal() {
           <SummaryFullscreen
             bullets={nodeData.bullets || ['']}
             onChange={(bullets) => updateNodeData(expandedNode, { bullets })}
+            editable={!isViewMode}
           />
         );
 
@@ -251,6 +328,7 @@ export function NodeExpandModal() {
           <CodeFullscreen
             code={nodeData.code || ''}
             onChange={(code) => updateNodeData(expandedNode, { code })}
+            editable={!isViewMode}
           />
         );
 
@@ -259,6 +337,7 @@ export function NodeExpandModal() {
           <MathFullscreen
             latex={nodeData.latex || ''}
             onChange={(latex) => updateNodeData(expandedNode, { latex })}
+            editable={!isViewMode}
           />
         );
 
@@ -268,6 +347,7 @@ export function NodeExpandModal() {
             year={nodeData.year || ''}
             questions={nodeData.questions || ['']}
             onUpdate={(d) => updateNodeData(expandedNode, d)}
+            editable={!isViewMode}
           />
         );
 
@@ -276,6 +356,7 @@ export function NodeExpandModal() {
           <StickyNoteFullscreen
             text={nodeData.text || ''}
             onChange={(text) => updateNodeData(expandedNode, { text })}
+            editable={!isViewMode}
           />
         );
 
@@ -288,6 +369,7 @@ export function NodeExpandModal() {
             headers={nodeData.headers || ['Col A', 'Col B', 'Col C']}
             rows={nodeData.rows || [[{ value: '' }]]}
             onUpdate={(d) => updateNodeData(expandedNode, d)}
+            editable={!isViewMode}
           />
         );
 
@@ -306,7 +388,7 @@ export function NodeExpandModal() {
       case 'drawing':
         return (
           <svg width={nodeData.width || 800} height={nodeData.height || 600} className="rounded-lg bg-muted">
-            {(nodeData.paths || []).map((p: any, i: number) => (
+            {(nodeData.paths || []).map((p, i) => (
               <path key={i} d={p.d} stroke={p.color} strokeWidth={p.width} fill="none" strokeLinecap="round" strokeLinejoin="round" />
             ))}
           </svg>
@@ -330,6 +412,7 @@ export function NodeExpandModal() {
           <StickyNoteFullscreen
             text={nodeData.text || ''}
             onChange={(text) => updateNodeData(expandedNode, { text })}
+            editable={!isViewMode}
           />
         );
 

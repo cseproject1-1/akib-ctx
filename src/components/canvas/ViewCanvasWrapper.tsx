@@ -3,24 +3,30 @@ import {
   Background,
   BackgroundVariant,
   Panel,
+  MiniMap,
+  useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useCanvasStore } from '@/store/canvasStore';
+import { useCanvasStore, useNodes, useEdges } from '@/store/canvasStore';
 import { nodeTypes } from './nodeTypes';
 import { edgeTypes } from './edgeTypes';
-import { Eye, ArrowLeft } from 'lucide-react';
+import { Eye, ArrowLeft, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { NodeExpandModal } from './NodeExpandModal';
 
 export function ViewCanvasWrapper() {
   const navigate = useNavigate();
-  const { nodes, edges, workspaceName } = useCanvasStore();
+  const nodes = useNodes();
+  const edges = useEdges();
+  const workspaceName = useCanvasStore((s) => s.workspaceName);
+  const { zoomIn, zoomOut, fitView } = useReactFlow();
 
-  // Make all nodes non-interactive
+  // Make all nodes non-interactive but selectable for viewing
   const viewNodes = nodes.map((n) => ({
     ...n,
     draggable: false,
     connectable: false,
-    selectable: false,
+    selectable: true,
   }));
 
   return (
@@ -39,9 +45,12 @@ export function ViewCanvasWrapper() {
         panOnScroll={false}
         nodesDraggable={false}
         nodesConnectable={false}
-        elementsSelectable={false}
+        elementsSelectable={true}
         proOptions={{ hideAttribution: true }}
         defaultEdgeOptions={{ type: 'custom', animated: false }}
+        onNodeDoubleClick={(_, node) => {
+          useCanvasStore.getState().setExpandedNode(node.id);
+        }}
       >
         <Background
           variant={BackgroundVariant.Dots}
@@ -49,6 +58,24 @@ export function ViewCanvasWrapper() {
           gap={24}
           size={1.5}
         />
+        <MiniMap
+          pannable
+          zoomable
+          style={{ width: 180, height: 120 }}
+          className="bg-canvas-bg border-2 border-border rounded-lg"
+        />
+
+        <Panel position="bottom-right" className="flex items-center gap-1 rounded-lg border bg-card p-1">
+          <button onClick={() => zoomIn()} className="p-2 hover:bg-accent rounded">
+            <ZoomIn className="h-4 w-4" />
+          </button>
+          <button onClick={() => zoomOut()} className="p-2 hover:bg-accent rounded">
+            <ZoomOut className="h-4 w-4" />
+          </button>
+          <button onClick={() => fitView()} className="p-2 hover:bg-accent rounded">
+            <Maximize className="h-4 w-4" />
+          </button>
+        </Panel>
 
         <Panel position="top-left" className="flex items-center gap-2">
           <button
@@ -82,6 +109,7 @@ export function ViewCanvasWrapper() {
             </marker>
           </defs>
         </svg>
+        <NodeExpandModal />
       </ReactFlow>
     </div>
   );

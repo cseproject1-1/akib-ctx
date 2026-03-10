@@ -57,6 +57,10 @@
   background: hsl(var(--primary) / 0.15) !important;
 }
 
+.zoom-out .react-flow__handle.perimeter-handle {
+  display: none !important;
+}
+
 .react-flow__handle.perimeter-handle:hover {
   background: hsl(var(--primary) / 0.35) !important;
 }
@@ -77,4 +81,8 @@
 .group\/node:hover .anchor-dot,
 .group:hover .anchor-dot {
   opacity: 0.8;
+}
+
+.zoom-out .anchor-dot {
+  display: none !important;
 }

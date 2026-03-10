@@ -78,7 +78,9 @@ const defaultSizeForType = (type: NodeType): { width: number; height?: number | 
 };
 
 export function AddNodeToolbar() {
-  const { addNode, connectMode, setConnectMode } = useCanvasStore();
+  const addNode = useCanvasStore((s) => s.addNode);
+  const connectMode = useCanvasStore((s) => s.connectMode);
+  const setConnectMode = useCanvasStore((s) => s.setConnectMode);
   const [expanded, setExpanded] = useState(false);
   const [showShapes, setShowShapes] = useState(false);
 

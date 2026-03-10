@@ -1,5 +1,6 @@
 import { useEditor, EditorContent } from '@tiptap/react';
 import { getEditorExtensions } from '@/lib/tiptap/extensions';
+import { extensionRegistry, type AnyExtension } from '@/lib/tiptap/extensionRegistry';
 import { Bold, Italic, Strikethrough, Code, Heading1, Heading2, Link as LinkIcon, List, ListOrdered, Quote, Highlighter, Underline as UnderlineIcon, Palette, Type, Superscript, Subscript, RemoveFormatting, Search } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import type { JSONContent } from '@tiptap/react';
@@ -140,7 +141,51 @@ interface NoteEditorProps {
   title?: string;
 }
 
-export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEditor({ initialContent, onChange, placeholder, editable = true, pasteContent, pasteFormat, title }, ref) {
+let globalAsyncExtensions: AnyExtension[] | null = null;
+let globalAsyncExtensionsPromise: Promise<AnyExtension[]> | null = null;
+
+function loadGlobalExtensions() {
+  if (globalAsyncExtensions) return Promise.resolve(globalAsyncExtensions);
+  if (!globalAsyncExtensionsPromise) {
+    globalAsyncExtensionsPromise = Promise.all([
+      extensionRegistry.loadMath(),
+      extensionRegistry.loadCode(),
+      extensionRegistry.loadCustomBlocks(),
+      extensionRegistry.loadMermaid(),
+      extensionRegistry.loadMacro(),
+    ]).then(([math, code, custom, mermaid, macro]) => {
+      globalAsyncExtensions = [math, code, ...(custom as any[]), mermaid, macro];
+      return globalAsyncExtensions;
+    });
+  }
+  return globalAsyncExtensionsPromise;
+}
+
+export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEditor(props, ref) {
+  const [extensions, setExtensions] = useState<AnyExtension[] | null>(globalAsyncExtensions);
+
+  useEffect(() => {
+    let mounted = true;
+    if (!extensions) {
+      loadGlobalExtensions().then((exts) => {
+        if (mounted) setExtensions(exts);
+      });
+    }
+    return () => { mounted = false; };
+  }, [extensions]);
+
+  if (!extensions) {
+    return <div className="min-h-[80px] px-4 py-3 animate-pulse bg-muted/10 rounded-md" />;
+  }
+
+  return <NoteEditorImpl {...props} asyncExtensions={extensions} ref={ref} />;
+});
+
+interface NoteEditorImplProps extends NoteEditorProps {
+  asyncExtensions: AnyExtension[];
+}
+
+const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(function NoteEditorImpl({ initialContent, onChange, placeholder, editable = true, pasteContent, pasteFormat, title, asyncExtensions }, ref) {
   const [showBubble, setShowBubble] = useState(false);
   const [bubblePos, setBubblePos] = useState({ top: 0, left: 0 });
   const [showFindReplace, setShowFindReplace] = useState(false);
@@ -150,6 +195,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function
   const editor = useEditor({
     extensions: [
       ...getEditorExtensions(placeholder),
+      ...asyncExtensions,
       Markdown.configure({
         html: true,
         transformPastedText: false,
@@ -197,15 +243,13 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function
         const clipboardText = event.clipboardData?.getData('text/plain') || '';
         const clipboardHtml = event.clipboardData?.getData('text/html') || '';
 
-        // 2. Intercept AI Chat Markdown (ChatGPT/Claude)
-        // AI chats often put broken HTML into the clipboard but perfect markdown into text/plain.
-        // If we detect strong markdown signatures like code blocks or math, parse the markdown explicitly.
-        const isStrongMarkdown = /```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`]+`|^\s{4,}.+$|\$\$[\s\S]+?\$\$|\|[-:\s]+\|[-:\s]+\|/m.test(clipboardText);
+        // 2. Intercept AI Chat / Documentation Markdown
+        // Stronger regex to catch common markdown patterns including headers, lists, and links
+        const isStrongMarkdown = /```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`]+`|^\s*#{1,6}\s|^[\s]*[*+-]\s|^[\s]*\d+\.\s|\[.+\]\(.+\)|\$\$[\s\S]+?\$\$|\|[-:\s]+\|[-:\s]+\|/m.test(clipboardText);
         const isCodeFallback = !isStrongMarkdown && /^(const|let|var|function|class|import|export|if|for|while)\b/m.test(clipboardText);
         
         if (isStrongMarkdown || isCodeFallback) {
           event.preventDefault();
-          // If we fallback because of code keywords, wrap in a codeblock so marked parses it correctly
           let textToParse = clipboardText;
           if (isCodeFallback) {
             textToParse = `\`\`\`javascript\n${clipboardText}\n\`\`\``;
@@ -215,8 +259,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function
           return true;
         }
 
-        // 3. If clipboard has semantic HTML (from web/spreadsheets), use it directly
-        //    If it contains KaTeX-rendered HTML, sanitize it first to extract LaTeX
+        // 3. Handle HTML paste with sanitization
         if (clipboardHtml.trim().length > 0) {
           const hasKatex = /class="katex/i.test(clipboardHtml);
           if (hasKatex) {
@@ -225,14 +268,20 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function
             editor?.commands.insertContent(sanitized);
             return true;
           }
-          const hasSemanticTags = /<(h[1-6]|table|thead|tbody|tr|th|td|ul|ol|li|pre|code|blockquote|strong|em|img|figure|details|summary|picture|svg|dl|dt|dd|sup|sub|mark|kbd|abbr)\b/i.test(clipboardHtml);
-          if (hasSemanticTags) {
-            // Let Tiptap handle well-structured HTML natively
+
+          // Check if it's messy HTML from Office / Google Docs
+          const isMessyHtml = /meta charset="utf-8"|urn:schemas-microsoft-com:office:office|docs-internal-guid/i.test(clipboardHtml);
+          const hasSemanticTags = /<(h[1-6]|table|thead|tbody|tr|th|td|ul|ol|li|pre|code|blockquote|strong|em|img)\b/i.test(clipboardHtml);
+          
+          if (isMessyHtml && hasSemanticTags) {
+            // If it's messy but has structure, let Tiptap handle it but Tiptap sometimes struggles 
+            // with Word's MSO formatting. We'll let it pass for now as Tiptap's schema filtering 
+            // is usually decent, but if users report issues we could add DOMPurify here.
             return false;
           }
         }
 
-        // 3. Handle URLs pasted inside editor — create clickable link
+        // 4. Handle URLs pasted inside editor — create clickable link
         if (/^https?:\/\/[^\s]+$/.test(clipboardText.trim())) {
           event.preventDefault();
           const url = clipboardText.trim();
@@ -242,7 +291,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function
           return true;
         }
 
-        // 4. Otherwise convert plain text as markdown (with math support)
+        // 5. Otherwise convert plain text as markdown (fallback)
         if (clipboardText.trim().length > 0) {
           event.preventDefault();
           const html = markdownToHtml(clipboardText);

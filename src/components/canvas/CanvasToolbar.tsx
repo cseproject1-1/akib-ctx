@@ -1,5 +1,6 @@
 import { useReactFlow, Panel, useStore } from '@xyflow/react';
-import { ZoomIn, ZoomOut, Maximize, Undo2, Redo2, ArrowLeft, Save, CheckCircle, AlertCircle, FileDown, Paintbrush, Share2, Eye, MousePointerClick, Presentation, Crosshair, LayoutDashboard, Grid3X3, Lock, Unlock, Trash2, Magnet, Cable, FileText, FileJson, Clock, GitBranch, CloudOff } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, Undo2, Redo2, ArrowLeft, Save, CheckCircle, AlertCircle, FileDown, Paintbrush, Share2, Eye, MousePointerClick, Presentation, Crosshair, LayoutDashboard, Grid3X3, Lock, Unlock, Trash2, Magnet, Cable, FileText, FileJson, Clock, GitBranch, CloudOff, Sparkles, Upload, Network, Orbit, LayoutGrid, Search } from 'lucide-react';
+import { getTreeLayout, getCircularLayout } from '@/lib/canvas/layoutUtils';
 import { ThemeToggle } from './ThemeToggle';
 import { useCanvasStore } from '@/store/canvasStore';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
@@ -15,7 +16,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { formatDistanceToNow } from 'date-fns';
 import { usePendingOpsCount } from '@/hooks/usePendingOpsCount';
 import { replayPendingOps } from '@/lib/cache/canvasCache';
-import { Upload } from 'lucide-react';
+import { TemplateGallery } from './TemplateGallery';
+import { useNodes, useEdges } from '@xyflow/react'; // Ensure these are imported if missing
 
 interface CanvasToolbarProps {
   drawingMode?: boolean;
@@ -24,10 +26,39 @@ interface CanvasToolbarProps {
 
 export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarProps) {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
-  const { undo, redo, past, future, workspaceId, workspaceName, workspaceColor, saveStatus, lastSavedAt, nodes, edges, canvasMode, toggleCanvasMode, focusMode, toggleFocusMode, setNodes, snapEnabled, toggleSnap, gridStyle, cycleGridStyle, allLocked, toggleLockAll, deleteSelected, connectMode, setConnectMode, versionHistoryOpen, setVersionHistoryOpen, loadCanvas } = useCanvasStore();
+  const undo = useCanvasStore((s) => s.undo);
+  const redo = useCanvasStore((s) => s.redo);
+  const past = useCanvasStore((s) => s.past);
+  const future = useCanvasStore((s) => s.future);
+  const workspaceId = useCanvasStore((s) => s.workspaceId);
+  const workspaceName = useCanvasStore((s) => s.workspaceName);
+  const workspaceColor = useCanvasStore((s) => s.workspaceColor);
+  const saveStatus = useCanvasStore((s) => s.saveStatus);
+  const lastSavedAt = useCanvasStore((s) => s.lastSavedAt);
+  const nodes = useNodes();
+  const edges = useEdges();
+  const canvasMode = useCanvasStore((s) => s.canvasMode);
+  const toggleCanvasMode = useCanvasStore((s) => s.toggleCanvasMode);
+  const focusMode = useCanvasStore((s) => s.focusMode);
+  const toggleFocusMode = useCanvasStore((s) => s.toggleFocusMode);
+  const setNodes = useCanvasStore((s) => s.setNodes);
+  const snapEnabled = useCanvasStore((s) => s.snapEnabled);
+  const toggleSnap = useCanvasStore((s) => s.toggleSnap);
+  const gridStyle = useCanvasStore((s) => s.gridStyle);
+  const cycleGridStyle = useCanvasStore((s) => s.cycleGridStyle);
+  const allLocked = useCanvasStore((s) => s.allLocked);
+  const toggleLockAll = useCanvasStore((s) => s.toggleLockAll);
+  const deleteSelected = useCanvasStore((s) => s.deleteSelected);
+  const connectMode = useCanvasStore((s) => s.connectMode);
+  const setConnectMode = useCanvasStore((s) => s.setConnectMode);
+  const versionHistoryOpen = useCanvasStore((s) => s.versionHistoryOpen);
+  const setVersionHistoryOpen = useCanvasStore((s) => s.setVersionHistoryOpen);
+  const loadCanvas = useCanvasStore((s) => s.loadCanvas);
+  const pushSnapshot = useCanvasStore((s) => s.pushSnapshot);
   const navigate = useNavigate();
   const [shareOpen, setShareOpen] = useState(false);
   const [branchOpen, setBranchOpen] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   const [parentWorkspaceId, setParentWorkspaceId] = useState<string | null>(null);
   const isMobile = useIsMobile();
   const [lastSavedLabel, setLastSavedLabel] = useState('');
@@ -51,13 +82,15 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
   const selectedCount = nodes.filter((n) => n.selected).length;
 
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showLayoutMenu, setShowLayoutMenu] = useState(false);
 
   const handleExportMd = () => { exportToMarkdown(nodes, workspaceName); toast.success('Exported to Markdown'); setShowExportMenu(false); };
   const handleExportTxt = () => { exportToPlainText(nodes, workspaceName); toast.success('Exported to Plain Text'); setShowExportMenu(false); };
   const handleExportJson = () => { exportToJSON(nodes, workspaceName); toast.success('Exported to JSON'); setShowExportMenu(false); };
 
-  const handleAutoLayout = () => {
+  const handleGridLayout = () => {
     if (nodes.length === 0) return;
+    pushSnapshot();
     const cols = Math.ceil(Math.sqrt(nodes.length));
     const gapX = 440;
     const gapY = 560;
@@ -70,7 +103,28 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
     }));
     setNodes(newNodes);
     setTimeout(() => fitView({ duration: 400 }), 50);
-    toast.success('Nodes arranged');
+    toast.success('Grid layout applied');
+    setShowLayoutMenu(false);
+  };
+
+  const handleTreeLayout = () => {
+    if (nodes.length === 0) return;
+    pushSnapshot();
+    const newNodes = getTreeLayout(nodes, edges);
+    setNodes(newNodes);
+    setTimeout(() => fitView({ duration: 400 }), 50);
+    toast.success('Tree layout applied');
+    setShowLayoutMenu(false);
+  };
+
+  const handleCircularLayout = () => {
+    if (nodes.length === 0) return;
+    pushSnapshot();
+    const newNodes = getCircularLayout(nodes);
+    setNodes(newNodes);
+    setTimeout(() => fitView({ duration: 400 }), 50);
+    toast.success('Circular layout applied');
+    setShowLayoutMenu(false);
   };
 
   const handleImportJson = () => {
@@ -189,7 +243,7 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
 
       {/* Bottom-center: zoom + undo/redo + tools */}
       <Panel position="bottom-center" className="mb-4 !max-w-[calc(100vw-24px)]">
-        <div className="flex items-center gap-0 rounded-xl border-2 border-border bg-card shadow-[var(--brutal-shadow)] overflow-x-auto overflow-y-hidden scrollbar-none animate-toolbar-appear">
+        <div id="canvas-toolbar" className="flex items-center gap-0 rounded-xl border-2 border-border bg-card shadow-[var(--brutal-shadow)] overflow-x-auto overflow-y-hidden scrollbar-none animate-toolbar-appear">
           <ToolbarBtn onClick={() => undo()} disabled={past.length === 0} tip="Undo (⌘Z)">
             <Undo2 className="h-4 w-4" />
           </ToolbarBtn>
@@ -211,7 +265,7 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
           <ToolbarBtn onClick={() => onToggleDrawing?.()} tip="Drawing mode (D)" className={drawingMode ? 'bg-primary text-primary-foreground' : ''} animated>
             <Paintbrush className="h-4 w-4" />
           </ToolbarBtn>
-          <ToolbarBtn onClick={() => { const newMode = !connectMode; setConnectMode(newMode); if (newMode) toast.info('Connector mode: click the source node'); }} tip="Connector mode (C)" className={connectMode ? 'bg-primary text-primary-foreground' : ''} animated>
+          <ToolbarBtn id="connector-mode-btn" onClick={() => { const newMode = !connectMode; setConnectMode(newMode); if (newMode) toast.info('Connector mode: click the source node'); }} tip="Connector mode (C)" className={connectMode ? 'bg-primary text-primary-foreground' : ''} animated>
             <Cable className="h-4 w-4" />
           </ToolbarBtn>
           <ToolbarBtn onClick={toggleCanvasMode} tip={canvasMode === 'edit' ? 'Switch to view mode (V)' : 'Switch to edit mode (V)'} className={canvasMode === 'view' ? 'bg-primary text-primary-foreground' : ''} animated>
@@ -237,8 +291,30 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
             </ToolbarBtn>
           )}
           <Divider />
-          <ToolbarBtn onClick={handleAutoLayout} tip="Auto-layout nodes (A)" animated>
-            <LayoutDashboard className="h-4 w-4" />
+          <div className="relative">
+            <ToolbarBtn onClick={() => setShowLayoutMenu(!showLayoutMenu)} tip="Layout Options (A)" animated>
+              <LayoutDashboard className="h-4 w-4" />
+            </ToolbarBtn>
+            {showLayoutMenu && (
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 flex flex-col gap-0.5 rounded-lg border-2 border-border bg-card p-1 shadow-[var(--brutal-shadow)] animate-scale-in z-50 min-w-[150px]">
+                <button onClick={handleGridLayout} className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-accent hover:text-foreground">
+                  <LayoutGrid className="h-3.5 w-3.5" /> Grid Layout
+                </button>
+                <button onClick={handleTreeLayout} className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-accent hover:text-foreground">
+                  <Network className="h-3.5 w-3.5" /> Tree Layout
+                </button>
+                <button onClick={handleCircularLayout} className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-accent hover:text-foreground">
+                  <Orbit className="h-3.5 w-3.5" /> Circular Layout
+                </button>
+              </div>
+            )}
+          </div>
+          <Divider />
+          <ToolbarBtn id="search-btn" onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, metaKey: true }))} tip="Search nodes (⌘K)" animated>
+            <Search className="h-4 w-4" />
+          </ToolbarBtn>
+          <ToolbarBtn onClick={() => setShowTemplates(true)} tip="Template Gallery (T)" animated className="text-primary hover:bg-primary/10">
+            <Sparkles className="h-4 w-4" />
           </ToolbarBtn>
           <div className="relative">
             <ToolbarBtn onClick={() => setShowExportMenu(!showExportMenu)} tip="Export" animated>
@@ -267,7 +343,10 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
           <Divider />
           <ThemeToggle />
         </div>
+
+        <TemplateGallery open={showTemplates} onClose={() => setShowTemplates(false)} />
       </Panel>
+
     </TooltipProvider>
   );
 }

@@ -1,7 +1,24 @@
-import { memo, useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { memo, useState, useRef, useEffect, useMemo, useCallback, CSSProperties } from 'react';
 import { getBezierPath, getSmoothStepPath, getStraightPath, EdgeLabelRenderer, type EdgeProps } from '@xyflow/react';
 import { X, Palette, Type, Zap, ZapOff, ArrowLeftRight, Copy, Sparkles, Columns2 } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvasStore';
+
+interface EdgeData {
+  lineStyle?: string;
+  color?: string;
+  thickness?: number;
+  animated?: boolean;
+  pathType?: string;
+  markerEndStyle?: string;
+  markerStartStyle?: string;
+  bidirectional?: boolean;
+  opacity?: number;
+  gradientEnabled?: boolean;
+  gradientEndColor?: string;
+  animationSpeed?: string;
+  glowEnabled?: boolean;
+  doubleLine?: boolean;
+}
 
 const edgeStyleMap: Record<string, string> = {
   solid: '',
@@ -74,7 +91,7 @@ export const CustomEdge = memo(({
   const inputRef = useRef<HTMLInputElement>(null);
   const pathRef = useRef<SVGPathElement>(null);
 
-  const d = data as Record<string, any> || {};
+  const d = (data as EdgeData) || {};
   const edgeStyle = d.lineStyle || 'solid';
   const edgeColor = d.color || 'hsl(0, 0%, 40%)';
   const edgeThickness = d.thickness || 2;
@@ -289,6 +306,12 @@ export const CustomEdge = memo(({
     return null;
   };
 
+  const [isJustCreated, setIsJustCreated] = useState(true);
+  useEffect(() => {
+    const timer = setTimeout(() => setIsJustCreated(false), 800);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <>
       <defs>
@@ -303,9 +326,15 @@ export const CustomEdge = memo(({
       </defs>
 
       <g opacity={globalOpacity}>
-        {/* Glow layer */}
+        {/* New connection pulse */}
+        {isJustCreated && (
+          <path d={edgePath} fill="none" stroke={strokeColor} className="edge-new-pulse" />
+        )}
+
+        {/* Glow layer or pulse glow */}
         {glowEnabled && (
-          <path d={edgePath} fill="none" stroke={edgeColor} strokeWidth={edgeThickness + 10} strokeOpacity={0.25} style={{ filter: 'blur(8px)' }} />
+          <path d={edgePath} fill="none" stroke={edgeColor} strokeWidth={edgeThickness + 10} strokeOpacity={0.25} 
+            className="edge-pulse-glow" style={{ filter: 'blur(8px)', '--stroke-width': `${edgeThickness}px` } as CSSProperties & Record<string, string>} />
         )}
 
         {/* Selection glow */}
@@ -326,18 +355,29 @@ export const CustomEdge = memo(({
         <path
           ref={pathRef}
           id={id}
-          className="react-flow__edge-path"
+          className={`react-flow__edge-path ${isAnimated ? 'edge-dash-animated' : ''}`}
           d={edgePath}
           markerEnd={markerEndStyle !== 'none' ? `url(#${markerEndId})` : undefined}
           markerStart={effectiveMarkerStart !== 'none' ? `url(#${markerStartId})` : undefined}
           style={{
             stroke: gradientEnabled ? `url(#${gradientId})` : strokeColor,
             strokeWidth: selected ? edgeThickness + 0.5 : edgeThickness,
-            strokeDasharray: edgeStyleMap[edgeStyle] || undefined,
+            strokeDasharray: isAnimated ? undefined : (edgeStyleMap[edgeStyle] || undefined),
             strokeLinecap: 'round',
             strokeLinejoin: 'round',
             transition: 'stroke 0.2s ease, stroke-width 0.15s ease',
           }}
+        />
+
+        {/* Direction Indicator on Hover */}
+        <path
+          d={edgePath}
+          fill="none"
+          stroke={strokeColor}
+          strokeWidth={edgeThickness + 2}
+          strokeOpacity={0}
+          className="transition-opacity hover:opacity-20"
+          style={{ strokeDasharray: '4 8' }}
         />
 
         {/* Double line - second line on top */}

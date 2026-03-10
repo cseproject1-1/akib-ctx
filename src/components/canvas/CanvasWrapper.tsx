@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect, useState, useMemo } from 'react';
+import { useCallback, useRef, useEffect, useState, useMemo, memo } from 'react';
 import {
   ReactFlow,
   Background,
@@ -9,10 +9,19 @@ import {
   useReactFlow,
   useViewport,
   type Node,
+  type Edge,
+  type NodeChange,
+  applyNodeChanges,
+  type ReactFlowInstance,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { uploadCanvasFile } from '@/lib/r2/storage';
+import { toast } from 'sonner';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { debounce } from '@/lib/utils/debounce';
 
-import { useCanvasStore } from '@/store/canvasStore';
+import { useCanvasStore, useNodes, useEdges } from '@/store/canvasStore';
 import { CanvasContextMenu } from './CanvasContextMenu';
 import { NodeContextMenu } from './NodeContextMenu';
 import { CanvasToolbar } from './CanvasToolbar';
@@ -24,16 +33,21 @@ import { CanvasStats } from './CanvasStats';
 import { SearchPalette } from './SearchPalette';
 import { NodeSelectionToolbar } from './NodeSelectionToolbar';
 import { DrawingLayer } from './DrawingLayer';
+import { SelectionToolbar } from './SelectionToolbar';
+import { TutorialSystem } from './TutorialSystem';
+import { ActionPalette } from './ActionPalette';
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
 import { AlignmentGuidesLayer } from './AlignmentGuidesLayer';
 import { PresentationMode } from './PresentationMode';
 import { nodeTypes } from './nodeTypes';
 import { edgeTypes } from './edgeTypes';
+import { cn } from '@/lib/utils';
 import { NodeErrorBoundary } from './NodeErrorBoundary';
+import React from 'react';
 
-const withErrorBoundary = (Component: React.ComponentType<any>) => {
-  const Wrapped = (props: any) => (
-    <NodeErrorBoundary nodeId={props.id}>
+const withErrorBoundary = (Component: React.ComponentType<Record<string, unknown>>) => {
+  const Wrapped = (props: Record<string, unknown>) => (
+    <NodeErrorBoundary nodeId={props.id as string}>
       <Component {...props} />
     </NodeErrorBoundary>
   );
@@ -41,12 +55,21 @@ const withErrorBoundary = (Component: React.ComponentType<any>) => {
   return Wrapped;
 };
 
+// Memoize node components to prevent re-renders when other canvas state changes (Feature 3 logic integrated here for convenience)
+const memoizeNode = (Component: React.ComponentType<Record<string, unknown>>) => {
+  return memo(Component, (prev, next) => {
+    return prev.data === next.data && 
+           prev.selected === next.selected && 
+           prev.dragging === next.dragging;
+  });
+};
+
 const safeNodeTypes = Object.fromEntries(
-  Object.entries(nodeTypes).map(([key, Component]) => [key, withErrorBoundary(Component as React.ComponentType<any>)])
+  Object.entries(nodeTypes).map(([key, Component]) => [key, memoizeNode(withErrorBoundary(Component as React.ComponentType<Record<string, unknown>>))])
 );
 
 /** Compute the best source/target handle IDs based on relative node positions */
-function computeBestHandles(sourceNode: any, targetNode: any): { sourceHandle: string; targetHandle: string } {
+function computeBestHandles(sourceNode: Node | undefined, targetNode: Node | undefined): { sourceHandle: string; targetHandle: string } {
   if (!sourceNode || !targetNode) return { sourceHandle: 's-right', targetHandle: 't-left' };
 
   const sw = (sourceNode.style?.width as number) || sourceNode.measured?.width || 300;
@@ -77,45 +100,76 @@ function computeBestHandles(sourceNode: any, targetNode: any): { sourceHandle: s
 
   return { sourceHandle, targetHandle };
 }
-import { useIsMobile } from '@/hooks/use-mobile';
-import { uploadCanvasFile } from '@/lib/r2/storage';
-import { toast } from 'sonner';
-import { useNavigate, useLocation } from 'react-router-dom';
+
 
 export function CanvasWrapper() {
-  const {
-    nodes,
-    edges,
-    onNodesChange,
-    onEdgesChange,
-    onConnect,
-    setContextMenu,
-    setNodeContextMenu,
-    contextMenu,
-    undo,
-    redo,
-    showMinimap,
-    toggleMinimap,
-    copySelectedNodes,
-    pasteNodes,
-    selectAllNodes,
-    addNode,
-    workspaceId,
-    canvasMode,
-    focusMode,
-    focusedNodeId,
-    setFocusedNodeId,
-    snapEnabled,
-    gridStyle,
-    connectMode,
-    setConnectMode,
-    connectSourceId,
-    setConnectSourceId,
-    pushSnapshot,
-    setLastCursorFlowPosition,
-  } = useCanvasStore();
+  const nodes = useNodes();
+  const edges = useEdges();
+  const onNodesChange = useCanvasStore((s) => s.onNodesChange);
+  const onEdgesChange = useCanvasStore((s) => s.onEdgesChange);
+  const onConnect = useCanvasStore((s) => s.onConnect);
+  const setContextMenu = useCanvasStore((s) => s.setContextMenu);
+  const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
+  const contextMenu = useCanvasStore((s) => s.contextMenu);
+  const undo = useCanvasStore((s) => s.undo);
+  const redo = useCanvasStore((s) => s.redo);
+  const showMinimap = useCanvasStore((s) => s.showMinimap);
+  const toggleMinimap = useCanvasStore((s) => s.toggleMinimap);
+  const copySelectedNodes = useCanvasStore((s) => s.copySelectedNodes);
+  const pasteNodes = useCanvasStore((s) => s.pasteNodes);
+  const selectAllNodes = useCanvasStore((s) => s.selectAllNodes);
+  const addNode = useCanvasStore((s) => s.addNode);
+  const workspaceId = useCanvasStore((s) => s.workspaceId);
+  const canvasMode = useCanvasStore((s) => s.canvasMode);
+  const focusMode = useCanvasStore((s) => s.focusMode);
+  const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
+  const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
+  const snapEnabled = useCanvasStore((s) => s.snapEnabled);
+  const gridStyle = useCanvasStore((s) => s.gridStyle);
+  const connectMode = useCanvasStore((s) => s.connectMode);
+  const setConnectMode = useCanvasStore((s) => s.setConnectMode);
+  const connectSourceId = useCanvasStore((s) => s.connectSourceId);
+  const setConnectSourceId = useCanvasStore((s) => s.setConnectSourceId);
+  const pushSnapshot = useCanvasStore((s) => s.pushSnapshot);
+  const setLastCursorFlowPosition = useCanvasStore((s) => s.setLastCursorFlowPosition);
+  const setStoreNodes = useCanvasStore((s) => s.setNodes);
 
-  const reactFlowInstance = useRef<any>(null);
+  const [localNodes, setLocalNodes] = useState<Node[]>(nodes);
+  const [isZoomedOut, setIsZoomedOut] = useState(false);
+  const isDraggingRef = useRef(false);
+
+  useEffect(() => {
+    if (!isDraggingRef.current) {
+      setLocalNodes(nodes);
+    }
+  }, [nodes]);
+
+  const debouncedSyncToStore = useMemo(
+    () => debounce((n: Node[]) => setStoreNodes(n), 150),
+    [setStoreNodes]
+  );
+
+  const handleNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      setLocalNodes((prev) => {
+        const nextNodes = applyNodeChanges(changes, prev);
+        const isDrag = changes.some((c) => c.type === 'position' && c.dragging);
+
+        if (isDrag) {
+          isDraggingRef.current = true;
+          debouncedSyncToStore(nextNodes);
+        } else {
+          isDraggingRef.current = false;
+          debouncedSyncToStore.cancel();
+          onNodesChange(changes); // Immediate store sync for selection, remove, etc.
+        }
+        return nextNodes;
+      });
+    },
+    [onNodesChange, debouncedSyncToStore]
+  );
+
+  const reactFlowInstance = useRef<ReactFlowInstance<Node, Edge> | null>(null);
   const routerNavigate = useNavigate();
   const routerLocation = useLocation();
 
@@ -131,10 +185,10 @@ export function CanvasWrapper() {
   const isViewMode = canvasMode === 'view';
 
   // Compute alignment guides while dragging
-  const handleNodeDrag = useCallback((_: any, draggedNode: Node) => {
+  const handleNodeDrag = useCallback((_: React.MouseEvent, draggedNode: Node) => {
     if (isViewMode) return;
-    const rf = reactFlowInstance.current;
-    const zoom = rf ? rf.getZoom() : 1;
+    const instance = reactFlowInstance.current;
+    const zoom = instance ? instance.getZoom() : 1;
     // Magnetic intensity scales inversely with zoom (easier to snap when zoomed out)
     const dynamicThreshold = SNAP_THRESHOLD / zoom;
     const newGuides: { type: 'v' | 'h'; pos: number; start: number; end: number }[] = [];
@@ -175,9 +229,15 @@ export function CanvasWrapper() {
     setGuides(newGuides);
   }, [nodes, isViewMode]);
 
-  const handleNodeDragStop = useCallback(() => {
+  const handleNodeDragStop = useCallback((_: React.MouseEvent, node: Node) => {
     setGuides([]);
-  }, []);
+    isDraggingRef.current = false;
+    debouncedSyncToStore.cancel();
+    setLocalNodes((current) => {
+      setStoreNodes(current);
+      return current;
+    });
+  }, [debouncedSyncToStore, setStoreNodes]);
 
   // Viewport for virtualization
   const { x: vx, y: vy, zoom } = useViewport();
@@ -194,29 +254,36 @@ export function CanvasWrapper() {
 
   // Apply locked state, view mode, focus mode and Virtualization filter
   const processedNodes = useMemo(() => {
-    return nodes
-      .filter((n) => {
+    return localNodes
+      .map((n) => {
         // Find rough bounds of node
         const nw = (typeof n.style?.width === 'number' ? n.style.width : n.measured?.width) || 300;
         const nh = (typeof n.style?.height === 'number' ? n.style.height : n.measured?.height) || 200;
         const nx = n.position.x;
         const ny = n.position.y;
         
-        // Check intersection with viewport bounds
-        return !(nx + nw < vLeft || nx > vRight || ny + nh < vTop || ny > vBottom);
-      })
-      .map((n) => ({
-        ...n,
-        draggable: isViewMode ? false : !(n.data as any)?.locked,
-        connectable: isViewMode ? false : !(n.data as any)?.locked,
-        selectable: isViewMode ? false : true,
-        style: {
-          ...n.style,
-          opacity: focusMode && focusedNodeId && focusedNodeId !== n.id ? 0.15 : 1,
-          transition: 'opacity 0.3s ease',
-        },
-      })) as Node[];
-  }, [nodes, isViewMode, focusMode, focusedNodeId, vLeft, vRight, vTop, vBottom]);
+        // Render window check: skip DOM rendering for nodes outside viewport + buffer
+        const isOutOfViewport = (nx + nw < vLeft || nx > vRight || ny + nh < vTop || ny > vBottom);
+        
+        // Essential media types that shouldn't be unloaded to preserve their state/players
+        const skipVirtualization = ['video', 'image', 'audio'].includes(n.type || '');
+        const shouldRender = skipVirtualization || !isOutOfViewport;
+
+        return {
+          ...n,
+          hidden: !shouldRender,
+          data: { ...n.data, shouldRender },
+          draggable: isViewMode ? false : !(n.data as { locked?: boolean })?.locked,
+          connectable: isViewMode ? false : !(n.data as { locked?: boolean })?.locked,
+          selectable: isViewMode ? false : true,
+          style: {
+            ...n.style,
+            opacity: focusMode && focusedNodeId && focusedNodeId !== n.id ? 0.15 : 1,
+            transition: 'opacity 0.3s ease',
+          },
+        };
+      }) as Node[];
+  }, [localNodes, isViewMode, focusMode, focusedNodeId, vLeft, vRight, vTop, vBottom]);
 
   // Pro-level paste type detection with smart title extraction
   const detectPasteType = (text: string, html?: string): { type: string; data: Record<string, unknown>; style?: { width: number; height: number } } => {
@@ -371,7 +438,7 @@ export function CanvasWrapper() {
       // Clipboard API not available or denied — fall back to node paste
       pasteNodes();
     }
-  }, [workspaceId, addNode, pasteNodes]);
+  }, [workspaceId, addNode, pasteNodes, typeLabels]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -411,7 +478,7 @@ export function CanvasWrapper() {
         const rf = reactFlowInstance.current;
         if (!rf) return;
         // Don't pan if nodes are selected (let React Flow handle node movement)
-        const selectedNodes = rf.getNodes().filter((n: any) => n.selected);
+        const selectedNodes = rf.getNodes().filter((n: Node) => n.selected);
         if (selectedNodes.length > 0) return;
         e.preventDefault();
         const { x, y, zoom } = rf.getViewport();
@@ -455,7 +522,7 @@ export function CanvasWrapper() {
   );
 
   const handleNodeContextMenu = useCallback(
-    (event: React.MouseEvent, node: any) => {
+    (event: React.MouseEvent, node: Node) => {
       event.preventDefault();
       setNodeContextMenu({
         x: event.clientX,
@@ -469,14 +536,8 @@ export function CanvasWrapper() {
   // Auto bring-to-front all selected nodes after box select
   const handleSelectionChange = useCallback(({ nodes: selectedNodes }: { nodes: Node[] }) => {
     if (selectedNodes.length > 1) {
-      const store = useCanvasStore.getState();
-      const maxZ = Math.max(...store.nodes.map((n) => (n.style?.zIndex as number) || 0), 0);
-      const ids = new Set(selectedNodes.map((n) => n.id));
-      useCanvasStore.setState({
-        nodes: store.nodes.map((n, i) =>
-          ids.has(n.id) ? { ...n, style: { ...n.style, zIndex: maxZ + 1 + i } } : n
-        ),
-      });
+      const ids = selectedNodes.map((n) => n.id);
+      useCanvasStore.getState().bringNodesToFront(ids);
     }
   }, []);
 
@@ -511,7 +572,7 @@ export function CanvasWrapper() {
   }, [isViewMode, addNode]);
 
   // In focus mode, clicking a node focuses it
-  const handleNodeClick = useCallback((_: React.MouseEvent, node: any) => {
+  const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
     // Always bring clicked node to front
     useCanvasStore.getState().bringToFront(node.id);
 
@@ -658,20 +719,21 @@ export function CanvasWrapper() {
         </div>
       )}
       <ReactFlow
+        className={cn(isZoomedOut && 'zoom-out')}
         nodes={processedNodes}
         edges={edges.map(e => {
-          const sourceNode = nodes.find(n => n.id === e.source);
-          const targetNode = nodes.find(n => n.id === e.target);
+          const sourceNode = localNodes.find(n => n.id === e.source);
+          const targetNode = localNodes.find(n => n.id === e.target);
           const sourceZ = (sourceNode?.style?.zIndex as number) || 0;
           const targetZ = (targetNode?.style?.zIndex as number) || 0;
           const edgeZ = Math.max(0, Math.min(sourceZ, targetZ) - 1);
           return { ...e, zIndex: edgeZ };
         })}
-        onNodesChange={isViewMode ? undefined : onNodesChange}
+        onNodesChange={isViewMode ? undefined : handleNodesChange}
         onEdgesChange={isViewMode ? undefined : onEdgesChange}
         onConnect={isViewMode ? undefined : onConnect}
         onInit={(instance) => { 
-          reactFlowInstance.current = instance; 
+          reactFlowInstance.current = instance as ReactFlowInstance<Node, Edge>; 
           // Restore viewport from URL hash on load
           if (routerLocation.hash.startsWith('#viewport=')) {
             const [x, y, z] = routerLocation.hash.replace('#viewport=', '').split(',');
@@ -695,7 +757,14 @@ export function CanvasWrapper() {
             }
           }
         }, [])}
+        onMove={useCallback((_, viewport) => {
+          if (viewport.zoom < 0.5 !== isZoomedOut) {
+            setIsZoomedOut(viewport.zoom < 0.5);
+          }
+        }, [isZoomedOut])}
         onMoveEnd={useCallback((_, viewport) => {
+          // Update zoom-out state one last time to be sure
+          setIsZoomedOut(viewport.zoom < 0.5);
           // Sync viewport state to URL immediately
           const hash = `#viewport=${Math.round(viewport.x)},${Math.round(viewport.y)},${viewport.zoom.toFixed(2)}`;
           if (routerLocation.hash !== hash) {
@@ -706,7 +775,7 @@ export function CanvasWrapper() {
         onNodeContextMenu={isViewMode ? undefined : handleNodeContextMenu}
         onNodeDrag={isViewMode ? undefined : handleNodeDrag}
         onNodeDragStop={isViewMode ? undefined : handleNodeDragStop}
-        nodeTypes={nodeTypes}
+        nodeTypes={safeNodeTypes}
         edgeTypes={edgeTypes}
         fitView
         snapToGrid={snapEnabled}
@@ -781,6 +850,9 @@ export function CanvasWrapper() {
       <NodeExpandModal />
       <SearchPalette />
       <NodeSelectionToolbar />
+      <SelectionToolbar />
+      <ActionPalette />
+      <TutorialSystem />
       <PomodoroTimer />
       <PinnedNodesPanel />
       <CanvasStats />

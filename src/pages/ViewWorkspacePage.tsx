@@ -12,7 +12,9 @@ const ViewWorkspacePage = () => {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { loadCanvas, setWorkspaceId, setWorkspaceMeta } = useCanvasStore();
+  const loadCanvas = useCanvasStore((s) => s.loadCanvas);
+  const setWorkspaceId = useCanvasStore((s) => s.setWorkspaceId);
+  const setWorkspaceMeta = useCanvasStore((s) => s.setWorkspaceMeta);
 
   useEffect(() => {
     if (!workspaceId) return;

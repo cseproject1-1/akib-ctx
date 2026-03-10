@@ -15,7 +15,9 @@ const LANGUAGES = [
 ];
 
 export const CodeSnippetNode = memo(({ id, data, selected }: NodeProps) => {
-  const { updateNodeData, setExpandedNode, setNodeContextMenu } = useCanvasStore();
+  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const setExpandedNode = useCanvasStore((s) => s.setExpandedNode);
+  const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
   const d = data as { title?: string; code?: string; language?: string };
   const [editing, setEditing] = useState(!d.code);
   const [copied, setCopied] = useState(false);

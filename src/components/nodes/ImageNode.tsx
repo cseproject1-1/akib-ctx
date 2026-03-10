@@ -8,7 +8,9 @@ import { ImageLightboxModal } from '@/components/canvas/ImageLightboxModal';
 import { toast } from 'sonner';
 
 export function ImageNode({ id, data, selected }: NodeProps) {
-  const { updateNodeData, setNodeContextMenu, workspaceId } = useCanvasStore();
+  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
+  const workspaceId = useCanvasStore((s) => s.workspaceId);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [showResize, setShowResize] = useState(false);

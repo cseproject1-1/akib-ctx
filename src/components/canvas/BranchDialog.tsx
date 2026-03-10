@@ -11,7 +11,8 @@ interface BranchDialogProps {
 }
 
 export function BranchDialog({ onClose, parentWorkspaceId }: BranchDialogProps) {
-  const { workspaceId, workspaceName } = useCanvasStore();
+  const workspaceId = useCanvasStore((s) => s.workspaceId);
+  const workspaceName = useCanvasStore((s) => s.workspaceName);
   const [branchName, setBranchName] = useState(`${workspaceName} (branch)`);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -39,8 +40,8 @@ export function BranchDialog({ onClose, parentWorkspaceId }: BranchDialogProps) 
       toast.success('Merged back to parent!');
       navigate(`/workspace/${parentId}`);
       onClose();
-    } catch (e: any) {
-      toast.error(e?.message || 'Failed to merge');
+    } catch (e: unknown) {
+      toast.error((e as Error)?.message || 'Failed to merge');
     } finally {
       setLoading(false);
     }

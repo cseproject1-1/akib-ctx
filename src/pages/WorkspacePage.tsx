@@ -27,7 +27,10 @@ import { toast } from 'sonner';
 const WorkspacePage = () => {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const [loading, setLoading] = useState(true);
-  const { loadCanvas, setWorkspaceId, setWorkspaceMeta, resetState } = useCanvasStore();
+  const loadCanvas = useCanvasStore((s) => s.loadCanvas);
+  const setWorkspaceId = useCanvasStore((s) => s.setWorkspaceId);
+  const setWorkspaceMeta = useCanvasStore((s) => s.setWorkspaceMeta);
+  const resetState = useCanvasStore((s) => s.resetState);
   const changesSinceSnapshot = useRef(0);
   // Track whether initial load is fully complete — subscriber is inert until this is true
   const loadComplete = useRef(false);

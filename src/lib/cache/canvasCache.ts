@@ -23,6 +23,8 @@ import { toast } from 'sonner';
 const SWR_TTL = 30_000;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STALE_MS = 24 * 60 * 60 * 1000; // 24h
+const MAX_RETRY_INTERVAL = 60_000; // 1m
+let _retryDelay = 5000;
 
 function isFresh(cachedAt: number) {
   return Date.now() - cachedAt < SWR_TTL;
@@ -135,6 +137,47 @@ async function applyPendingOpsToEdges(edges: Edge[], workspaceId: string): Promi
   }
 
   return result;
+}
+
+/**
+ * Validates that an operation still makes sense to perform.
+ * e.g. don't try to update a node that has a pending delete operation.
+ */
+async function validateAndFilterOps(ops: PendingOp[]): Promise<PendingOp[]> {
+  const deletedNodeIds = new Set<string>();
+  const deletedEdgeIds = new Set<string>();
+  
+  // First pass: identify all deletions
+  for (const op of ops) {
+    if (op.type === 'deleteNode') deletedNodeIds.add(op.args[1] as string);
+    if (op.type === 'deleteEdge') deletedEdgeIds.add(op.args[1] as string);
+  }
+
+  // Second pass: filter out ops on deleted items
+  return ops.filter(op => {
+    const args = op.args;
+    switch (op.type) {
+      case 'saveNode':
+      case 'updatePosition':
+      case 'updateData':
+      case 'updateStyle': {
+        const nodeId = (op.type === 'saveNode' ? (args[1] as Node).id : args[1]) as string;
+        return !deletedNodeIds.has(nodeId);
+      }
+      case 'saveEdge':
+      case 'updateEdgeData': {
+        const edge = op.type === 'saveEdge' ? (args[1] as Edge) : null;
+        const edgeId = edge ? edge.id : (args[1] as string);
+        if (deletedEdgeIds.has(edgeId)) return false;
+        
+        // If node is deleted, edge is orphaned
+        if (edge && (deletedNodeIds.has(edge.source) || deletedNodeIds.has(edge.target))) return false;
+        return true;
+      }
+      default:
+        return true;
+    }
+  });
 }
 
 // ─── Canvas Nodes ───
@@ -408,22 +451,27 @@ export async function clearPendingOps() {
 
 let _replaying = false;
 
-export async function replayPendingOps() {
+export async function replayPendingOps(isRetry = false) {
   // Prevent concurrent replays
   if (_replaying) return;
   _replaying = true;
 
   try {
-    // Ensure we have a valid session before replaying
     const hasSession = await ensureSession();
     if (!hasSession) {
       console.warn('[sync] No session — skipping replay');
       return;
     }
 
-    const ops = await getAllPendingOps();
-    if (ops.length === 0) return;
+    let ops = await getAllPendingOps();
+    if (ops.length === 0) {
+      _retryDelay = 5000; // reset delay
+      return;
+    }
 
+    // Filter out conflicting/orphaned ops
+    ops = await validateAndFilterOps(ops);
+    
     const now = Date.now();
     let purged = 0;
     let replayed = 0;
@@ -436,11 +484,26 @@ export async function replayPendingOps() {
         continue;
       }
 
+      // Conflict Resolution: Check if cache is newer than this op
+      // (Simple LWW: if cache was updated AFTER the op was created, skip the op)
+      if (op.type.startsWith('save') || op.type.startsWith('update')) {
+        const storeName = op.type.includes('Node') || op.type.includes('Position') || op.type.includes('Style') || op.type.includes('Data') ? 'canvas-nodes' : 'canvas-edges';
+        if (storeName === 'canvas-nodes') {
+          const entry = await cacheGet<Node[]>(storeName, op.args[0] as string);
+          if (entry && entry.cachedAt > op.createdAt) {
+             // Cache is fresher, this op is likely redundant or conflicting
+             console.log('[sync] Skipping conflicting/stale op:', op.type);
+             await removePendingOp(op.id);
+             purged++;
+             continue;
+          }
+        }
+      }
+
       try {
         switch (op.type) {
           case 'saveNode': {
             const node = op.args[1] as Node;
-            // Normalize sizing for legacy stuck ops
             if (node.style) {
               if (typeof node.style.width !== 'number') node.style.width = 300;
               if (typeof node.style.height !== 'number') node.style.height = 200;
@@ -460,7 +523,6 @@ export async function replayPendingOps() {
           case 'deleteEdge': {
             const delWsId = op.args[0] as string;
             const delEdgeId = op.args[1] as string;
-            // Skip invalid edge IDs — just remove from queue
             if (!isValidUUID(delEdgeId)) {
               await removePendingOp(op.id);
               purged++;
@@ -495,8 +557,8 @@ export async function replayPendingOps() {
         }
         await removePendingOp(op.id);
         replayed++;
+        _retryDelay = 5000; // success, reset delay
       } catch (err: any) {
-        // If it's a 400/422 (bad data), remove the op — it will never succeed
         if (err?.code === 'invalid-argument' || err?.code === '22P02' || 
             err?.message?.includes('invalid-argument') || err?.message?.includes('invalid input syntax')) {
           console.warn('[sync] Removing permanently failed op:', op.type, err?.message);
@@ -504,19 +566,21 @@ export async function replayPendingOps() {
           purged++;
           continue;
         }
-        // Network/auth error — stop replaying, try later
+        
         if (isNetworkError(err) || isAuthError(err)) {
-          console.warn('[sync] Stopping replay due to:', err?.message);
+          console.warn('[sync] Stopping replay due to network/auth error');
+          // Start/Increase exponential backoff
+          _retryDelay = Math.min(_retryDelay * 1.5, MAX_RETRY_INTERVAL);
           break;
         }
-        // Unknown error — remove to prevent infinite loops
+        
         console.error('[sync] Unknown error, removing op:', op.type, err);
         await removePendingOp(op.id);
         purged++;
       }
     }
 
-    if (purged > 0) console.log(`[sync] Purged ${purged} invalid/stale ops`);
+    if (purged > 0) console.log(`[sync] Purged ${purged} invalid/stale/conflicting ops`);
     if (replayed > 0) {
       toast.success(`Synced ${replayed} pending change${replayed > 1 ? 's' : ''}`, { id: 'sync-success' });
     }
@@ -546,18 +610,44 @@ export { clearAllCaches };
 
 // ─── Online listener + periodic retry ───
 
-if (typeof window !== 'undefined') {
+let _syncInterval: any = null;
+let _onlineHandler: (() => void) | null = null;
+
+/**
+ * Starts the global synchronization manager that replays pending operations
+ * when online and periodically as a fallback.
+ */
+export function startSyncManager() {
+  if (typeof window === 'undefined') return;
+  if (_syncInterval) return; // Already running
+
   // On first load, replay after a short delay to let auth initialize
   setTimeout(() => replayPendingOps(), 3000);
 
-  window.addEventListener('online', () => {
+  _onlineHandler = () => {
     // Small delay to let network stabilize
     setTimeout(() => replayPendingOps(), 2000);
-  });
+  };
+  window.addEventListener('online', _onlineHandler);
 
-  setInterval(() => {
+  _syncInterval = setInterval(() => {
     if (navigator.onLine) {
       replayPendingOps();
     }
-  }, 30_000);
+  }, _retryDelay);
 }
+
+/**
+ * Stops the global synchronization manager and cleans up listeners.
+ */
+export function stopSyncManager() {
+  if (_syncInterval) {
+    clearInterval(_syncInterval);
+    _syncInterval = null;
+  }
+  if (_onlineHandler) {
+    window.removeEventListener('online', _onlineHandler);
+    _onlineHandler = null;
+  }
+}
+

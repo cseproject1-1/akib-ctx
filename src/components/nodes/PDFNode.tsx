@@ -22,7 +22,9 @@ function getIcon(fileType?: string) {
 }
 
 export function PDFNode({ id, data, selected }: NodeProps) {
-  const { updateNodeData, setNodeContextMenu, workspaceId } = useCanvasStore();
+  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
+  const workspaceId = useCanvasStore((s) => s.workspaceId);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
   const nodeData = data as any;

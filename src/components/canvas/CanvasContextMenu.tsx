@@ -65,7 +65,9 @@ const defaultSizeForType = (type: NodeType): { width: number; height: number } =
 };
 
 export function CanvasContextMenu() {
-  const { contextMenu, setContextMenu, addNode } = useCanvasStore();
+  const contextMenu = useCanvasStore((s) => s.contextMenu);
+  const setContextMenu = useCanvasStore((s) => s.setContextMenu);
+  const addNode = useCanvasStore((s) => s.addNode);
 
   if (!contextMenu) return null;
 

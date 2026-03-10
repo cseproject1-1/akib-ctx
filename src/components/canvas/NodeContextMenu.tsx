@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useCanvasStore } from '@/store/canvasStore';
+import { useNodes, useEdges, type Node } from '@xyflow/react';
 import { Copy, ArrowUp, ArrowDown, Trash2, Link2, Palette, Sparkles, GraduationCap, Loader2, Star, Lock, Unlock, Tag, Minimize2, Maximize2, Smile, CalendarDays, SlidersHorizontal, Maximize } from 'lucide-react';
 import { toast } from 'sonner';
 import { WORKER_URL } from '@/lib/firebase/client';
@@ -18,20 +19,32 @@ const presetColors = [
 
 const EMOJI_PRESETS = ['📚', '🔥', '⭐', '💡', '🎯', '📝', '🚀', '💎', '🧠', '📌', '✅', '❌', '⚡', '🎨', '🔬', '📊', '🎵', '🏆', '💬', '🔒'];
 
-function extractTextFromTiptap(content: any): string {
+interface AISummarizeResponse {
+  title?: string;
+  bullets?: string[];
+}
+
+interface AIFlashcardsResponse {
+  flashcards?: Array<{ front: string; back: string }>;
+}
+
+function extractTextFromTiptap(content: unknown): string {
   if (!content) return '';
   if (typeof content === 'string') return content;
-  if (content.text) return content.text;
-  if (content.content && Array.isArray(content.content)) {
-    return content.content.map(extractTextFromTiptap).join(' ');
+  if (typeof content === 'object' && content !== null) {
+    const c = content as { text?: string; content?: unknown[] };
+    if (c.text) return c.text;
+    if (c.content && Array.isArray(c.content)) {
+      return c.content.map(extractTextFromTiptap).join(' ');
+    }
   }
   return '';
 }
 
-function getNodeTextContent(node: any): string {
-  const d = node.data || {};
+function getNodeTextContent(node: Node): string {
+  const d = node.data as Record<string, unknown> || {};
   const parts: string[] = [];
-  if (d.title) parts.push(d.title);
+  if (d.title) parts.push(d.title as string);
   if (d.content) parts.push(extractTextFromTiptap(d.content));
   if (d.bullets) parts.push((d.bullets as string[]).join('\n'));
   if (d.questions) parts.push((d.questions as string[]).join('\n'));
@@ -39,7 +52,17 @@ function getNodeTextContent(node: any): string {
 }
 
 export function NodeContextMenu() {
-  const { nodeContextMenu, setNodeContextMenu, duplicateNode, deleteNode, bringToFront, sendToBack, updateNodeData, nodes, workspaceId, addNode, edges } = useCanvasStore();
+  const nodeContextMenu = useCanvasStore((s) => s.nodeContextMenu);
+  const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
+  const duplicateNode = useCanvasStore((s) => s.duplicateNode);
+  const deleteNode = useCanvasStore((s) => s.deleteNode);
+  const bringToFront = useCanvasStore((s) => s.bringToFront);
+  const sendToBack = useCanvasStore((s) => s.sendToBack);
+  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const nodes = useNodes();
+  const workspaceId = useCanvasStore((s) => s.workspaceId);
+  const addNode = useCanvasStore((s) => s.addNode);
+  const edges = useEdges();
   const [showColors, setShowColors] = useState(false);
   const [showTags, setShowTags] = useState(false);
   const [showEmojis, setShowEmojis] = useState(false);
@@ -53,12 +76,12 @@ export function NodeContextMenu() {
   const nodeType = node?.type;
   const supportsColor = nodeType === 'summary' || nodeType === 'group' || nodeType === 'termQuestion' || nodeType === 'stickyNote';
   const supportsAI = nodeType === 'aiNote' || nodeType === 'lectureNotes' || nodeType === 'summary' || nodeType === 'termQuestion';
-  const isPinned = (node?.data as any)?.pinned;
-  const isLocked = (node?.data as any)?.locked;
-  const isCollapsed = (node?.data as any)?.collapsed;
-  const nodeTags: string[] = (node?.data as any)?.tags || [];
-  const currentEmoji: string = (node?.data as any)?.emoji || '';
-  const currentOpacity: number = (node?.data as any)?.opacity ?? 100;
+  const isPinned = (node?.data as { pinned?: boolean })?.pinned;
+  const isLocked = (node?.data as { locked?: boolean })?.locked;
+  const isCollapsed = (node?.data as { collapsed?: boolean })?.collapsed;
+  const nodeTags: string[] = (node?.data as { tags?: string[] })?.tags || [];
+  const currentEmoji: string = (node?.data as { emoji?: string })?.emoji || '';
+  const currentOpacity: number = (node?.data as { opacity?: number })?.opacity ?? 100;
 
   const TAG_PRESETS = ['Important', 'Review', 'Done', 'Todo', 'Question', 'Idea'];
   const TAG_COLORS: Record<string, string> = {
@@ -71,7 +94,7 @@ export function NodeContextMenu() {
   };
 
   const toggleTag = (tag: string) => {
-    const current: string[] = (node?.data as any)?.tags || [];
+    const current: string[] = (node?.data as { tags?: string[] })?.tags || [];
     const updated = current.includes(tag) ? current.filter((t: string) => t !== tag) : [...current, tag];
     updateNodeData(nodeId, { tags: updated });
   };
@@ -144,7 +167,7 @@ export function NodeContextMenu() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'summarize', content: textContent })
       });
-      const { data, error } = await response.json() as any;
+      const { data, error } = await response.json() as { data: AISummarizeResponse; error?: string };
       if (error) throw new Error(error);
       const result = data;
       if (!result?.bullets) throw new Error('Invalid response');
@@ -156,7 +179,7 @@ export function NodeContextMenu() {
         style: { width: 300, height: 340 },
       });
       toast.success('Summary generated!');
-    } catch (err: any) { console.error(err); toast.error('Failed to generate summary'); }
+    } catch (err: unknown) { console.error(err); toast.error('Failed to generate summary'); }
     finally { setAiLoading(null); setNodeContextMenu(null); }
   };
 
@@ -171,11 +194,11 @@ export function NodeContextMenu() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'flashcards', content: textContent })
       });
-      const { data, error } = await response.json() as any;
+      const { data, error } = await response.json() as { data: AIFlashcardsResponse; error?: string };
       if (error) throw new Error(error);
       const result = data;
       if (!result?.flashcards?.length) throw new Error('Invalid response');
-      const title = (node.data as any)?.title || 'Note';
+      const title = (node.data as { title?: string })?.title || 'Note';
       addNode({
         id: crypto.randomUUID(),
         type: 'flashcard' as const,
@@ -184,11 +207,11 @@ export function NodeContextMenu() {
         style: { width: 320, height: 300 },
       });
       toast.success(`${result.flashcards.length} flashcards generated!`);
-    } catch (err: any) { console.error(err); toast.error('Failed to generate flashcards'); }
+    } catch (err: unknown) { console.error(err); toast.error('Failed to generate flashcards'); }
     finally { setAiLoading(null); setNodeContextMenu(null); }
   };
 
-  const hasDueDate = !!(node?.data as any)?.dueDate;
+  const hasDueDate = !!(node?.data as { dueDate?: string })?.dueDate;
 
   return (
     <>

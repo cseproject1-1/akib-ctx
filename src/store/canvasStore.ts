@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 import {
   type Node,
   type Edge,
@@ -63,6 +64,7 @@ interface CanvasState {
   setNodeContextMenu: (menu: CanvasState['nodeContextMenu']) => void;
   setExpandedNode: (id: string | null) => void;
   bringToFront: (id: string) => void;
+  bringNodesToFront: (ids: string[]) => void;
   sendToBack: (id: string) => void;
   loadCanvas: (nodes: Node[], edges: Edge[]) => void;
   toggleMinimap: () => void;
@@ -77,13 +79,14 @@ interface CanvasState {
   setFocusedNodeId: (id: string | null) => void;
   toggleSnap: () => void;
   cycleGridStyle: () => void;
-  toggleLockAll: () => void;
+  toggleLockAll: (lock: boolean) => void;
   deleteSelected: () => void;
   duplicateEdge: (id: string) => void;
   reverseEdge: (id: string) => void;
   setConnectMode: (on: boolean) => void;
   setConnectSourceId: (id: string | null) => void;
   setLastCursorFlowPosition: (pos: { x: number; y: number } | null) => void;
+  toggleGroupCollapse: (groupId: string) => void;
 
   // History actions
   pushSnapshot: () => void;
@@ -215,20 +218,71 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   setExpandedNode: (id) => set({ expandedNode: id }),
 
   bringToFront: (id) => {
-    const maxZ = Math.max(...get().nodes.map((n) => (n.style?.zIndex as number) || 0), 0);
-    set({
-      nodes: get().nodes.map((n) =>
-        n.id === id ? { ...n, style: { ...n.style, zIndex: maxZ + 1 } } : n
-      ),
+    set((state) => {
+      const maxZ = Math.max(...state.nodes.map((n) => (n.style?.zIndex as number) || 0), 0);
+      return {
+        nodes: state.nodes.map((n) =>
+          n.id === id ? { ...n, style: { ...n.style, zIndex: maxZ + 1 } } : n
+        ),
+      };
+    });
+  },
+
+  bringNodesToFront: (ids) => {
+    set((state) => {
+      const maxZ = Math.max(...state.nodes.map((n) => (n.style?.zIndex as number) || 0), 0);
+      const idSet = new Set(ids);
+      return {
+        nodes: state.nodes.map((n, i) =>
+          idSet.has(n.id) ? { ...n, style: { ...n.style, zIndex: maxZ + 1 + i } } : n
+        ),
+      };
     });
   },
 
   sendToBack: (id) => {
-    const minZ = Math.min(...get().nodes.map((n) => (n.style?.zIndex as number) || 0), 0);
+    set((state) => {
+      const minZ = Math.min(...state.nodes.map((n) => (n.style?.zIndex as number) || 0), 0);
+      return {
+        nodes: state.nodes.map((n) =>
+          n.id === id ? { ...n, style: { ...n.style, zIndex: minZ - 1 } } : n
+        ),
+      };
+    });
+  },
+
+  toggleGroupCollapse: (groupId) => {
+    const nodes = get().nodes;
+    const group = nodes.find(n => n.id === groupId);
+    if (!group) return;
+
+    const isCollapsing = !(group.data as any).collapsed;
+    
+    // Store original size when collapsing
+    const originalStyle = isCollapsing 
+      ? { ...group.style, width: group.measured?.width || group.width, height: group.measured?.height || group.height }
+      : (group.data as any).originalStyle || group.style;
+
     set({
-      nodes: get().nodes.map((n) =>
-        n.id === id ? { ...n, style: { ...n.style, zIndex: minZ - 1 } } : n
-      ),
+      nodes: nodes.map(n => {
+        if (n.id === groupId) {
+          return {
+            ...n,
+            data: { 
+              ...n.data, 
+              collapsed: isCollapsing,
+              originalStyle: isCollapsing ? originalStyle : undefined
+            },
+            style: isCollapsing 
+              ? { ...n.style, width: 200, height: 48, zIndex: 10 } 
+              : originalStyle
+          };
+        }
+        if (n.parentId === groupId) {
+          return { ...n, hidden: isCollapsing };
+        }
+        return n;
+      })
     });
   },
 
@@ -422,3 +476,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     clipboard: []
   }),
 }));
+
+// Custom Selector Hooks
+export const useNodes = () => useCanvasStore(useShallow((s) => s.nodes));
+export const useEdges = () => useCanvasStore(useShallow((s) => s.edges));
+export const useSelectedNodes = () => useCanvasStore(useShallow((s) => s.nodes.filter(n => n.selected)));

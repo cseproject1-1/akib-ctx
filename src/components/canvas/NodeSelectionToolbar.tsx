@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { useReactFlow, useViewport, Panel } from '@xyflow/react';
+import { useReactFlow, useViewport, useNodes } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { Copy, Trash2, Star, Lock, Unlock, Palette } from 'lucide-react';
 import { toast } from 'sonner';
@@ -14,7 +14,10 @@ const colorOptions = [
 ];
 
 export function NodeSelectionToolbar() {
-  const { nodes, duplicateNode, deleteNode, updateNodeData } = useCanvasStore();
+  const nodes = useNodes();
+  const duplicateNode = useCanvasStore((s) => s.duplicateNode);
+  const deleteNode = useCanvasStore((s) => s.deleteNode);
+  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const { flowToScreenPosition } = useReactFlow();
   const viewport = useViewport();
 
@@ -22,7 +25,7 @@ export function NodeSelectionToolbar() {
 
   const handlePin = useCallback(() => {
     selectedNodes.forEach((n) => {
-      const isPinned = (n.data as any)?.pinned;
+      const isPinned = (n.data as { pinned?: boolean })?.pinned;
       updateNodeData(n.id, { pinned: !isPinned });
     });
     toast.success('Pin toggled');
@@ -30,7 +33,7 @@ export function NodeSelectionToolbar() {
 
   const handleLock = useCallback(() => {
     selectedNodes.forEach((n) => {
-      const isLocked = (n.data as any)?.locked;
+      const isLocked = (n.data as { locked?: boolean })?.locked;
       updateNodeData(n.id, { locked: !isLocked });
     });
     toast.success('Lock toggled');
@@ -43,8 +46,8 @@ export function NodeSelectionToolbar() {
   if (selectedNodes.length !== 1) return null;
 
   const node = selectedNodes[0];
-  const isLocked = (node.data as any)?.locked;
-  const isPinned = (node.data as any)?.pinned;
+  const isLocked = (node.data as { locked?: boolean })?.locked;
+  const isPinned = (node.data as { pinned?: boolean })?.pinned;
 
   const nodeWidth = (node.measured?.width ?? node.width ?? 200) as number;
 

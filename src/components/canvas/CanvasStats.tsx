@@ -1,29 +1,34 @@
 import { useCanvasStore } from '@/store/canvasStore';
+import { useNodes, useEdges } from '@xyflow/react';
 import { BarChart3, X } from 'lucide-react';
 import { useState } from 'react';
 
-function extractTextFromNode(data: any): string {
+function extractTextFromNode(data: Record<string, unknown>): string {
   const parts: string[] = [];
-  if (data.title) parts.push(data.title);
-  if (data.text) parts.push(data.text);
+  if (data.title) parts.push(data.title as string);
+  if (data.text) parts.push(data.text as string);
   if (data.content) parts.push(extractTiptapText(data.content));
   if (data.bullets) parts.push((data.bullets as string[]).join(' '));
   if (data.questions) parts.push((data.questions as string[]).join(' '));
-  if (data.items) parts.push((data.items as any[]).map((i) => i.text).join(' '));
+  if (data.items) parts.push((data.items as Array<{ text: string }>).map((i) => i.text).join(' '));
   return parts.join(' ');
 }
 
-function extractTiptapText(content: any): string {
+function extractTiptapText(content: unknown): string {
   if (!content) return '';
   if (typeof content === 'string') return content;
-  if (content.text) return content.text;
-  if (content.content && Array.isArray(content.content)) return content.content.map(extractTiptapText).join(' ');
+  if (typeof content === 'object' && content !== null) {
+    const c = content as { text?: string; content?: unknown[] };
+    if (c.text) return c.text;
+    if (c.content && Array.isArray(c.content)) return c.content.map(extractTiptapText).join(' ');
+  }
   return '';
 }
 
 export function CanvasStats() {
   const [open, setOpen] = useState(false);
-  const { nodes, edges } = useCanvasStore();
+  const nodes = useNodes();
+  const edges = useEdges();
 
   if (!open) {
     return (

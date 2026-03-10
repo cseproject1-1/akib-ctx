@@ -14,7 +14,8 @@ const colorMap: Record<string, { bg: string; border: string; bullet: string }> =
 };
 
 export function SummaryNode({ id, data, selected }: NodeProps) {
-  const { updateNodeData, setNodeContextMenu } = useCanvasStore();
+  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
   const nodeData = data as any;
   const color = colorMap[nodeData.color || 'yellow'] || colorMap.yellow;
 

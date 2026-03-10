@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { useCanvasStore } from '@/store/canvasStore';
-import { useReactFlow } from '@xyflow/react';
+import { useReactFlow, useNodes } from '@xyflow/react';
 import { Star, ChevronRight, X } from 'lucide-react';
 
 export function PinnedNodesPanel() {
   const [open, setOpen] = useState(false);
-  const { nodes } = useCanvasStore();
+  const nodes = useNodes();
   const reactFlow = useReactFlow();
 
-  const pinnedNodes = nodes.filter((n) => (n.data as any)?.pinned);
+  const pinnedNodes = nodes.filter((n) => (n.data as { pinned?: boolean })?.pinned);
 
   const handleNavigate = (nodeId: string) => {
     const node = nodes.find((n) => n.id === nodeId);
@@ -18,9 +18,9 @@ export function PinnedNodesPanel() {
     reactFlow.setCenter(node.position.x + w / 2, node.position.y + h / 2, { duration: 400, zoom: 1.2 });
   };
 
-  const getNodeLabel = (node: any): string => {
-    const d = node.data || {};
-    return d.title || d.label || d.fileName || d.altText || d.sourceTitle || d.text?.slice(0, 30) || node.type || 'Node';
+  const getNodeLabel = (node: Node): string => {
+    const d = node.data as Record<string, unknown> || {};
+    return (d.title as string) || (d.label as string) || (d.fileName as string) || (d.altText as string) || (d.sourceTitle as string) || (d.text as string)?.slice(0, 30) || node.type || 'Node';
   };
 
   if (!open) {

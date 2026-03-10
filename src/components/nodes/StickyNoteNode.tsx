@@ -16,7 +16,8 @@ const FONT_SIZES: Record<string, number> = { S: 12, M: 16, L: 22 };
 const FONT_CYCLE: ('S' | 'M' | 'L')[] = ['S', 'M', 'L'];
 
 export function StickyNoteNode({ id, data, selected }: NodeProps) {
-  const { updateNodeData, setExpandedNode } = useCanvasStore();
+  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const setExpandedNode = useCanvasStore((s) => s.setExpandedNode);
   const color = (data as any).color || 'yellow';
   const text = (data as any).text || '';
   const fontSize: 'S' | 'M' | 'L' = (data as any).fontSize || 'M';

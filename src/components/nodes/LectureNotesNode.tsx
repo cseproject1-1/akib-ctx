@@ -25,7 +25,8 @@ function extractText(content: any): string {
 }
 
 export const LectureNotesNode = memo(({ id, data, selected }: NodeProps) => {
-  const { updateNodeData, setNodeContextMenu } = useCanvasStore();
+  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
   const nodeData = data as { title: string; content?: JSONContent | null; viewMode?: boolean; collapsed?: boolean; emoji?: string; dueDate?: string; opacity?: number; createdAt?: string; tags?: string[] };
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 

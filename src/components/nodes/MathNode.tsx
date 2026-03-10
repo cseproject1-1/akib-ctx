@@ -14,7 +14,8 @@ const EXAMPLES = [
 ];
 
 export function MathNode({ id, data, selected }: NodeProps) {
-  const { updateNodeData, canvasMode } = useCanvasStore();
+  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const canvasMode = useCanvasStore((s) => s.canvasMode);
   const [latex, setLatex] = useState((data as any).latex || '');
   const [viewMode, setViewMode] = useState<'split' | 'preview'>('split');
   const previewRef = useRef<HTMLDivElement>(null);

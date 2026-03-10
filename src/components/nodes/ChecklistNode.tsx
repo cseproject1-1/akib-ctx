@@ -12,7 +12,8 @@ interface CheckItem {
 }
 
 export function ChecklistNode({ id, data, selected }: NodeProps) {
-  const { updateNodeData, setNodeContextMenu } = useCanvasStore();
+  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
   const title = (data as any).title || 'Checklist';
   const items: CheckItem[] = (data as any).items || [];
   const nodeData = data as any;

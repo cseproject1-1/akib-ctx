@@ -151,7 +151,7 @@ export function BaseNode({
         </div>
       )}
 
-      {!locked && (
+      {!locked && canvasMode === 'edit' && (
         <NodeResizer
           isVisible={selected}
           minWidth={120}
@@ -267,15 +267,15 @@ export function BaseNode({
       {handles && (
         <>
           {/* Source handles (outgoing) */}
-          <Handle type="source" position={Position.Top} id="s-top" className="!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary opacity-0 group-hover/node:opacity-100 transition-opacity" style={{ left: '50%', transform: 'translateX(-50%)' }} />
-          <Handle type="source" position={Position.Bottom} id="s-bottom" className="!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary opacity-0 group-hover/node:opacity-100 transition-opacity" style={{ left: '50%', transform: 'translateX(-50%)' }} />
-          <Handle type="source" position={Position.Left} id="s-left" className="!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary opacity-0 group-hover/node:opacity-100 transition-opacity" style={{ top: '50%', transform: 'translateY(-50%)' }} />
-          <Handle type="source" position={Position.Right} id="s-right" className="!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary opacity-0 group-hover/node:opacity-100 transition-opacity" style={{ top: '50%', transform: 'translateY(-50%)' }} />
+          <Handle type="source" position={Position.Top} id="s-top" className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ left: '50%', transform: 'translateX(-50%)' }} />
+          <Handle type="source" position={Position.Bottom} id="s-bottom" className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ left: '50%', transform: 'translateX(-50%)' }} />
+          <Handle type="source" position={Position.Left} id="s-left" className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ top: '50%', transform: 'translateY(-50%)' }} />
+          <Handle type="source" position={Position.Right} id="s-right" className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ top: '50%', transform: 'translateY(-50%)' }} />
           {/* Target handles (incoming) */}
-          <Handle type="target" position={Position.Top} id="t-top" className="!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary opacity-0 group-hover/node:opacity-100 transition-opacity" style={{ left: '50%', transform: 'translateX(-50%)' }} />
-          <Handle type="target" position={Position.Bottom} id="t-bottom" className="!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary opacity-0 group-hover/node:opacity-100 transition-opacity" style={{ left: '50%', transform: 'translateX(-50%)' }} />
-          <Handle type="target" position={Position.Left} id="t-left" className="!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary opacity-0 group-hover/node:opacity-100 transition-opacity" style={{ top: '50%', transform: 'translateY(-50%)' }} />
-          <Handle type="target" position={Position.Right} id="t-right" className="!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary opacity-0 group-hover/node:opacity-100 transition-opacity" style={{ top: '50%', transform: 'translateY(-50%)' }} />
+          <Handle type="target" position={Position.Top} id="t-top" className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ left: '50%', transform: 'translateX(-50%)' }} />
+          <Handle type="target" position={Position.Bottom} id="t-bottom" className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ left: '50%', transform: 'translateX(-50%)' }} />
+          <Handle type="target" position={Position.Left} id="t-left" className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ top: '50%', transform: 'translateY(-50%)' }} />
+          <Handle type="target" position={Position.Right} id="t-right" className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ top: '50%', transform: 'translateY(-50%)' }} />
         </>
       )}
     </Wrapper>

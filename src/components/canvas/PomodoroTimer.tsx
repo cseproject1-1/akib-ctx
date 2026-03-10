@@ -14,7 +14,9 @@ function getStoredDurations(): { work: number; short: number; long: number } {
   try {
     const stored = localStorage.getItem('pomodoro-durations');
     if (stored) return JSON.parse(stored);
-  } catch {}
+  } catch {
+    // ignore parse error
+  }
   return { work: 25, short: 5, long: 15 };
 }
 
@@ -35,7 +37,9 @@ function playBeep() {
       osc.start(ctx.currentTime + i * 0.15);
       osc.stop(ctx.currentTime + i * 0.15 + 0.12);
     });
-  } catch {}
+  } catch {
+    // ignore audio context error
+  }
 }
 
 function sendNotification(mode: TimerMode) {
