@@ -27,7 +27,7 @@ function extractText(content: any): string {
 export const AINoteNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
-  const nodeData = data as { title?: string; content?: JSONContent | null; pasteContent?: string; pasteFormat?: 'markdown' | 'html'; collapsed?: boolean; emoji?: string; dueDate?: string; opacity?: number; createdAt?: string; tags?: string[] };
+  const nodeData = data as { title?: string; content?: JSONContent | null; pasteContent?: string; pasteFormat?: 'markdown' | 'html'; collapsed?: boolean; emoji?: string; dueDate?: string; opacity?: number; createdAt?: string; tags?: string[]; progress?: number };
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const editorRef = useRef<NoteEditorHandle>(null);
 
@@ -63,6 +63,7 @@ export const AINoteNode = memo(({ id, data, selected }: NodeProps) => {
       footerStats={footerStats}
       onMenuClick={(e) => setNodeContextMenu({ x: e.clientX, y: e.clientY, nodeId: id })}
       color={(data as any).color}
+      progress={nodeData.progress}
       headerExtra={
         <button
           className="rounded-md p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover/header:opacity-100"
@@ -77,6 +78,7 @@ export const AINoteNode = memo(({ id, data, selected }: NodeProps) => {
         ref={editorRef}
         initialContent={nodeData.content}
         onChange={handleContentChange}
+        onProgressChange={(progress) => updateNodeData(id, { progress })}
         placeholder="Paste an AI reply here…"
         pasteContent={nodeData.pasteContent}
         pasteFormat={nodeData.pasteFormat}

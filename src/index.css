@@ -151,29 +151,16 @@
     --node-glow: 52 100% 45% / 10%;
   }
 
-  /* Professional Scrollbar */
+  /* Professional Scrollbar - Hidden but functional */
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background: hsla(var(--border), 0.3);
-    border-radius: 10px;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    background: hsla(var(--border), 0.5);
+    display: none;
+    width: 0;
+    height: 0;
   }
 
   /* Firefox */
   * {
-    scrollbar-width: thin;
-    scrollbar-color: hsla(var(--border), 0.3) transparent;
+    scrollbar-width: none;
   }
 }
 
@@ -531,11 +518,8 @@
   box-shadow: 0 0 40px -10px hsla(var(--primary), 0.15);
 }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 0; }
-::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground)); }
+/* Scrollbar - Hidden but functional */
+::-webkit-scrollbar { display: none; width: 0; height: 0; }
 
 /* Node animations */
 @keyframes node-appear {

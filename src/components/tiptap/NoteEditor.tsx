@@ -11,6 +11,26 @@ import { FindReplace } from './FindReplace';
 import { SlashCommandPopover } from './SlashCommandPopover';
 import type { SlashMenuItem } from './SlashMenu';
 import { marked } from 'marked';
+import { useCanvasStore } from '@/store/canvasStore';
+
+/**
+ * Calculate task progress from Tiptap JSON content.
+ */
+function calculateProgress(json: JSONContent): number | undefined {
+  let total = 0;
+  let completed = 0;
+  const traverse = (node: any) => {
+    if (node.type === 'taskItem') {
+      total++;
+      if (node.attrs?.checked) completed++;
+    }
+    if (node.content && Array.isArray(node.content)) {
+      node.content.forEach(traverse);
+    }
+  };
+  traverse(json);
+  return total > 0 ? (completed / total) * 100 : undefined;
+}
 
 /**
  * Sanitize pasted KaTeX HTML by extracting original LaTeX from annotation tags
@@ -142,6 +162,7 @@ interface NoteEditorProps {
   pasteFormat?: 'markdown' | 'html';
   title?: string;
   onFocusModeChange?: (active: boolean) => void;
+  onProgressChange?: (progress: number | undefined) => void;
 }
 
 let globalAsyncExtensions: AnyExtension[] | null = null;
@@ -188,7 +209,7 @@ interface NoteEditorImplProps extends NoteEditorProps {
   asyncExtensions: AnyExtension[];
 }
 
-const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(function NoteEditorImpl({ initialContent, onChange, placeholder, editable = true, pasteContent, pasteFormat, title, asyncExtensions, onFocusModeChange }, ref) {
+const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(function NoteEditorImpl({ initialContent, onChange, placeholder, editable = true, pasteContent, pasteFormat, title, asyncExtensions, onFocusModeChange, onProgressChange }, ref) {
   const [showBubble, setShowBubble] = useState(false);
   const [bubblePos, setBubblePos] = useState({ top: 0, left: 0 });
   const [showFindReplace, setShowFindReplace] = useState(false);
@@ -318,7 +339,9 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
       },
     },
     onUpdate: ({ editor }) => {
-      onChange?.(editor.getJSON());
+      const json = editor.getJSON();
+      onChange?.(json);
+      onProgressChange?.(calculateProgress(json));
     },
     onSelectionUpdate: ({ editor }) => {
       const { from, to } = editor.state.selection;
@@ -411,13 +434,34 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
     editor.chain().focus().extendMarkRange('link').setLink({ href: url }).run();
   }, [editor]);
 
+  // Wiki-link click handler
+  useEffect(() => {
+    if (!editor) return;
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('.wiki-link')) {
+        const link = target.closest('.wiki-link') as HTMLElement;
+        const nodeId = link.getAttribute('data-node-id');
+        if (nodeId) {
+          e.preventDefault();
+          e.stopPropagation();
+          useCanvasStore.getState().setFocusedNodeId(nodeId);
+          // Also expand if it was collapsed (optional, but good UX)
+          useCanvasStore.getState().updateNodeData(nodeId, { collapsed: false });
+        }
+      }
+    };
+    editor.view.dom.addEventListener('click', handleClick);
+    return () => editor.view.dom.removeEventListener('click', handleClick);
+  }, [editor]);
+
   if (!editor) return null;
 
   return (
     <div className="tiptap-wrapper relative nodrag nowheel nopan" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} ref={wrapperRef}>
       {showBubble && editable && (
         <div
-          className="absolute z-50 flex items-center gap-0.5 rounded-lg border-2 border-border bg-popover p-1 shadow-[4px_4px_0px_hsl(0,0%,10%)] animate-fade-slide-in"
+          className="absolute z-50 flex items-center gap-0.5 rounded-lg border-2 border-primary bg-card p-1 shadow-[4px_4px_0px_rgba(0,0,0,1)] animate-brutal-pop"
           style={{ top: bubblePos.top, left: bubblePos.left }}
         >
           <BubbleBtn active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} title="Bold">
@@ -581,7 +625,7 @@ function ColorPickerDropdown({ icon, title, currentColor, onSelect }: {
         {icon}
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-[999] mt-1 grid grid-cols-7 gap-1 rounded-lg border-2 border-border bg-popover p-2 shadow-[4px_4px_0px_hsl(0,0%,10%)]">
+        <div className="absolute left-0 top-full z-[999] mt-1 grid grid-cols-7 gap-1 rounded-lg border-2 border-primary bg-card p-2 shadow-[4px_4px_0px_rgba(0,0,0,1)]">
           <button
             onMouseDown={(e) => { e.preventDefault(); onSelect(''); setOpen(false); }}
             className="col-span-7 mb-1 rounded px-2 py-0.5 text-[10px] font-semibold text-muted-foreground hover:bg-accent"

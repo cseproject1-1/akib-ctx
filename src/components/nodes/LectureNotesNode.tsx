@@ -27,7 +27,7 @@ function extractText(content: any): string {
 export const LectureNotesNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
-  const nodeData = data as { title: string; content?: JSONContent | null; viewMode?: boolean; collapsed?: boolean; emoji?: string; dueDate?: string; opacity?: number; createdAt?: string; tags?: string[] };
+  const nodeData = data as { title: string; content?: JSONContent | null; viewMode?: boolean; collapsed?: boolean; emoji?: string; dueDate?: string; opacity?: number; createdAt?: string; tags?: string[]; progress?: number };
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
   const handleContentChange = useCallback((json: JSONContent) => {
@@ -58,11 +58,13 @@ export const LectureNotesNode = memo(({ id, data, selected }: NodeProps) => {
       createdAt={nodeData.createdAt}
       footerStats={footerStats}
       color={(data as any).color}
+      progress={nodeData.progress}
       headerExtra={null}
     >
       <NoteEditor
         initialContent={nodeData.content}
         onChange={handleContentChange}
+        onProgressChange={(progress) => updateNodeData(id, { progress })}
         placeholder="Start typing your lecture notes…"
       />
     </BaseNode>

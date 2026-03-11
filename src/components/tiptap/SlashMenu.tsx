@@ -8,7 +8,7 @@ import {
   Calculator, Columns2, AlertTriangle, XCircle,
   Strikethrough, RemoveFormatting, Calendar, Keyboard, FileText,
   Footprints, CaseLower, BarChart3, Tag, Link2, Indent, Outdent,
-  CheckCircle2, GitBranch, Music, Video,
+  CheckCircle2, GitBranch, Music, Video, BookOpen,
 } from 'lucide-react';
 
 export interface SlashMenuItem {
@@ -487,6 +487,69 @@ export const slashMenuItems: SlashMenuItem[] = [
       editor.chain().focus().deleteRange(range).setTextAlign('right').run();
     },
   },
+  // Templates
+  {
+    title: 'Meeting Minutes',
+    icon: FileText,
+    group: 'Templates',
+    command: ({ editor, range }) => {
+      editor.chain().focus().deleteRange(range).insertContent(`
+        <h1>📅 Meeting Minutes</h1>
+        <p><strong>Date:</strong> \${new Date().toLocaleDateString()}</p>
+        <p><strong>Participants:</strong> </p>
+        <hr />
+        <h3>Objective</h3>
+        <p>Briefly state the goal of the meeting.</p>
+        <h3>Agenda</h3>
+        <ul><li></li></ul>
+        <h3>Action Items</h3>
+        <ul data-type="taskList">
+          <li data-type="taskItem" data-checked="false"><label><input type="checkbox" /> Task 1</label></li>
+        </ul>
+      `).run();
+    },
+  },
+  {
+    title: 'Project Roadmap',
+    icon: GitBranch,
+    group: 'Templates',
+    command: ({ editor, range }) => {
+      editor.chain().focus().deleteRange(range).insertContent(`
+        <h1>🚀 Project Roadmap</h1>
+        <div data-callout data-callout-type="info"><p>Current Status: Planning</p></div>
+        <h3>Phase 1: Research</h3>
+        <ul data-type="taskList">
+          <li data-type="taskItem" data-checked="true"><label><input type="checkbox" checked /> Market Analysis</label></li>
+          <li data-type="taskItem" data-checked="false"><label><input type="checkbox" /> Competitor Review</label></li>
+        </ul>
+        <h3>Phase 2: Execution</h3>
+        <p>Next steps...</p>
+      `).run();
+    },
+  },
+  {
+    title: 'Cornell Notes',
+    icon: BookOpen,
+    group: 'Templates',
+    command: ({ editor, range }) => {
+       editor.chain().focus().deleteRange(range).insertContent(`
+        <h1>📖 Cornell Notes</h1>
+        <table class="tiptap-table">
+          <tbody>
+            <tr>
+              <th colspan="1" rowspan="1"><p>Cues/Questions</p></th>
+              <th colspan="2" rowspan="1"><p>Notes</p></th>
+            </tr>
+            <tr>
+              <td colspan="1" rowspan="2"><p></p></td>
+              <td colspan="2" rowspan="2"><p></p></td>
+            </tr>
+          </tbody>
+        </table>
+        <div data-callout data-callout-type="summary"><p><strong>Summary</strong></p><p>Synthesis of the main ideas...</p></div>
+      `).run();
+    },
+  },
 ];
 
 interface SlashMenuListProps {
@@ -544,7 +607,7 @@ export const SlashMenuList = forwardRef<any, SlashMenuListProps>(
     });
 
     return (
-      <div className="z-[999] max-h-[320px] w-60 overflow-y-auto rounded-lg border-2 border-border bg-card p-1.5 shadow-[4px_4px_0px_hsl(0,0%,15%)] animate-brutal-pop">
+      <div className="z-[999] max-h-[320px] w-60 overflow-y-auto rounded-lg border-2 border-primary bg-card p-1.5 shadow-[4px_4px_0px_rgba(0,0,0,1)] animate-brutal-pop">
         {groups.map((group) => (
           <div key={group.name}>
             <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">

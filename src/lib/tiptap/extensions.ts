@@ -20,6 +20,7 @@ import { ColumnsExtension, ColumnExtension } from './ColumnsExtension';
 import SlashCommand from './SlashCommandExtension';
 import { CalloutExtension } from './CalloutExtension';
 import { ToggleExtension } from './ToggleExtension';
+import { WikiLinkExtension } from './WikiLinkExtension';
 
 export function getEditorExtensions(placeholder = 'Type / for commands, or start typing…') {
   return [
@@ -49,5 +50,6 @@ export function getEditorExtensions(placeholder = 'Type / for commands, or start
     ColumnsExtension,
     ColumnExtension,
     SlashCommand,
+    WikiLinkExtension,
   ];
 }

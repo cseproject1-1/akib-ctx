@@ -2,26 +2,46 @@ import { Extension } from '@tiptap/react';
 import Suggestion from '@tiptap/suggestion';
 import { ReactRenderer } from '@tiptap/react';
 import tippy, { type Instance } from 'tippy.js';
-import Fuse from 'fuse.js';
-import { SlashMenuList, slashMenuItems, type SlashMenuItem } from '@/components/tiptap/SlashMenu';
+import { useCanvasStore } from '@/store/canvasStore';
+import { WikiLinkList } from '@/components/tiptap/WikiLinkList';
 import { PluginKey } from '@tiptap/pm/state';
 
-const SlashSearchKey = new PluginKey('slashCommand');
+const WikiLinkKey = new PluginKey('wikiLink');
 
-const SlashCommand = Extension.create({
-  name: 'slashCommand',
+export const WikiLinkExtension = Extension.create({
+  name: 'wikiLink',
 
   addOptions() {
     return {
       suggestion: {
-        char: '/',
+        char: '[[',
         command: ({ editor, range, props }: any) => {
-          props.command({ editor, range });
-          // If the item has a popover config, trigger it via the editor's handler
-          if (props.popover) {
-            const handler = (editor as any).__popoverHandler;
-            if (handler) handler(props);
-          }
+          // props will have the node title and id
+          editor
+            .chain()
+            .focus()
+            .deleteRange(range)
+            .insertContent([
+              {
+                type: 'text',
+                text: `[[${props.title}]]`,
+                marks: [
+                  {
+                    type: 'link',
+                    attrs: {
+                      href: `#node-${props.id}`,
+                      class: 'wiki-link',
+                      'data-node-id': props.id,
+                    },
+                  },
+                ],
+              },
+              {
+                type: 'text',
+                text: ' ',
+              }
+            ])
+            .run();
         },
       },
     };
@@ -32,14 +52,18 @@ const SlashCommand = Extension.create({
       Suggestion({
         editor: this.editor,
         ...this.options.suggestion,
-        pluginKey: SlashSearchKey,
+        pluginKey: WikiLinkKey,
         items: ({ query }: { query: string }) => {
-          if (!query) return slashMenuItems;
-          const fuse = new Fuse(slashMenuItems, {
-            keys: ['title', 'group'],
-            threshold: 0.3,
-          });
-          return fuse.search(query).map((res) => res.item);
+          const nodes = useCanvasStore.getState().nodes;
+          // Return nodes that are not the current one (maybe?) and match the query
+          // In practice, we just show all nodes for now
+          return nodes
+            .filter(n => (n.data as any).title?.toLowerCase().includes(query.toLowerCase()))
+            .map(n => ({
+              id: n.id,
+              title: (n.data as any).title || 'Untitled',
+            }))
+            .slice(0, 10);
         },
         render: () => {
           let component: ReactRenderer | null = null;
@@ -47,7 +71,7 @@ const SlashCommand = Extension.create({
 
           return {
             onStart: (props: any) => {
-              component = new ReactRenderer(SlashMenuList, {
+              component = new ReactRenderer(WikiLinkList, {
                 props,
                 editor: props.editor,
               });
@@ -92,5 +116,3 @@ const SlashCommand = Extension.create({
     ];
   },
 });
-
-export default SlashCommand;

@@ -78,6 +78,7 @@ interface BaseNodeProps {
   footerStats?: string;
   nodeType?: string;
   color?: string;
+  progress?: number;
 }
 
 export function BaseNode({
@@ -104,6 +105,7 @@ export function BaseNode({
   footerStats,
   nodeType,
   color,
+  progress,
 }: BaseNodeProps) {
   const nodeTags = tags || [];
   const edges = useEdges();
@@ -131,10 +133,10 @@ export function BaseNode({
       transition={{ duration: 0.15, ease: 'easeOut' }}
       className={cn(
         'animate-node-appear transition-all duration-300 group/node flex flex-col h-full overflow-hidden',
-        'glass-effect premium-border rounded-xl relative',
+        'bg-card border-2 border-border/80 relative',
         selected
-          ? 'node-selection-glow scale-[1.01] z-50'
-          : 'pro-shadow hover:scale-[1.005] hover:border-primary/30',
+          ? 'border-primary shadow-[6px_6px_0px_rgba(0,0,0,0.2)] scale-[1.01] z-50'
+          : 'shadow-[4px_4px_0px_rgba(0,0,0,0.1)] hover:scale-[1.005] hover:border-primary/50 hover:shadow-[6px_6px_0px_rgba(0,0,0,0.15)]',
         userColor ? `${userColor.bg}` : accent && !selected ? `border-l-4 ${accent.border}` : '',
         className
       )}
@@ -250,10 +252,19 @@ export function BaseNode({
         </div>
       )}
 
-      {/* Footer stats */}
-      {footerStats && !collapsed && (
-        <div className="border-t border-border/50 px-3 py-1 text-[10px] text-muted-foreground font-medium">
-          {footerStats}
+      {/* Footer stats & Progress */}
+      {(footerStats || progress !== undefined) && !collapsed && (
+        <div className="border-t-2 border-border/50 px-3 py-1 text-[10px] text-muted-foreground font-bold flex flex-col gap-1">
+          {progress !== undefined && (
+            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden border border-border/20">
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${progress}%` }}
+                className={cn("h-full", accent?.indicator || "bg-primary")}
+              />
+            </div>
+          )}
+          {footerStats && <span>{footerStats}</span>}
         </div>
       )}
 
