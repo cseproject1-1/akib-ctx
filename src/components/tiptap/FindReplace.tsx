@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Search, X, ChevronUp, ChevronDown, Replace } from 'lucide-react';
+import { Search, X, ChevronUp, ChevronDown, Replace, CaseSensitive, Regex } from 'lucide-react';
 import type { Editor } from '@tiptap/react';
 
 interface FindReplaceProps {
@@ -13,11 +13,31 @@ export function FindReplace({ editor, onClose }: FindReplaceProps) {
   const [showReplace, setShowReplace] = useState(false);
   const [results, setResults] = useState<{ from: number; to: number }[]>([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
+  const [matchCase, setMatchCase] = useState(false);
+  const [isRegex, setIsRegex] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  const clearHighlights = useCallback(() => {
+    // Clear any search decorations by re-focusing
+    editor.commands.focus();
+  }, [editor]);
+
+  const goToMatch = useCallback((match: { from: number; to: number }) => {
+    editor.chain().focus().setTextSelection(match).run();
+    // Scroll into view
+    const coords = editor.view.coordsAtPos(match.from);
+    const editorEl = editor.view.dom.closest('.tiptap-wrapper');
+    if (editorEl && coords) {
+      const rect = editorEl.getBoundingClientRect();
+      if (coords.top < rect.top || coords.top > rect.bottom) {
+        editor.view.dom.scrollIntoView({ block: 'center' });
+      }
+    }
+  }, [editor]);
 
   const search = useCallback(() => {
     if (!searchTerm.trim()) {
@@ -29,15 +49,29 @@ export function FindReplace({ editor, onClose }: FindReplaceProps) {
 
     const doc = editor.state.doc;
     const matches: { from: number; to: number }[] = [];
-    const term = searchTerm.toLowerCase();
+    
+    let regex: RegExp;
+    try {
+      if (isRegex) {
+        regex = new RegExp(searchTerm, matchCase ? 'g' : 'gi');
+      } else {
+        const escaped = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        regex = new RegExp(escaped, matchCase ? 'g' : 'gi');
+      }
+    } catch (e) {
+      setResults([]);
+      setCurrentIndex(-1);
+      return;
+    }
 
     doc.descendants((node, pos) => {
       if (node.isText && node.text) {
-        const text = node.text.toLowerCase();
-        let index = 0;
-        while ((index = text.indexOf(term, index)) !== -1) {
-          matches.push({ from: pos + index, to: pos + index + searchTerm.length });
-          index += searchTerm.length;
+        let match;
+        // Reset lastIndex for each block descent if needed, but the RegExp is per-search iteration
+        regex.lastIndex = 0;
+        while ((match = regex.exec(node.text)) !== null) {
+          matches.push({ from: pos + match.index, to: pos + match.index + match[0].length });
+          if (match[0].length === 0) regex.lastIndex++; // Prevent infinite loop for zero-length matches
         }
       }
     });
@@ -49,30 +83,12 @@ export function FindReplace({ editor, onClose }: FindReplaceProps) {
     } else {
       setCurrentIndex(-1);
     }
-  }, [searchTerm, editor]);
+  }, [searchTerm, matchCase, isRegex, editor, clearHighlights, goToMatch]);
 
   useEffect(() => {
     const timer = setTimeout(search, 200);
     return () => clearTimeout(timer);
   }, [searchTerm, search]);
-
-  const clearHighlights = () => {
-    // Clear any search decorations by re-focusing
-    editor.commands.focus();
-  };
-
-  const goToMatch = (match: { from: number; to: number }) => {
-    editor.chain().focus().setTextSelection(match).run();
-    // Scroll into view
-    const coords = editor.view.coordsAtPos(match.from);
-    const editorEl = editor.view.dom.closest('.tiptap-wrapper');
-    if (editorEl && coords) {
-      const rect = editorEl.getBoundingClientRect();
-      if (coords.top < rect.top || coords.top > rect.bottom) {
-        editor.view.dom.scrollIntoView({ block: 'center' });
-      }
-    }
-  };
 
   const goNext = () => {
     if (results.length === 0) return;
@@ -141,6 +157,23 @@ export function FindReplace({ editor, onClose }: FindReplaceProps) {
         </button>
         <button onClick={goNext} className="rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground" title="Next">
           <ChevronDown className="h-3.5 w-3.5" />
+        </button>
+
+        <div className="mx-0.5 h-4 w-px bg-border" />
+        
+        <button
+          onClick={() => setMatchCase(!matchCase)}
+          className={`rounded p-0.5 transition-all ${matchCase ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-accent'}`}
+          title="Match Case"
+        >
+          <CaseSensitive className="h-3.5 w-3.5" />
+        </button>
+        <button
+          onClick={() => setIsRegex(!isRegex)}
+          className={`rounded p-0.5 transition-all ${isRegex ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:bg-accent'}`}
+          title="Use Regular Expression"
+        >
+          <Regex className="h-3.5 w-3.5" />
         </button>
         <button
           onClick={() => setShowReplace(!showReplace)}

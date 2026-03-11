@@ -49,11 +49,12 @@ export function MathNode({ id, data, selected }: NodeProps) {
   }, [renderKatex]);
 
   // Sync local state from data changes (e.g. undo/redo)
+  const dataLatex = (data as { latex?: string })?.latex;
   useEffect(() => {
-    if ((data as any).latex !== undefined && (data as any).latex !== latex) {
-      setLatex((data as any).latex);
+    if (dataLatex !== undefined && dataLatex !== latex) {
+      setLatex(dataLatex);
     }
-  }, [(data as any).latex]);
+  }, [dataLatex, latex]);
 
   const handleChange = (val: string) => {
     setLatex(val);

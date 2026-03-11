@@ -3,7 +3,6 @@ import {
   Background,
   BackgroundVariant,
   Panel,
-  MiniMap,
   useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
@@ -57,12 +56,6 @@ export function ViewCanvasWrapper() {
           color="hsl(0 0% 12%)"
           gap={24}
           size={1.5}
-        />
-        <MiniMap
-          pannable
-          zoomable
-          style={{ width: 180, height: 120 }}
-          className="bg-canvas-bg border-2 border-border rounded-lg"
         />
 
         <Panel position="bottom-right" className="flex items-center gap-1 rounded-lg border bg-card p-1">

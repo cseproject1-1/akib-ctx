@@ -14,6 +14,8 @@ import {
 interface HistorySnapshot {
   nodes: Node[];
   edges: Edge[];
+  label: string;
+  timestamp: number;
 }
 
 interface CanvasState {
@@ -24,6 +26,7 @@ interface CanvasState {
   workspaceColor: string;
   contextMenu: { x: number; y: number; canvasX: number; canvasY: number } | null;
   nodeContextMenu: { x: number; y: number; nodeId: string } | null;
+  edgeContextMenu: { x: number; y: number; edgeId: string } | null;
   expandedNode: string | null;
   showMinimap: boolean;
   saveStatus: 'idle' | 'saving' | 'saved' | 'error';
@@ -36,12 +39,15 @@ interface CanvasState {
   focusMode: boolean;
   focusedNodeId: string | null;
   snapEnabled: boolean;
-  gridStyle: 'dots' | 'lines' | 'cross';
+  gridStyle: 'dots' | 'lines' | 'cross' | 'graph' | 'blank';
   allLocked: boolean;
   connectMode: boolean;
   connectSourceId: string | null;
   lastCursorFlowPosition: { x: number; y: number } | null;
   versionHistoryOpen: boolean;
+  bookmarks: { id: string; name: string; viewport: { x: number; y: number; zoom: number } }[];
+  openWorkspaces: { id: string; name: string; color: string }[];
+  isAISynthesisOpen: boolean;
 
   // History
   past: HistorySnapshot[];
@@ -62,6 +68,8 @@ interface CanvasState {
   updateNodeStyle: (id: string, style: Record<string, unknown>) => void;
   setContextMenu: (menu: CanvasState['contextMenu']) => void;
   setNodeContextMenu: (menu: CanvasState['nodeContextMenu']) => void;
+  setEdgeContextMenu: (menu: CanvasState['edgeContextMenu']) => void;
+  updateEdgeData: (id: string, data: Record<string, unknown>) => void;
   setExpandedNode: (id: string | null) => void;
   bringToFront: (id: string) => void;
   bringNodesToFront: (ids: string[]) => void;
@@ -79,7 +87,7 @@ interface CanvasState {
   setFocusedNodeId: (id: string | null) => void;
   toggleSnap: () => void;
   cycleGridStyle: () => void;
-  toggleLockAll: (lock: boolean) => void;
+  toggleLockAll: () => void;
   deleteSelected: () => void;
   duplicateEdge: (id: string) => void;
   reverseEdge: (id: string) => void;
@@ -87,9 +95,15 @@ interface CanvasState {
   setConnectSourceId: (id: string | null) => void;
   setLastCursorFlowPosition: (pos: { x: number; y: number } | null) => void;
   toggleGroupCollapse: (groupId: string) => void;
+  addBookmark: (name: string, viewport: { x: number; y: number; zoom: number }) => void;
+  removeBookmark: (id: string) => void;
+  addOpenWorkspace: (workspace: { id: string; name: string; color: string }) => void;
+  removeOpenWorkspace: (id: string) => void;
+  setAISynthesisOpen: (open: boolean) => void;
+  setOpenWorkspaces: (workspaces: { id: string; name: string; color: string }[]) => void;
 
   // History actions
-  pushSnapshot: () => void;
+  pushSnapshot: (label?: string) => void;
   undo: () => void;
   redo: () => void;
   clearResyncNeeded: () => void;
@@ -107,6 +121,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   workspaceColor: '#3b82f6',
   contextMenu: null,
   nodeContextMenu: null,
+  edgeContextMenu: null,
   expandedNode: null,
   showMinimap: true,
   saveStatus: 'idle',
@@ -125,6 +140,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   connectSourceId: null,
   lastCursorFlowPosition: null,
   versionHistoryOpen: false,
+  bookmarks: [],
+  openWorkspaces: [],
+  isAISynthesisOpen: false,
   past: [],
   future: [],
 
@@ -142,7 +160,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   onConnect: (connection) => {
-    get().pushSnapshot();
+    get().pushSnapshot('Connect Nodes');
     set({
       edges: addEdge(
         { ...connection, id: crypto.randomUUID(), type: 'custom', animated: false },
@@ -151,8 +169,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     });
   },
 
+  setAISynthesisOpen: (open) => set({ isAISynthesisOpen: open }),
+  setOpenWorkspaces: (workspaces) => set({ openWorkspaces: workspaces }),
+
   addNode: (node) => {
-    get().pushSnapshot();
+    get().pushSnapshot(`Add ${node.type} Node`);
     const cursor = get().lastCursorFlowPosition;
     const positioned = cursor
       ? { ...node, position: { x: cursor.x - 150, y: cursor.y - 50 } }
@@ -161,7 +182,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   deleteNode: (id) => {
-    get().pushSnapshot();
+    get().pushSnapshot('Remove Node');
     set({
       nodes: get().nodes.filter((n) => n.id !== id),
       edges: get().edges.filter((e) => e.source !== id && e.target !== id),
@@ -171,7 +192,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   duplicateNode: (id) => {
     const node = get().nodes.find((n) => n.id === id);
     if (!node) return;
-    get().pushSnapshot();
+    get().pushSnapshot('Duplicate Node');
     // Deep clone data to avoid shared references
     const clonedData = JSON.parse(JSON.stringify(node.data || {}));
     // Reset pinned state on duplicate
@@ -195,9 +216,21 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       Object.entries(data).filter(([_, v]) => v !== undefined)
     );
     set({
-      nodes: get().nodes.map((n) =>
-        n.id === id ? { ...n, data: { ...n.data, ...sanitizedData } } : n
-      ),
+      nodes: get().nodes.map((n) => {
+        if (n.id === id) {
+          const nextData = { ...n.data, ...sanitizedData };
+          // If locked is specified, sync it to React Flow top-level props
+          const isLocked = !!nextData.locked;
+          return { 
+            ...n, 
+            data: nextData,
+            draggable: !isLocked,
+            selectable: true, 
+            deletable: !isLocked
+          };
+        }
+        return n;
+      }),
     });
   },
 
@@ -215,6 +248,18 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   setContextMenu: (menu) => set({ contextMenu: menu }),
   setNodeContextMenu: (menu) => set({ nodeContextMenu: menu }),
+  setEdgeContextMenu: (menu) => set({ edgeContextMenu: menu }),
+  updateEdgeData: (id, data) => {
+    // Filter out undefined values to prevent Firestore sync errors
+    const sanitizedData = Object.fromEntries(
+      Object.entries(data).filter(([_, v]) => v !== undefined)
+    );
+    set({
+      edges: get().edges.map((e) =>
+        e.id === id ? { ...e, data: { ...e.data, ...sanitizedData } } : e
+      ),
+    });
+  },
   setExpandedNode: (id) => set({ expandedNode: id }),
 
   bringToFront: (id) => {
@@ -320,7 +365,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   pasteNodes: () => {
     const { clipboard, lastCursorFlowPosition: cursor } = get();
     if (clipboard.length === 0) return;
-    get().pushSnapshot();
+    get().pushSnapshot('Paste Nodes');
 
     // Calculate center of clipboard nodes
     const minX = Math.min(...clipboard.map(n => n.position.x));
@@ -362,7 +407,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   toggleSnap: () => set({ snapEnabled: !get().snapEnabled }),
 
   cycleGridStyle: () => {
-    const order: CanvasState['gridStyle'][] = ['dots', 'lines', 'cross'];
+    const order: CanvasState['gridStyle'][] = ['dots', 'lines', 'cross', 'graph', 'blank'];
     const idx = order.indexOf(get().gridStyle);
     set({ gridStyle: order[(idx + 1) % order.length] });
   },
@@ -378,7 +423,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   deleteSelected: () => {
     const selected = get().nodes.filter((n) => n.selected);
     if (selected.length === 0) return;
-    get().pushSnapshot();
+    get().pushSnapshot('Delete Selected');
     const ids = new Set(selected.map((n) => n.id));
     set({
       nodes: get().nodes.filter((n) => !ids.has(n.id)),
@@ -389,7 +434,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   duplicateEdge: (id) => {
     const edge = get().edges.find((e) => e.id === id);
     if (!edge) return;
-    get().pushSnapshot();
+    get().pushSnapshot('Duplicate Connection');
     const newEdge = { ...edge, id: crypto.randomUUID(), data: { ...edge.data } };
     set({ edges: [...get().edges, newEdge] });
   },
@@ -397,7 +442,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   reverseEdge: (id) => {
     const edge = get().edges.find((e) => e.id === id);
     if (!edge) return;
-    get().pushSnapshot();
+    get().pushSnapshot('Reverse Connection');
     set({
       edges: get().edges.map((e) =>
         e.id === id
@@ -407,12 +452,14 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     });
   },
 
-  pushSnapshot: () => {
+  pushSnapshot: (label = 'Action') => {
     const { nodes, edges, past } = get();
     // Deep clone data to prevent reference leakage across history states
-    const snapshot = { 
+    const snapshot: HistorySnapshot = { 
       nodes: nodes.map(n => ({ ...n, data: JSON.parse(JSON.stringify(n.data || {})) })), 
-      edges: edges.map(e => ({ ...e, data: JSON.parse(JSON.stringify(e.data || {})) })) 
+      edges: edges.map(e => ({ ...e, data: JSON.parse(JSON.stringify(e.data || {})) })),
+      label,
+      timestamp: Date.now()
     };
     set({
       past: [...past.slice(-49), snapshot],
@@ -424,9 +471,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const { past, nodes, edges, future } = get();
     if (past.length === 0) return;
     const prev = past[past.length - 1];
-    const currentSnapshot = { 
+    const currentSnapshot: HistorySnapshot = { 
       nodes: nodes.map(n => ({ ...n, data: JSON.parse(JSON.stringify(n.data || {})) })), 
-      edges: edges.map(e => ({ ...e, data: JSON.parse(JSON.stringify(e.data || {})) })) 
+      edges: edges.map(e => ({ ...e, data: JSON.parse(JSON.stringify(e.data || {})) })),
+      label: 'Undo Action',
+      timestamp: Date.now()
     };
     
     set({
@@ -443,9 +492,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const { future, nodes, edges, past } = get();
     if (future.length === 0) return;
     const next = future[0];
-    const currentSnapshot = { 
+    const currentSnapshot: HistorySnapshot = { 
       nodes: nodes.map(n => ({ ...n, data: JSON.parse(JSON.stringify(n.data || {})) })), 
-      edges: edges.map(e => ({ ...e, data: JSON.parse(JSON.stringify(e.data || {})) })) 
+      edges: edges.map(e => ({ ...e, data: JSON.parse(JSON.stringify(e.data || {})) })),
+      label: 'Redo Action',
+      timestamp: Date.now()
     };
 
     set({
@@ -473,8 +524,17 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     workspaceId: null,
     saveStatus: 'idle',
     _saveCounter: 0,
-    clipboard: []
+    clipboard: [],
+    bookmarks: [],
   }),
+
+  addBookmark: (name, viewport) => set({ bookmarks: [...get().bookmarks, { id: crypto.randomUUID(), name, viewport }] }),
+  removeBookmark: (id) => set({ bookmarks: get().bookmarks.filter(b => b.id !== id) }),
+  addOpenWorkspace: (ws) => {
+    const exists = get().openWorkspaces.find(w => w.id === ws.id);
+    if (!exists) set({ openWorkspaces: [...get().openWorkspaces, ws] });
+  },
+  removeOpenWorkspace: (id) => set({ openWorkspaces: get().openWorkspaces.filter(w => w.id !== id) }),
 }));
 
 // Custom Selector Hooks

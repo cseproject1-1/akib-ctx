@@ -24,6 +24,7 @@ import { debounce } from '@/lib/utils/debounce';
 import { useCanvasStore, useNodes, useEdges } from '@/store/canvasStore';
 import { CanvasContextMenu } from './CanvasContextMenu';
 import { NodeContextMenu } from './NodeContextMenu';
+import { EdgeContextMenu } from './EdgeContextMenu';
 import { CanvasToolbar } from './CanvasToolbar';
 import { NodeExpandModal } from './NodeExpandModal';
 import { AddNodeToolbar } from './AddNodeToolbar';
@@ -38,10 +39,16 @@ import { TutorialSystem } from './TutorialSystem';
 import { ActionPalette } from './ActionPalette';
 import { KeyboardShortcutsPanel } from './KeyboardShortcutsPanel';
 import { AlignmentGuidesLayer } from './AlignmentGuidesLayer';
+import { HistoryPanel } from './HistoryPanel';
+import { WorkspaceTabs } from './WorkspaceTabs';
+import { NodeSearchPanel, openSearch } from './NodeSearchPanel';
 import { PresentationMode } from './PresentationMode';
 import { nodeTypes } from './nodeTypes';
 import { edgeTypes } from './edgeTypes';
 import { cn } from '@/lib/utils';
+import { isHotkeyMatch } from '@/lib/utils/hotkeys';
+import { useSettingsStore } from '@/store/settingsStore';
+import { AISynthesisDialog } from './AISynthesisDialog';
 import { NodeErrorBoundary } from './NodeErrorBoundary';
 import React from 'react';
 
@@ -110,6 +117,7 @@ export function CanvasWrapper() {
   const onConnect = useCanvasStore((s) => s.onConnect);
   const setContextMenu = useCanvasStore((s) => s.setContextMenu);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
+  const setEdgeContextMenu = useCanvasStore((s) => s.setEdgeContextMenu);
   const contextMenu = useCanvasStore((s) => s.contextMenu);
   const undo = useCanvasStore((s) => s.undo);
   const redo = useCanvasStore((s) => s.redo);
@@ -133,6 +141,10 @@ export function CanvasWrapper() {
   const pushSnapshot = useCanvasStore((s) => s.pushSnapshot);
   const setLastCursorFlowPosition = useCanvasStore((s) => s.setLastCursorFlowPosition);
   const setStoreNodes = useCanvasStore((s) => s.setNodes);
+  const isAISynthesisOpen = useCanvasStore((s) => s.isAISynthesisOpen);
+  const setAISynthesisOpen = useCanvasStore((s) => s.setAISynthesisOpen);
+
+  const hotkeys = useSettingsStore((s) => s.hotkeys);
 
   const [localNodes, setLocalNodes] = useState<Node[]>(nodes);
   const [isZoomedOut, setIsZoomedOut] = useState(false);
@@ -448,29 +460,36 @@ export function CanvasWrapper() {
 
       const mod = e.metaKey || e.ctrlKey;
 
-      if (mod && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
-      if (mod && e.key === 'z' && e.shiftKey) { e.preventDefault(); redo(); }
-      if (mod && e.key === 'c') { e.preventDefault(); copySelectedNodes(); }
-      if (mod && e.key === 'v') {
+      if (isHotkeyMatch(e, hotkeys.undo)) { e.preventDefault(); undo(); }
+      if (isHotkeyMatch(e, hotkeys.redo)) { e.preventDefault(); redo(); }
+      if (isHotkeyMatch(e, hotkeys.copy)) { e.preventDefault(); copySelectedNodes(); }
+      if (isHotkeyMatch(e, hotkeys.paste)) {
         e.preventDefault();
-        // Check if there are copied nodes first
         const { clipboard } = useCanvasStore.getState();
-        if (clipboard.length > 0) {
-          pasteNodes();
-        } else {
-          handleClipboardPaste();
-        }
+        if (clipboard.length > 0) { pasteNodes(); } else { handleClipboardPaste(); }
       }
-      if (mod && e.key === 'a') { e.preventDefault(); selectAllNodes(); }
-      if (mod && e.shiftKey && e.key.toLowerCase() === 'h') {
+      if (isHotkeyMatch(e, hotkeys.selectAll)) { e.preventDefault(); selectAllNodes(); }
+      if (isHotkeyMatch(e, hotkeys.fitView)) {
         e.preventDefault();
         reactFlowInstance.current?.fitView({ duration: 300 });
       }
-      if (mod && e.key === '0') {
+      if (isHotkeyMatch(e, hotkeys.resetZoom)) {
         e.preventDefault();
         reactFlowInstance.current?.zoomTo(1, { duration: 300 });
       }
-      if (e.key === 'm' && !mod) { toggleMinimap(); }
+      if (isHotkeyMatch(e, hotkeys.toggleMinimap)) { e.preventDefault(); toggleMinimap(); }
+      if (isHotkeyMatch(e, hotkeys.search)) { e.preventDefault(); openSearch(); }
+      if (isHotkeyMatch(e, hotkeys.newNote)) {
+        e.preventDefault();
+        const pos = useCanvasStore.getState().lastCursorFlowPosition || { x: 0, y: 0 };
+        addNode({
+          id: crypto.randomUUID(),
+          type: 'aiNote',
+          position: pos,
+          data: { title: 'New Note', content: null },
+          style: { width: 380, height: 500 },
+        });
+      }
 
       // Arrow keys to pan the canvas
       const PAN_STEP = 80;
@@ -499,7 +518,7 @@ export function CanvasWrapper() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, copySelectedNodes, pasteNodes, selectAllNodes, toggleMinimap, setContextMenu, setNodeContextMenu, drawingMode, handleClipboardPaste]);
+  }, [undo, redo, copySelectedNodes, pasteNodes, selectAllNodes, toggleMinimap, setContextMenu, setNodeContextMenu, drawingMode, setDrawingMode, handleClipboardPaste, hotkeys, addNode, openSearch]);
 
   const handleContextMenu = useCallback(
     (event: React.MouseEvent) => {
@@ -531,6 +550,18 @@ export function CanvasWrapper() {
       });
     },
     [setNodeContextMenu]
+  );
+
+  const onEdgeContextMenu = useCallback(
+    (event: React.MouseEvent, edge: any) => {
+      event.preventDefault();
+      setEdgeContextMenu({
+        x: event.clientX,
+        y: event.clientY,
+        edgeId: edge.id,
+      });
+    },
+    [setEdgeContextMenu]
   );
 
   // Auto bring-to-front all selected nodes after box select
@@ -712,6 +743,16 @@ export function CanvasWrapper() {
         </div>
       )}
 
+      <TutorialSystem />
+      <ActionPalette />
+      
+      {isAISynthesisOpen && (
+        <AISynthesisDialog 
+          selectedNodes={nodes.filter(n => n.selected)}
+          onClose={() => setAISynthesisOpen(false)}
+        />
+      )}
+      
       {isMobile && !mobileBannerDismissed && (
         <div className="fixed left-0 right-0 top-0 z-[60] flex items-center justify-between border-b-2 border-primary bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wider text-primary-foreground">
           <span>Desktop recommended for best experience</span>
@@ -773,6 +814,7 @@ export function CanvasWrapper() {
         }, [routerLocation, routerNavigate])}
         onPaneContextMenu={isViewMode ? undefined : handleContextMenu}
         onNodeContextMenu={isViewMode ? undefined : handleNodeContextMenu}
+        onEdgeContextMenu={isViewMode ? undefined : onEdgeContextMenu}
         onNodeDrag={isViewMode ? undefined : handleNodeDrag}
         onNodeDragStop={isViewMode ? undefined : handleNodeDragStop}
         nodeTypes={safeNodeTypes}
@@ -798,26 +840,46 @@ export function CanvasWrapper() {
           animated: false,
         }}
       >
-        <Background
-          variant={gridStyle === 'dots' ? BackgroundVariant.Dots : gridStyle === 'lines' ? BackgroundVariant.Lines : BackgroundVariant.Cross}
-          color="hsl(var(--canvas-dot))"
-          gap={24}
-          size={gridStyle === 'dots' ? 1.5 : 1}
-        />
+        {gridStyle !== 'blank' && (
+          <Background
+            variant={
+              gridStyle === 'dots' ? BackgroundVariant.Dots :
+              gridStyle === 'lines' || gridStyle === 'graph' ? BackgroundVariant.Lines :
+              BackgroundVariant.Cross
+            }
+            color={gridStyle === 'graph' ? "hsl(var(--primary)/0.05)" : "hsl(var(--canvas-dot))"}
+            gap={gridStyle === 'graph' ? 20 : 24}
+            size={gridStyle === 'dots' ? 1.5 : 1}
+          />
+        )}
+        {gridStyle === 'graph' && (
+          <Background
+            variant={BackgroundVariant.Lines}
+            color="hsl(var(--primary)/0.1)"
+            gap={100}
+            size={1.5}
+          />
+        )}
         <AlignmentGuidesLayer guides={guides} />
         {showMinimap && (
           <MiniMap
             pannable
             zoomable
-            nodeColor={() => 'hsl(52, 100%, 50%)'}
-            style={{ width: 160, height: 110 }}
+            nodeColor={(n) => (n.selected ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground)/0.2)')}
+            maskColor="hsl(var(--background)/0.5)"
+            className="!right-4 !bottom-4 !rounded-xl !border-2 !border-border !bg-card !shadow-[var(--brutal-shadow)] overflow-hidden"
           />
         )}
+        <HistoryPanel />
+        <WorkspaceTabs />
+        <NodeSearchPanel />
         <CanvasToolbar
           drawingMode={drawingMode}
           onToggleDrawing={() => setDrawingMode(!drawingMode)}
         />
-        {!isViewMode && <AddNodeToolbar />}
+        <AddNodeToolbar />
+        <NodeContextMenu />
+        <EdgeContextMenu />
         <svg style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0 }}>
           <defs>
             <marker

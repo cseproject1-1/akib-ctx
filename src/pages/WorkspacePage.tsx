@@ -315,7 +315,9 @@ const WorkspacePage = () => {
         const { nodes, edges } = useCanvasStore.getState();
         await createSnapshot(workspaceId, 'Auto-save', nodes as unknown[], edges as unknown[], user.uid);
         await pruneSnapshots(workspaceId, 50);
-      } catch { }
+      } catch (err) {
+        console.error('Auto-save snapshot failed:', err);
+      }
     }, 5 * 60 * 1000); // 5 minutes
 
     return () => {

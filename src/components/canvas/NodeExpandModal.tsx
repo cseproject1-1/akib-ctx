@@ -1,10 +1,12 @@
 import { useCanvasStore } from '@/store/canvasStore';
 import { useNodes } from '@xyflow/react';
 import { NoteEditor, type NoteEditorHandle } from '@/components/tiptap/NoteEditor';
-import { X, Maximize2, Minimize2 } from 'lucide-react';
+import { OutlinePanel } from '@/components/tiptap/OutlinePanel';
+import { X, Maximize2, Minimize2, List as ListIcon } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { JSONContent } from '@tiptap/react';
 import katex from 'katex';
+import { cn } from '@/lib/utils';
 
 /* ─── Checklist helpers ─── */
 interface CheckItem { id: string; text: string; done: boolean; }
@@ -239,6 +241,8 @@ export function NodeExpandModal() {
   const isViewMode = canvasMode === 'view';
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showOutline, setShowOutline] = useState(false);
+  const editorRef = useRef<NoteEditorHandle>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
   const node = nodes.find((n) => n.id === expandedNode);
@@ -296,12 +300,17 @@ export function NodeExpandModal() {
       case 'lectureNotes':
         return (
           <NoteEditor
+            ref={editorRef}
             initialContent={nodeData.content}
             onChange={handleContentChange}
             placeholder="Start typing…"
             pasteContent={nodeData.pasteContent}
             pasteFormat={nodeData.pasteFormat}
             editable={!isViewMode}
+            title={getTitle()}
+            onFocusModeChange={(active) => {
+              if (active) setShowOutline(false);
+            }}
           />
         );
 
@@ -435,9 +444,10 @@ export function NodeExpandModal() {
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/90 backdrop-blur-sm">
       <div
         ref={modalRef}
-        className={`relative overflow-auto rounded-xl border-2 border-border bg-card shadow-[6px_6px_0px_hsl(0,0%,15%)] animate-brutal-pop transition-all duration-200 ${
-          isFullscreen ? 'w-full h-full max-w-full max-h-full rounded-none' : 'w-full max-w-4xl max-h-[90vh]'
-        }`}
+        className={cn(
+          "relative overflow-hidden rounded-xl border-2 border-border bg-card shadow-[6px_6px_0px_hsl(0,0%,15%)] animate-brutal-pop transition-all duration-200 flex flex-col",
+          isFullscreen ? 'w-full h-full max-w-full max-h-full rounded-none' : 'w-full max-w-5xl max-h-[90vh]'
+        )}
       >
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b-2 border-border bg-card px-6 py-4">
@@ -451,6 +461,18 @@ export function NodeExpandModal() {
             placeholder="Untitled"
           />
           <div className="flex items-center gap-1">
+            {(nodeType === 'aiNote' || nodeType === 'lectureNotes') && (
+              <button
+                onClick={() => setShowOutline(!showOutline)}
+                className={cn(
+                  "rounded-lg p-1.5 transition-all",
+                  showOutline ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                )}
+                title="Toggle outline"
+              >
+                <ListIcon className="h-4 w-4" />
+              </button>
+            )}
             <button
               onClick={() => setIsFullscreen(f => !f)}
               className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -468,8 +490,19 @@ export function NodeExpandModal() {
         </div>
 
         {/* Body */}
-        <div className="px-6 py-4">
-          {renderContent()}
+        <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 overflow-y-auto px-6 py-4 scrollbar-hide">
+            {renderContent()}
+          </div>
+          
+          {(nodeType === 'aiNote' || nodeType === 'lectureNotes') && showOutline && (
+            <div className="w-64 border-l-2 border-border hidden md:block">
+              <OutlinePanel 
+                editor={editorRef.current?.getEditor() || null} 
+                onClose={() => setShowOutline(false)}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

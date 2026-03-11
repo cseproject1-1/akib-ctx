@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef, forwardRef } from 'react';
 import { useNodes } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
-import { X, ChevronLeft, ChevronRight, Maximize, Minimize } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Maximize, Minimize, ExternalLink } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
@@ -159,6 +160,12 @@ interface SlideNode {
     year?: string;
     questions?: string[];
     content?: unknown;
+    columns?: Array<{ id: string; title: string; items: Array<{ id: string; text: string }> }>;
+    description?: string;
+    date?: string;
+    fileSize?: string;
+    fileType?: string;
+    data?: Array<Array<string | number>>;
   };
 }
 
@@ -264,6 +271,83 @@ function renderSlideContent(current: SlideNode, mathRef: React.RefObject<HTMLDiv
               <li key={i} className="text-foreground">{i + 1}. {q}</li>
             ))}
           </ul>
+        </div>
+      );
+    
+    case 'kanban':
+      return (
+        <div className="flex gap-4 overflow-x-auto pb-4">
+          {(d.columns || []).map((col: any) => (
+            <div key={col.id} className="min-w-[200px] flex flex-col gap-2 rounded-lg bg-muted/30 p-3 border-2 border-border/50">
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-primary border-b-2 border-border/50 pb-1 mb-1">{col.title}</h4>
+              <div className="space-y-1.5">
+                {(col.items || []).map((item: any) => (
+                  <div key={item.id} className="bg-card border-2 border-border p-2 rounded-md text-[10px] font-bold text-foreground shadow-[2px_2px_0] border-border">{item.text}</div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+
+    case 'bookmark':
+      return (
+        <div className="flex flex-col items-center justify-center py-6 text-center">
+          <div className="mb-4 text-4xl">🔖</div>
+          <h3 className="text-lg font-bold text-foreground mb-1">{d.title || 'Bookmark'}</h3>
+          <p className="text-sm text-muted-foreground mb-4 max-w-md">{d.description || 'No description provided.'}</p>
+          <a href={d.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-full bg-primary px-6 py-2 text-sm font-black uppercase tracking-widest text-primary-foreground hover:opacity-90 transition-opacity">
+            Visit Link <ExternalLink className="h-4 w-4" />
+          </a>
+        </div>
+      );
+
+    case 'calendar':
+      return (
+        <div className="flex flex-col items-center justify-center py-6 text-center">
+          <div className="mb-4 text-4xl">📅</div>
+          <p className="text-2xl font-black text-primary mb-2 uppercase tracking-tighter">
+            {d.date ? new Date(d.date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : 'No date set'}
+          </p>
+          <p className="text-sm text-muted-foreground font-bold uppercase tracking-widest">{d.title || 'Calendar Event'}</p>
+        </div>
+      );
+
+    case 'fileAttachment':
+      return (
+        <div className="flex items-center gap-4 rounded-xl border-2 border-border p-6 bg-muted/20">
+          <div className="text-4xl">📎</div>
+          <div className="flex-1">
+            <h3 className="text-lg font-bold text-foreground mb-1">{d.fileName || 'Untitled File'}</h3>
+            <div className="flex items-center gap-3 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+              <span>{d.fileType || 'Unknown Type'}</span>
+              <span className="w-1 h-1 rounded-full bg-border" />
+              <span>{d.fileSize || '0 KB'}</span>
+            </div>
+          </div>
+          <button className="rounded-full bg-card border-2 border-border p-2 hover:bg-accent transition-colors">
+            <Maximize className="h-5 w-5" />
+          </button>
+        </div>
+      );
+
+    case 'spreadsheet':
+      return (
+        <div className="overflow-auto border-2 border-border rounded-lg bg-card">
+          <table className="w-full border-collapse text-xs">
+            <tbody>
+              {(d.data || []).map((row: any, ri: number) => (
+                <tr key={ri} className={ri === 0 ? "bg-muted/50" : ""}>
+                  {row.map((cell: any, ci: number) => (
+                    <td key={ci} className={cn(
+                      "border border-border p-2 text-foreground min-w-[80px]",
+                      ri === 0 ? "font-black uppercase tracking-widest text-[9px]" : "font-medium"
+                    )}>{cell}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       );
 

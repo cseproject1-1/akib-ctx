@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { X, Copy, Share2, Check, Globe, GlobeLock } from 'lucide-react';
 import { db, auth } from '@/lib/firebase/client';
 import { doc, getDoc, updateDoc, collection, query, where, getDocs, addDoc, deleteDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
@@ -16,31 +16,31 @@ export const ShareWorkspaceModal = forwardRef<HTMLDivElement, ShareWorkspaceModa
   const [email, setEmail] = useState('');
   const [permission, setPermission] = useState<'read' | 'edit'>('read');
   const [loading, setLoading] = useState(false);
-  const [shares, setShares] = useState<Array<{ id: string; shared_with_email: string; permission: string }>>([]);
+  const [shares, setShares] = useState<Record<string, unknown>[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isPublic, setIsPublic] = useState(false);
   const [togglingPublic, setTogglingPublic] = useState(false);
 
-  useEffect(() => {
-    loadShares();
-    loadPublicStatus();
-  }, []);
-
-  const loadPublicStatus = async () => {
+  const loadPublicStatus = useCallback(async () => {
     const wsRef = doc(db, 'workspaces', workspaceId);
     const snap = await getDoc(wsRef);
     if (snap.exists()) {
       setIsPublic(!!snap.data().is_public);
     }
-  };
+  }, [workspaceId]);
 
-  const loadShares = async () => {
+  const loadShares = useCallback(async () => {
     const q = query(collection(db, 'workspace_shares'), where('workspace_id', '==', workspaceId));
     const snap = await getDocs(q);
     setShares(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     setLoaded(true);
-  };
+  }, [workspaceId]);
+
+  useEffect(() => {
+    loadShares();
+    loadPublicStatus();
+  }, [loadShares, loadPublicStatus]);
 
   const togglePublic = async () => {
     setTogglingPublic(true);
@@ -79,8 +79,8 @@ export const ShareWorkspaceModal = forwardRef<HTMLDivElement, ShareWorkspaceModa
       toast.success(`Shared with ${email}`);
       setEmail('');
       loadShares();
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to share');
+    } catch (err: unknown) {
+      toast.error((err as Error).message || 'Failed to share');
     } finally {
       setLoading(false);
     }
@@ -185,16 +185,16 @@ export const ShareWorkspaceModal = forwardRef<HTMLDivElement, ShareWorkspaceModa
             <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">People with access</p>
             <div className="space-y-1.5 max-h-40 overflow-y-auto">
               {shares.map((s) => (
-                <div key={s.id} className="flex items-center justify-between rounded-lg border border-border bg-accent/50 px-3 py-2">
+                <div key={s.id as string} className="flex items-center justify-between rounded-lg border border-border bg-accent/50 px-3 py-2">
                   <div>
-                    <span className="text-sm font-semibold text-foreground">{s.shared_with_email}</span>
-                    <span className={`ml-2 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${s.permission === 'edit' ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'
+                    <span className="text-sm font-semibold text-foreground">{s.shared_with_email as string}</span>
+                    <span className={`ml-2 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${(s.permission as string) === 'edit' ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'
                       }`}>
-                      {s.permission}
+                      {s.permission as string}
                     </span>
                   </div>
                   <button
-                    onClick={() => handleRemoveShare(s.id, s.shared_with_email)}
+                    onClick={() => handleRemoveShare(s.id as string, s.shared_with_email as string)}
                     className="rounded p-1 text-muted-foreground hover:bg-destructive/20 hover:text-destructive"
                   >
                     <X className="h-3.5 w-3.5" />

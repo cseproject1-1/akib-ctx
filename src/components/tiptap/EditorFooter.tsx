@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Download, FileText, FileDown } from 'lucide-react';
+import { Download, FileText, FileDown, Eye, MousePointerClick, Zap } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import type { Editor } from '@tiptap/react';
 import { editorToMarkdown, downloadFile, editorToPdf } from '@/lib/tiptap/exportEditor';
 import { toast } from 'sonner';
@@ -7,9 +8,13 @@ import { toast } from 'sonner';
 interface EditorFooterProps {
   editor: Editor | null;
   title?: string;
+  isFocusMode?: boolean;
+  onToggleFocus?: () => void;
+  isTypewriterMode?: boolean;
+  onToggleTypewriter?: () => void;
 }
 
-export function EditorFooter({ editor, title }: EditorFooterProps) {
+export function EditorFooter({ editor, title, isFocusMode, onToggleFocus, isTypewriterMode, onToggleTypewriter }: EditorFooterProps) {
   const [stats, setStats] = useState({ words: 0, chars: 0, readTime: '0 min' });
   const [showExport, setShowExport] = useState(false);
 
@@ -102,6 +107,33 @@ export function EditorFooter({ editor, title }: EditorFooterProps) {
             </div>
           </div>
         )}
+
+        <div className="h-4 w-px bg-border mx-1" />
+
+        {/* Focus Mode & Typewriter */}
+        <button
+          onClick={onToggleFocus}
+          className={cn(
+            "flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95",
+            isFocusMode ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground"
+          )}
+          title="Focus Mode (Distraction-free)"
+        >
+          <Eye className="h-3 w-3" />
+          <span className="hidden lg:inline">Focus</span>
+        </button>
+
+        <button
+          onClick={onToggleTypewriter}
+          className={cn(
+            "flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95",
+            isTypewriterMode ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground"
+          )}
+          title="Typewriter Mode (Autoscroll cursor)"
+        >
+          <Zap className="h-3 w-3" />
+          <span className="hidden lg:inline">Typewriter</span>
+        </button>
 
         <div className="h-4 w-px bg-border mx-1" />
 

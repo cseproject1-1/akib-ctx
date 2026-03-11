@@ -67,7 +67,7 @@ const ViewWorkspacePage = () => {
       }
     };
     load();
-  }, [workspaceId]);
+  }, [workspaceId, loadCanvas, setWorkspaceId, setWorkspaceMeta]);
 
   if (loading) {
     return (

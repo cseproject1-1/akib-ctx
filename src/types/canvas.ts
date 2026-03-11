@@ -16,7 +16,12 @@ export type NodeType =
   | 'math'
   | 'video'
   | 'table'
-  | 'codeSnippet';
+  | 'codeSnippet'
+  | 'kanban'
+  | 'bookmark'
+  | 'calendar'
+  | 'fileAttachment'
+  | 'spreadsheet';
 
 /** Shared optional fields available on all node data */
 export interface SharedNodeFields {
@@ -118,6 +123,35 @@ export interface MathNodeData extends SharedNodeFields {
   latex?: string;
 }
 
+export interface KanbanNodeData extends SharedNodeFields {
+  title?: string;
+  columns?: { id: string; title: string; color: string; cards: { id: string; text: string }[] }[];
+}
+
+export interface BookmarkNodeData extends SharedNodeFields {
+  url?: string;
+  ogTitle?: string;
+  ogDescription?: string;
+  ogImage?: string;
+  favicon?: string;
+  hostname?: string;
+}
+
+export interface CalendarNodeData extends SharedNodeFields {
+  title?: string;
+  events?: { id: string; date: string; label: string; color: string }[];
+}
+
+export interface FileAttachmentNodeData extends SharedNodeFields {
+  title?: string;
+  files?: { id: string; name: string; size: number; type: string; url: string }[];
+}
+
+export interface SpreadsheetNodeData extends SharedNodeFields {
+  title?: string;
+  grid?: { value: string }[][];
+}
+
 export type CanvasNodeData =
   | AINoteNodeData
   | SummaryNodeData
@@ -133,7 +167,12 @@ export type CanvasNodeData =
   | ShapeNodeData
   | DrawingNodeData
   | EmbedNodeData
-  | MathNodeData;
+  | MathNodeData
+  | KanbanNodeData
+  | BookmarkNodeData
+  | CalendarNodeData
+  | FileAttachmentNodeData
+  | SpreadsheetNodeData;
 
 export interface Workspace {
   id: string;

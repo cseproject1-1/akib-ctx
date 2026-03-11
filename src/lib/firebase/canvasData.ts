@@ -36,8 +36,30 @@ export async function loadCanvasEdges(workspaceId: string): Promise<Edge[]> {
     });
 }
 
+/**
+ * Sanitizes an object for Firestore by removing nested arrays,
+ * which Firestore does not support. Recursively flattens nested arrays.
+ */
+function sanitizeForFirestore(data: any): any {
+    if (data === null || data === undefined) return data;
+    if (Array.isArray(data)) {
+        return data.map(v => (Array.isArray(v) ? JSON.stringify(v) : sanitizeForFirestore(v)));
+    }
+    if (typeof data === 'object') {
+        const result: Record<string, any> = {};
+        for (const key in data) {
+            if (Object.prototype.hasOwnProperty.call(data, key)) {
+                result[key] = sanitizeForFirestore(data[key]);
+            }
+        }
+        return result;
+    }
+    return data;
+}
+
 export async function saveNode(workspaceId: string, node: Node) {
     const nodeRef = doc(db, `workspaces/${workspaceId}/nodes`, node.id);
+    const sanitizedData = sanitizeForFirestore(node.data);
     await setDoc(nodeRef, {
         id: node.id,
         workspace_id: workspaceId,
@@ -46,7 +68,7 @@ export async function saveNode(workspaceId: string, node: Node) {
         position_y: node.position.y,
         width: typeof node.style?.width === 'number' ? node.style.width : 300,
         height: typeof node.style?.height === 'number' ? node.style.height : 200,
-        data: node.data as unknown as Json,
+        data: sanitizedData as unknown as Json,
         z_index: (node.style?.zIndex as number) || 0,
     }, { merge: true });
 }
@@ -91,7 +113,8 @@ export async function updateNodePosition(workspaceId: string, nodeId: string, x:
 
 export async function updateNodeDataInDb(workspaceId: string, nodeId: string, data: Record<string, unknown>) {
     const nodeRef = doc(db, `workspaces/${workspaceId}/nodes`, nodeId);
-    await updateDoc(nodeRef, { data: data as unknown as Json });
+    const sanitizedData = sanitizeForFirestore(data);
+    await updateDoc(nodeRef, { data: sanitizedData as unknown as Json });
 }
 
 export async function updateNodeStyle(workspaceId: string, nodeId: string, width: number, height: number, zIndex: number) {

@@ -1,14 +1,21 @@
 import { useNavigate } from 'react-router-dom';
-import { Plus, Brain, Trash2, LogOut, Loader2, Layers, Star, Search, SortAsc, LayoutGrid, List, Copy, BookOpen, Beaker, Briefcase, Code, Palette, Music, Lightbulb, GraduationCap, Rocket, type LucideIcon } from 'lucide-react';
+import { Plus, Brain, Trash2, LogOut, Loader2, Layers, Star, Search, SortAsc, LayoutGrid, List, Copy, BookOpen, Beaker, Briefcase, Code, Palette, Music, Lightbulb, GraduationCap, Rocket, Info, Calendar, Clock, FileText, Folder, FolderPlus, MoreVertical, MoreHorizontal, Edit2, ChevronRight, ChevronDown, RotateCcw, Trash, Check, X, Settings, FileUp, type LucideIcon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import type { Node } from '@xyflow/react';
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { createWorkspace, deleteWorkspace, duplicateWorkspace, type Workspace } from '@/lib/firebase/workspaces';
+import { createWorkspace, deleteWorkspace, duplicateWorkspace, updateWorkspace, restoreWorkspace, permanentlyDeleteWorkspace, emptyTrash, type Workspace } from '@/lib/firebase/workspaces';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
 import { cachedGetWorkspaces, cachedGetNodeCount, invalidateWorkspaceList, invalidateWorkspaceCache, saveNode } from '@/lib/cache/canvasCache';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { canvasTemplates, instantiateTemplate } from '@/lib/canvasTemplates';
+import { HotkeySettingsModal } from '@/components/dashboard/HotkeySettingsModal';
+import { ImportModal } from '@/components/dashboard/ImportModal';
+import { useSettingsStore } from '@/store/settingsStore';
 import { useCanvasStore } from '@/store/canvasStore';
+import { usePWAInstall } from '@/hooks/usePWAInstall';
+import { Download } from 'lucide-react';
 
 const WORKSPACE_ICONS: { icon: LucideIcon; label: string; color: string }[] = [
   { icon: LayoutGrid, label: 'Grid', color: '#3b82f6' },
@@ -47,10 +54,21 @@ const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>('recent');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [editingTagsWorkId, setEditingTagsWorkId] = useState<string | null>(null);
+  const [tagInput, setTagInput] = useState('');
+  const [showStatsId, setShowStatsId] = useState<string | null>(null);
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const { canInstall, installApp } = usePWAInstall();
+  const [newFolderName, setNewFolderName] = useState('');
+  const [showFolderInput, setShowFolderInput] = useState(false);
   const [favorites, setFavorites] = useState<Set<string>>(() => {
     try { return new Set(JSON.parse(localStorage.getItem('crxnote-favorites') || '[]')); }
     catch { return new Set(); }
   });
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [showImport, setShowImport] = useState(false);
 
   const toggleFavorite = (id: string) => {
     setFavorites((prev) => {
@@ -61,10 +79,46 @@ const Dashboard = () => {
     });
   };
 
+  const allFolders = useMemo(() => {
+    const folders = new Set<string>();
+    workspaces.filter(ws => !ws.is_deleted).forEach(ws => { if (ws.folder) folders.add(ws.folder); });
+    return Array.from(folders).sort();
+  }, [workspaces]);
+
+  const folderCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      all: workspaces.filter(ws => !ws.is_deleted).length,
+      unorganized: workspaces.filter(ws => !ws.is_deleted && !ws.folder).length,
+      trash: workspaces.filter(ws => ws.is_deleted).length
+    };
+    allFolders.forEach(folder => {
+      counts[folder] = workspaces.filter(ws => !ws.is_deleted && ws.folder === folder).length;
+    });
+    return counts;
+  }, [workspaces, allFolders]);
+
   const sortedWorkspaces = useMemo(() => {
-    let filtered = workspaces.filter((ws) =>
+    // Determine the base filter based on whether we're in trash or not
+    let filtered = workspaces.filter(ws => selectedFolder === 'trash' ? ws.is_deleted : !ws.is_deleted);
+
+    // Apply folder filter
+    if (selectedFolder !== 'trash') {
+      if (selectedFolder) {
+        filtered = filtered.filter(ws => ws.folder === selectedFolder);
+      } else if (selectedFolder === '') {
+        filtered = filtered.filter(ws => !ws.folder);
+      }
+    }
+
+    // Apply search and tag filters
+    filtered = filtered.filter((ws) =>
       ws.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
+
+    if (selectedTag) {
+      filtered = filtered.filter(ws => ws.tags?.includes(selectedTag));
+    }
+
     return filtered.sort((a, b) => {
       const af = favorites.has(a.id) ? 1 : 0;
       const bf = favorites.has(b.id) ? 1 : 0;
@@ -75,12 +129,7 @@ const Dashboard = () => {
         default: return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
       }
     });
-  }, [workspaces, searchQuery, sortMode, favorites, nodeCounts]);
-
-  useEffect(() => {
-    if (!user) return;
-    loadWorkspaces();
-  }, [user]);
+  }, [workspaces, searchQuery, sortMode, favorites, nodeCounts, selectedFolder, selectedTag]);
 
   const loadWorkspaces = useCallback(async () => {
     try {
@@ -160,21 +209,139 @@ const Dashboard = () => {
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (!confirm('Delete this workspace and all its content?')) return;
     try {
       await deleteWorkspace(id);
+      setWorkspaces((prev) => prev.map(w => w.id === id ? { ...w, is_deleted: true, deleted_at: new Date().toISOString() } : w));
+      toast.success('Workspace moved to Trash', {
+        action: {
+          label: 'Undo',
+          onClick: () => handleRestore(id)
+        }
+      });
+    } catch (err) {
+      toast.error('Failed to move workspace to trash');
+    }
+  };
+
+  const handleRestore = async (id: string) => {
+    try {
+      await restoreWorkspace(id);
+      setWorkspaces((prev) => prev.map(w => w.id === id ? { ...w, is_deleted: false, deleted_at: null } : w));
+      toast.success('Workspace restored');
+    } catch (err) {
+      toast.error('Failed to restore workspace');
+    }
+  };
+
+  const handlePermanentDelete = async (id: string) => {
+    if (!confirm('Permanently delete this workspace? This action CANNOT be undone.')) return;
+    try {
+      await permanentlyDeleteWorkspace(id);
       await Promise.all([invalidateWorkspaceList(), invalidateWorkspaceCache(id)]);
       setWorkspaces((prev) => prev.filter((w) => w.id !== id));
-      toast.success('Workspace deleted');
+      toast.success('Workspace permanently deleted');
     } catch (err) {
       toast.error('Failed to delete workspace');
     }
   };
 
+  const handleEmptyTrash = async () => {
+    const trashCount = workspaces.filter(ws => ws.is_deleted).length;
+    if (trashCount === 0) return;
+    if (!confirm(`Permanently delete all ${trashCount} items in the trash? This action CANNOT be undone.`)) return;
+    
+    setLoading(true);
+    try {
+      await emptyTrash();
+      await invalidateWorkspaceList();
+      setWorkspaces(prev => prev.filter(ws => !ws.is_deleted));
+      toast.success('Trash emptied');
+    } catch (err) {
+      toast.error('Failed to empty trash');
+    } finally {
+      setLoading(false);
+    }
+  };
+  const handleUpdateTags = async (id: string, newTags: string[]) => {
+    try {
+      await updateWorkspace(id, { tags: newTags });
+      setWorkspaces(prev => prev.map(ws => ws.id === id ? { ...ws, tags: newTags } : ws));
+      toast.success('Tags updated');
+    } catch (err) {
+      toast.error('Failed to update tags');
+    }
+  };
+
+  const handleAddTag = (id: string) => {
+    const ws = workspaces.find(w => w.id === id);
+    if (!ws || !tagInput.trim()) return;
+    const currentTags = ws.tags || [];
+    if (currentTags.includes(tagInput.trim())) return;
+    const nextTags = [...currentTags, tagInput.trim()];
+    handleUpdateTags(id, nextTags);
+    setTagInput('');
+    setEditingTagsWorkId(null);
+  };
+
+  const removeTag = (id: string, tag: string) => {
+    const ws = workspaces.find(w => w.id === id);
+    if (!ws) return;
+    const nextTags = (ws.tags || []).filter(t => t !== tag);
+    handleUpdateTags(id, nextTags);
+  };
+
+  const handleMoveToFolder = async (workspaceId: string, folderName: string | null) => {
+    try {
+      await updateWorkspace(workspaceId, { folder: folderName });
+      setWorkspaces(prev => prev.map(ws => ws.id === workspaceId ? { ...ws, folder: folderName } : ws));
+      toast.success(folderName ? `Moved to ${folderName}` : 'Removed from folder');
+    } catch (err) {
+      toast.error('Failed to move workspace');
+    }
+  };
+
+  const handleRenameFolder = async (oldName: string, newName: string) => {
+    if (!newName.trim() || oldName === newName.trim()) return;
+    const workspacesInFolder = workspaces.filter(ws => ws.folder === oldName);
+    try {
+      await Promise.all(workspacesInFolder.map(ws => updateWorkspace(ws.id, { folder: newName.trim() })));
+      setWorkspaces(prev => prev.map(ws => ws.folder === oldName ? { ...ws, folder: newName.trim() } : ws));
+      if (selectedFolder === oldName) setSelectedFolder(newName.trim());
+      toast.success(`Folder renamed to "${newName.trim()}"`);
+    } catch (err) {
+      toast.error('Failed to rename folder');
+    }
+  };
+
+  const handleDeleteFolder = async (folderName: string) => {
+    if (!confirm(`Are you sure you want to delete the folder "${folderName}"? All workspaces will become unorganized.`)) return;
+    const workspacesInFolder = workspaces.filter(ws => ws.folder === folderName);
+    try {
+      await Promise.all(workspacesInFolder.map(ws => updateWorkspace(ws.id, { folder: null })));
+      setWorkspaces(prev => prev.map(ws => ws.folder === folderName ? { ...ws, folder: null } : ws));
+      if (selectedFolder === folderName) setSelectedFolder(null);
+      toast.success(`Folder "${folderName}" deleted`);
+    } catch (err) {
+      toast.error('Failed to delete folder');
+    }
+  };
+
+  const createNewFolder = () => {
+    if (!newFolderName.trim()) return;
+    // Folders are virtual until a workspace is moved into them
+    setSelectedFolder(newFolderName.trim());
+    setNewFolderName('');
+    setShowFolderInput(false);
+    toast.info(`Folder "${newFolderName.trim()}" created (empty)`);
+  };
+
   if (authLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex min-h-screen items-center justify-center bg-background font-sans">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          <p className="text-xs font-black uppercase tracking-widest text-muted-foreground animate-pulse">Initializing Interface...</p>
+        </div>
       </div>
     );
   }
@@ -182,58 +349,246 @@ const Dashboard = () => {
   const sortLabel = sortMode === 'recent' ? 'Recent' : sortMode === 'name' ? 'Name' : 'Nodes';
   const nextSort = (): SortMode => sortMode === 'recent' ? 'name' : sortMode === 'name' ? 'nodes' : 'recent';
 
-  return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <header className="border-b-2 border-border px-6 py-4 animate-slide-down">
-        <div className="mx-auto flex max-w-6xl items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src="/favicon.png" alt="ctxnote" className="h-10 w-10 rounded-lg border-2 border-border shadow-[3px_3px_0px_hsl(0,0%,15%)] object-cover" />
-            <h1 className="text-xl font-bold uppercase tracking-wider">ctxnote</h1>
-          </div>
-          <button
-            onClick={signOut}
-            className="brutal-btn flex items-center gap-2 rounded-lg bg-card px-4 py-2 text-sm font-bold uppercase tracking-wider text-foreground"
-          >
-            <LogOut className="h-4 w-4" />
-            Sign out
-          </button>
-        </div>
-      </header>
+  const allTags = Array.from(new Set(workspaces.filter(ws => !ws.is_deleted).flatMap(ws => ws.tags || []))).sort();
 
-      <main className="flex-1 px-6 py-8">
-        <div className="mx-auto max-w-6xl">
-          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between animate-fade-in">
-            <h2 className="text-lg font-bold uppercase tracking-wider text-foreground">Your Workspaces</h2>
-            <div className="flex items-center gap-2">
-              {/* Search */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search…"
-                  className="rounded-lg border-2 border-border bg-card pl-9 pr-3 py-1.5 text-xs font-semibold text-foreground outline-none focus:border-primary w-40 sm:w-52"
-                />
+  return (
+    <div className="flex min-h-screen bg-background font-sans">
+      {/* Dashboard Sidebar */}
+      <motion.aside 
+        initial={false}
+        animate={{ width: isSidebarOpen ? 260 : 0, opacity: isSidebarOpen ? 1 : 0 }}
+        className="relative flex flex-col border-r-2 border-border bg-card overflow-hidden"
+      >
+        <div className="flex h-full flex-col p-4 w-[260px]">
+          <div className="mb-8 flex items-center gap-3">
+             <img src="/favicon.png" alt="ctxnote" className="h-8 w-8 rounded-lg border-2 border-border shadow-[2px_2px_0px_hsl(0,0%,15%)] object-cover" />
+             <h1 className="text-lg font-black uppercase tracking-tighter">ctxnote</h1>
+          </div>
+
+          <nav className="flex-1 space-y-6">
+            <section>
+              <h3 className="mb-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Navigation</h3>
+              <div className="space-y-1">
+                <button 
+                  onClick={() => setSelectedFolder(null)}
+                  className={`group flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-bold transition-all ${!selectedFolder ? 'bg-primary text-primary-foreground shadow-[3px_3px_0px_black]' : 'text-foreground hover:bg-accent'}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Layers className="h-4 w-4" />
+                    All Workspaces
+                  </div>
+                  <span className={`text-[10px] ${!selectedFolder ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{folderCounts.all}</span>
+                </button>
+                <button 
+                  onClick={() => setSelectedFolder('')}
+                  className={`group flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-bold transition-all ${selectedFolder === '' ? 'bg-primary text-primary-foreground shadow-[3px_3px_0px_black]' : 'text-foreground hover:bg-accent'}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Folder className="h-4 w-4" />
+                    Unorganized
+                  </div>
+                  <span className={`text-[10px] ${selectedFolder === '' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{folderCounts.unorganized}</span>
+                </button>
+                <button 
+                  onClick={() => setSelectedFolder('trash')}
+                  className={`group flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-bold transition-all ${selectedFolder === 'trash' ? 'bg-destructive text-destructive-foreground shadow-[3px_3px_0px_black]' : 'text-foreground hover:bg-accent'}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Trash2 className="h-4 w-4" />
+                    Trash Bin
+                  </div>
+                  <span className={`text-[10px] ${selectedFolder === 'trash' ? 'text-white/70' : 'text-muted-foreground'}`}>{folderCounts.trash}</span>
+                </button>
               </div>
-              {/* Sort */}
+            </section>
+
+            <section>
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Folders</h3>
+                <button 
+                  onClick={() => setShowFolderInput(true)}
+                  className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-all"
+                >
+                  <Plus className="h-3 w-3" />
+                </button>
+              </div>
+              
+              <div className="space-y-1">
+                {showFolderInput && (
+                  <div className="px-2 pb-2">
+                    <input
+                      autoFocus
+                      className="w-full rounded border-2 border-border bg-background px-2 py-1.5 text-xs font-bold outline-none focus:border-primary"
+                      placeholder="Folder name..."
+                      value={newFolderName}
+                      onChange={e => setNewFolderName(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') createNewFolder();
+                        if (e.key === 'Escape') setShowFolderInput(false);
+                      }}
+                      onBlur={() => !newFolderName && setShowFolderInput(false)}
+                    />
+                  </div>
+                )}
+                {allFolders.map(folder => (
+                  <div key={folder} className="group relative">
+                    <button 
+                      onClick={() => setSelectedFolder(folder)}
+                      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-bold transition-all ${selectedFolder === folder ? 'bg-primary text-primary-foreground shadow-[3px_3px_0px_black]' : 'text-foreground hover:bg-accent'}`}
+                    >
+                      <Folder className="h-4 w-4 text-primary flex-shrink-0" />
+                      <span className="truncate flex-1 text-left">{folder}</span>
+                      <span className={`text-[10px] ${selectedFolder === folder ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{folderCounts[folder]}</span>
+                    </button>
+                    
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button className={`p-1 rounded hover:bg-accent ${selectedFolder === folder ? 'text-primary-foreground hover:text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+                            <MoreHorizontal className="h-3.5 w-3.5" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-40 border-2 border-border shadow-[4px_4px_0px_black]">
+                          <DropdownMenuItem onClick={() => {
+                            const newName = prompt('New folder name:', folder);
+                            if (newName) handleRenameFolder(folder, newName);
+                          }}>
+                            <Edit2 className="mr-2 h-3.5 w-3.5" />
+                            <span>Rename</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            onClick={() => handleDeleteFolder(folder)}
+                            className="text-destructive focus:bg-destructive focus:text-destructive-foreground"
+                          >
+                            <Trash2 className="mr-2 h-3.5 w-3.5" />
+                            <span>Delete Folder</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                ))}
+                {allFolders.length === 0 && !showFolderInput && (
+                  <p className="px-3 py-2 text-[10px] font-medium text-muted-foreground italic">No folders yet</p>
+                )}
+              </div>
+            </section>
+          </nav>
+
+          <div className="pt-4 border-t-2 border-border space-y-1">
+            {canInstall && (
               <button
-                onClick={() => setSortMode(nextSort())}
-                className="brutal-btn flex items-center gap-1.5 rounded-lg bg-card px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-foreground"
-                title={`Sort by: ${sortLabel}`}
+                onClick={installApp}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-black uppercase tracking-widest text-primary hover:bg-primary/10 transition-all border-2 border-primary/20 mb-2 group animate-pulse"
               >
-                <SortAsc className="h-3.5 w-3.5" />
-                {sortLabel}
+                <Download className="h-4 w-4 group-hover:bounce" />
+                Install App
               </button>
-              {/* View toggle */}
-              <button
-                onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
-                className="brutal-btn rounded-lg bg-card p-1.5 text-foreground"
-                title={viewMode === 'grid' ? 'List view' : 'Grid view'}
-              >
-                {viewMode === 'grid' ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
-              </button>
+            )}
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-bold text-foreground hover:bg-accent transition-all"
+            >
+              <Settings className="h-4 w-4" />
+              Settings
+            </button>
+            <button
+              onClick={signOut}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-bold text-destructive hover:bg-destructive/10 transition-all"
+            >
+              <LogOut className="h-4 w-4" />
+              Sign out
+            </button>
+          </div>
+        </div>
+      </motion.aside>
+
+      <HotkeySettingsModal open={isSettingsOpen} onOpenChange={setIsSettingsOpen} />
+      <ImportModal open={showImport} onOpenChange={setShowImport} />
+
+      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+        <header className="flex h-14 items-center justify-between border-b-2 border-border bg-card px-6">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
+              className="rounded-lg border-2 border-border bg-card p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-all"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+            <div className="flex flex-col">
+              <h2 className="text-sm font-black uppercase tracking-widest text-foreground">
+                {selectedFolder === null ? 'All Workspaces' : selectedFolder === '' ? 'Unorganized' : selectedFolder === 'trash' ? 'Trash Bin' : selectedFolder}
+              </h2>
+              <span className="text-[10px] font-bold text-muted-foreground uppercase">{sortedWorkspaces.length} boards</span>
             </div>
           </div>
+          
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search boards..."
+                className="rounded-lg border-2 border-border bg-background pl-9 pr-3 py-1.5 text-xs font-bold text-foreground outline-none focus:border-primary w-40 sm:w-64"
+              />
+            </div>
+            <button
+              onClick={() => setSortMode(nextSort())}
+              className="brutal-btn flex items-center gap-2 rounded-lg bg-card px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-foreground"
+            >
+              <SortAsc className="h-3.5 w-3.5" />
+              {sortLabel}
+            </button>
+            <button
+              onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
+              className="brutal-btn rounded-lg bg-card p-1.5 text-foreground"
+            >
+              {viewMode === 'grid' ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
+            </button>
+            <button
+              onClick={() => setShowImport(true)}
+              className="brutal-btn flex items-center gap-2 rounded-lg bg-card px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-foreground"
+            >
+              <FileUp className="h-3.5 w-3.5" />
+              Import
+            </button>
+            {selectedFolder === 'trash' && folderCounts.trash > 0 && (
+              <button
+                onClick={handleEmptyTrash}
+                className="brutal-btn flex items-center gap-2 rounded-lg bg-destructive px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-destructive-foreground"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Empty Trash
+              </button>
+            )}
+          </div>
+        </header>
+
+        <main className="flex-1 overflow-y-auto p-6 scroll-smooth">
+          <div className="mx-auto max-w-7xl">
+            {/* Tags Filter Bar */}
+            {allTags.length > 0 && (
+              <div className="mb-8 flex flex-wrap items-center gap-2 animate-fade-in">
+                <span className="mr-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Filter:</span>
+                <button
+                  onClick={() => setSelectedTag(null)}
+                  className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest transition-all ${!selectedTag ? 'bg-primary/20 text-primary border-2 border-primary' : 'bg-card text-muted-foreground border-2 border-border hover:border-primary'}`}
+                >
+                  All Tags
+                </button>
+                {allTags.map(tag => (
+                  <button
+                    key={tag}
+                    onClick={() => setSelectedTag(selectedTag === tag ? null : tag)}
+                    className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-widest transition-all ${selectedTag === tag ? 'bg-primary/20 text-primary border-2 border-primary' : 'bg-card text-muted-foreground border-2 border-border hover:border-primary'}`}
+                  >
+                    #{tag}
+                  </button>
+                ))}
+              </div>
+            )}
 
           {!loading && workspaces.length === 0 && (
             <div className="flex flex-col items-center justify-center gap-4 rounded-xl border-2 border-dashed border-border py-16">
@@ -245,6 +600,13 @@ const Dashboard = () => {
               >
                 <Plus className="h-4 w-4" />
                 Create Workspace
+              </button>
+              <button
+                onClick={() => setShowImport(true)}
+                className="brutal-btn flex items-center gap-2 rounded-lg bg-card px-5 py-2.5 text-sm font-bold uppercase text-foreground"
+              >
+                <FileUp className="h-4 w-4" />
+                Import Knowledge
               </button>
             </div>
           )}
@@ -293,26 +655,142 @@ const Dashboard = () => {
                       {formatDistanceToNow(new Date(ws.updated_at), { addSuffix: true })}
                     </div>
                   </div>
+
+                  {/* Tags display */}
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {(ws.tags || []).map(t => (
+                      <span key={t} className="rounded bg-accent/50 px-1.5 py-0.5 text-[9px] font-bold text-foreground">
+                        #{t}
+                      </span>
+                    ))}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setEditingTagsWorkId(editingTagsWorkId === ws.id ? null : ws.id); }}
+                      className="rounded bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold text-primary opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      + TAG
+                    </button>
+                    {editingTagsWorkId === ws.id && (
+                      <div className="mt-1 flex w-full gap-1" onClick={e => e.stopPropagation()}>
+                        <input
+                          autoFocus
+                          className="h-6 flex-1 rounded border border-border bg-background px-2 text-[10px] font-bold"
+                          placeholder="tag name..."
+                          value={tagInput}
+                          onChange={e => setTagInput(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && handleAddTag(ws.id)}
+                        />
+                      </div>
+                    )}
+                  </div>
+
                   <div className="absolute right-3 top-3 flex items-center gap-1">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); toggleFavorite(ws.id); }}
-                      className={`rounded-md p-1.5 transition-all ${favorites.has(ws.id) ? 'text-primary' : 'text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary'}`}
-                    >
-                      <Star className={`h-4 w-4 ${favorites.has(ws.id) ? 'fill-primary' : ''}`} />
-                    </button>
-                    <button
-                      onClick={(e) => handleDuplicate(e, ws)}
-                      className="rounded-md p-1.5 text-muted-foreground opacity-0 transition-all hover:text-primary group-hover:opacity-100"
-                      title="Duplicate"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={(e) => handleDelete(e, ws.id)}
-                      className="rounded-md border-2 border-transparent p-1.5 text-muted-foreground opacity-0 transition-all hover:border-destructive hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button 
+                          onClick={e => e.stopPropagation()}
+                          className="rounded-md p-1.5 text-muted-foreground opacity-0 transition-all hover:bg-accent hover:text-foreground group-hover:opacity-100"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48 border-2 border-border shadow-[4px_4px_0px_black]">
+                        <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest">Workspace Actions</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); toggleFavorite(ws.id); }}>
+                          <Star className={`mr-2 h-4 w-4 ${favorites.has(ws.id) ? 'fill-primary text-primary' : ''}`} />
+                          <span>{favorites.has(ws.id) ? 'Unfavorite' : 'Favorite'}</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDuplicate(e, ws); }}>
+                          <Copy className="mr-2 h-4 w-4" />
+                          <span>Duplicate</span>
+                        </DropdownMenuItem>
+                        
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest">Move to Folder</DropdownMenuLabel>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleMoveToFolder(ws.id, null); }}>
+                          <Layers className="mr-2 h-4 w-4" />
+                          <span>Unorganized</span>
+                        </DropdownMenuItem>
+                        {allFolders.map(folder => (
+                          <DropdownMenuItem key={folder} onClick={(e) => { e.stopPropagation(); handleMoveToFolder(ws.id, folder); }}>
+                            <Folder className="mr-2 h-4 w-4 text-primary" />
+                            <span>{folder}</span>
+                          </DropdownMenuItem>
+                        ))}
+                        <DropdownMenuItem onClick={(e) => { 
+                          e.stopPropagation(); 
+                          const newName = prompt('Enter name for the new folder:');
+                          if (newName) handleMoveToFolder(ws.id, newName.trim());
+                        }}>
+                          <Plus className="mr-2 h-4 w-4" />
+                          <span>New Folder...</span>
+                        </DropdownMenuItem>
+
+                        <DropdownMenuSeparator />
+                        {selectedFolder === 'trash' ? (
+                          <>
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleRestore(ws.id); }}>
+                              <RotateCcw className="mr-2 h-4 w-4 text-primary" />
+                              <span>Restore</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={(e) => { e.stopPropagation(); handlePermanentDelete(ws.id); }}
+                              className="text-destructive focus:bg-destructive focus:text-destructive-foreground font-bold"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              <span>Delete Permanently</span>
+                            </DropdownMenuItem>
+                          </>
+                        ) : (
+                          <DropdownMenuItem 
+                            onClick={(e) => { e.stopPropagation(); handleDelete(e, ws.id); }}
+                            className="text-destructive focus:bg-destructive focus:text-destructive-foreground font-bold"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            <span>Move to Trash</span>
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    <div className="relative">
+                      <button
+                        onMouseEnter={() => setShowStatsId(ws.id)}
+                        onMouseLeave={() => setShowStatsId(null)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="rounded-md p-1.5 text-muted-foreground opacity-0 transition-all hover:text-primary group-hover:opacity-100"
+                      >
+                        <Info className="h-4 w-4" />
+                      </button>
+                      {showStatsId === ws.id && (
+                        <div className="absolute right-0 top-10 z-[100] w-56 rounded-xl border-2 border-border bg-card p-4 shadow-[6px_6px_0px_black] animate-brutal-pop">
+                          <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-primary border-b border-border pb-1">Workspace Breakdown</p>
+                          <div className="space-y-3 font-bold text-foreground">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span className="text-[10px] uppercase">Nodes</span>
+                              </div>
+                              <span className="text-xs">{nodeCounts[ws.id] ?? 0}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span className="text-[10px] uppercase">Created</span>
+                              </div>
+                              <span className="text-xs">{new Date(ws.created_at).toLocaleDateString()}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span className="text-[10px] uppercase">Modified</span>
+                              </div>
+                              <span className="text-xs">{formatDistanceToNow(new Date(ws.updated_at))} ago</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </motion.div>
               ))}
@@ -352,15 +830,28 @@ const Dashboard = () => {
                   <span className="text-xs font-semibold text-muted-foreground">{nodeCounts[ws.id] ?? '…'} nodes</span>
                   <span className="text-xs text-muted-foreground hidden sm:inline">{formatDistanceToNow(new Date(ws.updated_at), { addSuffix: true })}</span>
                   <div className="flex items-center gap-1">
-                    <button onClick={(e) => { e.stopPropagation(); toggleFavorite(ws.id); }} className={`rounded p-1 transition-all ${favorites.has(ws.id) ? 'text-primary' : 'text-muted-foreground opacity-0 group-hover:opacity-100'}`}>
-                      <Star className={`h-3.5 w-3.5 ${favorites.has(ws.id) ? 'fill-primary' : ''}`} />
-                    </button>
-                    <button onClick={(e) => handleDuplicate(e, ws)} className="rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary" title="Duplicate">
-                      <Copy className="h-3.5 w-3.5" />
-                    </button>
-                    <button onClick={(e) => handleDelete(e, ws.id)} className="rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    {selectedFolder === 'trash' ? (
+                      <>
+                        <button onClick={(e) => { e.stopPropagation(); handleRestore(ws.id); }} className="rounded p-1 text-primary opacity-0 group-hover:opacity-100 hover:bg-primary/10" title="Restore">
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); handlePermanentDelete(ws.id); }} className="rounded p-1 text-destructive opacity-0 group-hover:opacity-100 hover:bg-destructive/10" title="Delete Permanently">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button onClick={(e) => { e.stopPropagation(); toggleFavorite(ws.id); }} className={`rounded p-1 transition-all ${favorites.has(ws.id) ? 'text-primary' : 'text-muted-foreground opacity-0 group-hover:opacity-100'}`}>
+                          <Star className={`h-3.5 w-3.5 ${favorites.has(ws.id) ? 'fill-primary' : ''}`} />
+                        </button>
+                        <button onClick={(e) => handleDuplicate(e, ws)} className="rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary" title="Duplicate">
+                          <Copy className="h-3.5 w-3.5" />
+                        </button>
+                        <button onClick={(e) => handleDelete(e, ws.id)} className="rounded p-1 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive" title="Move to Trash">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </motion.div>
               ))}
@@ -368,10 +859,11 @@ const Dashboard = () => {
           )}
         </div>
       </main>
+    </div>
 
-      {/* Create workspace modal */}
-      {showCreate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+    {/* Create workspace modal */}
+    {showCreate && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-xl border-2 border-border bg-card p-6 shadow-[6px_6px_0px_hsl(0,0%,15%)] animate-brutal-pop">
             <h3 className="mb-4 text-lg font-bold uppercase tracking-wider text-foreground">New Workspace</h3>
             <div className="space-y-4">

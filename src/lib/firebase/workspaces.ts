@@ -10,6 +10,10 @@ export interface Workspace {
     parent_workspace_id: string | null;
     updated_at: string;
     user_id: string;
+    tags?: string[];
+    folder?: string | null;
+    is_deleted?: boolean;
+    deleted_at?: string | null;
 }
 
 export async function getWorkspaces(): Promise<Workspace[]> {
@@ -31,7 +35,6 @@ export async function createWorkspace(name: string, color: string): Promise<Work
 
     const wsRef = doc(collection(db, 'workspaces'));
     const now = new Date().toISOString();
-
     const newWs: Workspace = {
         id: wsRef.id,
         created_at: now,
@@ -40,14 +43,17 @@ export async function createWorkspace(name: string, color: string): Promise<Work
         color,
         is_public: false,
         parent_workspace_id: null,
-        user_id: user.uid
+        user_id: user.uid,
+        tags: [],
+        folder: null,
+        is_deleted: false
     };
 
     await setDoc(wsRef, newWs);
     return newWs;
 }
 
-export async function updateWorkspace(id: string, updates: { name?: string; color?: string; is_public?: boolean }) {
+export async function updateWorkspace(id: string, updates: { name?: string; color?: string; is_public?: boolean; tags?: string[]; folder?: string | null; is_deleted?: boolean; deleted_at?: string | null }) {
     const wsRef = doc(db, 'workspaces', id);
     await updateDoc(wsRef, {
         ...updates,
@@ -55,9 +61,55 @@ export async function updateWorkspace(id: string, updates: { name?: string; colo
     });
 }
 
+/** Soft delete a workspace */
 export async function deleteWorkspace(id: string) {
     const wsRef = doc(db, 'workspaces', id);
+    await updateDoc(wsRef, {
+        is_deleted: true,
+        deleted_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+    });
+}
+
+/** Restore a workspace from trash */
+export async function restoreWorkspace(id: string) {
+    const wsRef = doc(db, 'workspaces', id);
+    await updateDoc(wsRef, {
+        is_deleted: false,
+        deleted_at: null,
+        updated_at: new Date().toISOString()
+    });
+}
+
+/** Permanently delete a workspace */
+export async function permanentlyDeleteWorkspace(id: string) {
+    const wsRef = doc(db, 'workspaces', id);
+    // Cleanup subcollections
+    const nodesSnap = await getDocs(collection(wsRef, 'nodes'));
+    const edgesSnap = await getDocs(collection(wsRef, 'edges'));
+    
+    const deletes: Promise<void>[] = [];
+    nodesSnap.forEach(d => deletes.push(deleteDoc(d.ref)));
+    edgesSnap.forEach(d => deletes.push(deleteDoc(d.ref)));
+    await Promise.all(deletes);
+    
     await deleteDoc(wsRef);
+}
+
+/** Permanently delete all items in trash */
+export async function emptyTrash() {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Not authenticated');
+
+    const q = query(
+        collection(db, 'workspaces'),
+        where('user_id', '==', user.uid),
+        where('is_deleted', '==', true)
+    );
+    
+    const snapshot = await getDocs(q);
+    const deletes = snapshot.docs.map(d => permanentlyDeleteWorkspace(d.id));
+    await Promise.all(deletes);
 }
 
 const chunkArray = <T>(arr: T[], size: number): T[][] => {
@@ -136,6 +188,9 @@ export async function duplicateWorkspace(sourceId: string, name: string, color: 
 
     const newWsRef = doc(collection(db, 'workspaces'));
     const now = new Date().toISOString();
+    const sourceWs = await getDoc(doc(db, 'workspaces', sourceId));
+    const sourceData = sourceWs.data() as Workspace;
+
     const newWs: Workspace = {
         id: newWsRef.id,
         created_at: now,
@@ -144,7 +199,9 @@ export async function duplicateWorkspace(sourceId: string, name: string, color: 
         color,
         is_public: false,
         parent_workspace_id: null,
-        user_id: user.uid
+        user_id: user.uid,
+        tags: sourceData?.tags || [],
+        folder: sourceData?.folder || null
     };
 
     await setDoc(newWsRef, newWs);

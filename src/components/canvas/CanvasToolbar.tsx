@@ -1,5 +1,5 @@
-import { useReactFlow, Panel, useStore } from '@xyflow/react';
-import { ZoomIn, ZoomOut, Maximize, Undo2, Redo2, ArrowLeft, Save, CheckCircle, AlertCircle, FileDown, Paintbrush, Share2, Eye, MousePointerClick, Presentation, Crosshair, LayoutDashboard, Grid3X3, Lock, Unlock, Trash2, Magnet, Cable, FileText, FileJson, Clock, GitBranch, CloudOff, Sparkles, Upload, Network, Orbit, LayoutGrid, Search } from 'lucide-react';
+import { useReactFlow, Panel, useStore, useNodes, useEdges } from '@xyflow/react';
+import { ZoomIn, ZoomOut, Maximize, Undo2, Redo2, ArrowLeft, Save, CheckCircle, AlertCircle, FileDown, Paintbrush, Share2, Eye, MousePointerClick, Presentation, Crosshair, LayoutDashboard, Grid3X3, Lock, Unlock, Trash2, Magnet, Cable, FileText, FileJson, Clock, GitBranch, CloudOff, Sparkles, Upload, Network, Orbit, LayoutGrid, Search, Map as MapIcon, BookmarkPlus, X, History } from 'lucide-react';
 import { getTreeLayout, getCircularLayout } from '@/lib/canvas/layoutUtils';
 import { ThemeToggle } from './ThemeToggle';
 import { useCanvasStore } from '@/store/canvasStore';
@@ -16,8 +16,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { formatDistanceToNow } from 'date-fns';
 import { usePendingOpsCount } from '@/hooks/usePendingOpsCount';
 import { replayPendingOps } from '@/lib/cache/canvasCache';
+import { NodeSearchPanel, openSearch } from './NodeSearchPanel';
 import { TemplateGallery } from './TemplateGallery';
-import { useNodes, useEdges } from '@xyflow/react'; // Ensure these are imported if missing
+import { HistoryPanel, openHistory } from './HistoryPanel';
 
 interface CanvasToolbarProps {
   drawingMode?: boolean;
@@ -63,6 +64,14 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
   const isMobile = useIsMobile();
   const [lastSavedLabel, setLastSavedLabel] = useState('');
   const pendingCount = usePendingOpsCount();
+  const showMinimap = useCanvasStore((s) => s.showMinimap);
+  const toggleMinimap = useCanvasStore((s) => s.toggleMinimap);
+  const bookmarks = useCanvasStore((s) => s.bookmarks);
+  const addBookmark = useCanvasStore((s) => s.addBookmark);
+  const removeBookmark = useCanvasStore((s) => s.removeBookmark);
+  const { getViewport, setViewport } = useReactFlow();
+  const [showBookmarks, setShowBookmarks] = useState(false);
+  const setAISynthesisOpen = useCanvasStore((s) => s.setAISynthesisOpen);
 
   // Update "last saved" label every 30s
   useEffect(() => {
@@ -179,7 +188,13 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
     setShowExportMenu(false);
   };
 
-  const gridLabel = gridStyle === 'dots' ? 'Dots' : gridStyle === 'lines' ? 'Lines' : 'Cross';
+  const gridLabel = {
+    dots: 'Dots',
+    lines: 'Lines',
+    cross: 'Cross',
+    graph: 'Graph',
+    blank: 'Blank'
+  }[gridStyle];
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -250,6 +265,9 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
           <ToolbarBtn onClick={() => redo()} disabled={future.length === 0} tip="Redo (⌘⇧Z)">
             <Redo2 className="h-4 w-4" />
           </ToolbarBtn>
+          <ToolbarBtn onClick={() => openHistory()} tip="Action History (H)">
+            <History className="h-4 w-4" />
+          </ToolbarBtn>
           <Divider />
           <ToolbarBtn onClick={() => zoomOut()} tip="Zoom out (⌘−)">
             <ZoomOut className="h-4 w-4" />
@@ -265,7 +283,7 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
           <ToolbarBtn onClick={() => onToggleDrawing?.()} tip="Drawing mode (D)" className={drawingMode ? 'bg-primary text-primary-foreground' : ''} animated>
             <Paintbrush className="h-4 w-4" />
           </ToolbarBtn>
-          <ToolbarBtn id="connector-mode-btn" onClick={() => { const newMode = !connectMode; setConnectMode(newMode); if (newMode) toast.info('Connector mode: click the source node'); }} tip="Connector mode (C)" className={connectMode ? 'bg-primary text-primary-foreground' : ''} animated>
+          <ToolbarBtn onClick={() => { const newMode = !connectMode; setConnectMode(newMode); if (newMode) toast.info('Connector mode: click the source node'); }} tip="Connector mode (C)" className={connectMode ? 'bg-primary text-primary-foreground' : ''} animated>
             <Cable className="h-4 w-4" />
           </ToolbarBtn>
           <ToolbarBtn onClick={toggleCanvasMode} tip={canvasMode === 'edit' ? 'Switch to view mode (V)' : 'Switch to edit mode (V)'} className={canvasMode === 'view' ? 'bg-primary text-primary-foreground' : ''} animated>
@@ -282,9 +300,20 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
             <Grid3X3 className="h-4 w-4" />
             <span className="ml-0.5 text-[9px] font-bold uppercase hidden sm:inline">{gridLabel}</span>
           </ToolbarBtn>
-          <ToolbarBtn onClick={toggleLockAll} tip={allLocked ? 'Unlock all nodes (L)' : 'Lock all nodes (L)'} className={allLocked ? 'bg-accent text-primary' : ''} animated>
+          <ToolbarBtn onClick={() => toggleLockAll()} tip={allLocked ? 'Unlock all nodes (L)' : 'Lock all nodes (L)'} className={allLocked ? 'bg-accent text-primary' : ''} animated>
             {allLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
           </ToolbarBtn>
+          {selectedCount > 1 && (
+            <ToolbarBtn 
+              onClick={() => setAISynthesisOpen(true)} 
+              tip={`Ask AI about ${selectedCount} selected nodes`}
+              className="bg-primary/10 text-primary border-x border-primary/20"
+              animated
+            >
+              <Sparkles className="h-4 w-4" />
+              <span className="ml-1 text-[10px] font-bold">Ask AI</span>
+            </ToolbarBtn>
+          )}
           {selectedCount > 0 && (
             <ToolbarBtn onClick={() => { deleteSelected(); toast.success(`Deleted ${selectedCount} node(s)`); }} tip={`Delete ${selectedCount} selected`}>
               <Trash2 className="h-4 w-4 text-destructive" />
@@ -310,7 +339,7 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
             )}
           </div>
           <Divider />
-          <ToolbarBtn id="search-btn" onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, metaKey: true }))} tip="Search nodes (⌘K)" animated>
+          <ToolbarBtn onClick={() => openSearch()} tip="Search nodes (⌘K)" animated>
             <Search className="h-4 w-4" />
           </ToolbarBtn>
           <ToolbarBtn onClick={() => setShowTemplates(true)} tip="Template Gallery (T)" animated className="text-primary hover:bg-primary/10">
@@ -337,8 +366,51 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
               </div>
             )}
           </div>
-          <ToolbarBtn onClick={() => window.dispatchEvent(new Event('start-presentation'))} tip="Presentation mode (P)" animated>
+          <ToolbarBtn onClick={() => window.dispatchEvent(new CustomEvent('start-presentation'))} tip="Presentation mode (P)" animated>
             <Presentation className="h-4 w-4" />
+          </ToolbarBtn>
+          <Divider />
+          <div className="relative">
+            <ToolbarBtn onClick={() => setShowBookmarks(!showBookmarks)} tip="Viewport Bookmarks (B)" className={showBookmarks ? 'bg-accent text-primary' : ''} animated>
+              <BookmarkPlus className="h-4 w-4" />
+            </ToolbarBtn>
+            {showBookmarks && (
+              <div className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 min-w-[220px] rounded-xl border-2 border-border bg-card p-2 shadow-[var(--brutal-shadow-lg)] animate-brutal-pop z-[1000]">
+                <div className="mb-2 flex items-center justify-between border-b-2 border-border pb-2 px-1">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Bookmarks</span>
+                  <button 
+                    onClick={() => {
+                      const name = prompt('Bookmark name:');
+                      if (name) addBookmark(name, getViewport());
+                    }}
+                    className="rounded bg-primary px-2 py-0.5 text-[9px] font-bold uppercase text-primary-foreground hover:opacity-90"
+                  >
+                    Save View
+                  </button>
+                </div>
+                <div className="space-y-1 max-h-[200px] overflow-y-auto pr-1">
+                  {bookmarks.length === 0 ? (
+                    <div className="py-4 text-center text-[10px] font-bold text-muted-foreground opacity-50 italic">No bookmarks yet</div>
+                  ) : (
+                    bookmarks.map((b) => (
+                      <div key={b.id} className="group flex items-center justify-between gap-2 rounded-lg p-2 hover:bg-accent transition-all cursor-pointer" onClick={() => { setViewport(b.viewport, { duration: 800 }); setShowBookmarks(false); }}>
+                        <span className="text-xs font-bold uppercase tracking-tight text-foreground truncate">{b.name}</span>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); removeBookmark(b.id); }}
+                          className="opacity-0 group-hover:opacity-100 p-1 hover:text-destructive text-muted-foreground transition-opacity"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          <Divider />
+          <ToolbarBtn onClick={toggleMinimap} tip={`Minimap: ${showMinimap ? 'ON' : 'OFF'} (M)`} className={showMinimap ? 'bg-accent text-primary' : ''} animated>
+            <MapIcon className="h-4 w-4" />
           </ToolbarBtn>
           <Divider />
           <ThemeToggle />

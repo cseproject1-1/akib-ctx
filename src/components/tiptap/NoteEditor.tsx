@@ -1,5 +1,6 @@
-import { useEditor, EditorContent } from '@tiptap/react';
+import { useEditor, EditorContent, Editor } from '@tiptap/react';
 import { getEditorExtensions } from '@/lib/tiptap/extensions';
+import { cn } from '@/lib/utils';
 import { extensionRegistry, type AnyExtension } from '@/lib/tiptap/extensionRegistry';
 import { Bold, Italic, Strikethrough, Code, Heading1, Heading2, Link as LinkIcon, List, ListOrdered, Quote, Highlighter, Underline as UnderlineIcon, Palette, Type, Superscript, Subscript, RemoveFormatting, Search } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
@@ -61,17 +62,17 @@ marked.setOptions({
 
 // Use a custom renderer to force code blocks to output classes that Tiptap CodeBlockLowlight expects
 const renderer = new marked.Renderer();
-renderer.code = function(codeBase) {
+renderer.code = function(codeOrOptions: any, infostring?: string) {
   let lang = '';
   let code = '';
 
   // Handle marked 14+ string vs object token differences
-  if (typeof codeBase === 'string') {
-    code = codeBase;
-    lang = arguments.length > 1 ? arguments[1] : '';
-  } else if (typeof codeBase === 'object' && codeBase !== null) {
-    code = (codeBase as any).text || '';
-    lang = (codeBase as any).lang || '';
+  if (typeof codeOrOptions === 'string') {
+    code = codeOrOptions;
+    lang = infostring || '';
+  } else if (typeof codeOrOptions === 'object' && codeOrOptions !== null) {
+    code = codeOrOptions.text || '';
+    lang = codeOrOptions.lang || '';
   }
 
   const languageClass = lang ? `language-${lang}` : 'language-plaintext';
@@ -129,6 +130,7 @@ export function markdownToHtml(md: string): string {
 
 export interface NoteEditorHandle {
   reparseAsMarkdown: () => void;
+  getEditor: () => Editor | null;
 }
 
 interface NoteEditorProps {
@@ -139,6 +141,7 @@ interface NoteEditorProps {
   pasteContent?: string;
   pasteFormat?: 'markdown' | 'html';
   title?: string;
+  onFocusModeChange?: (active: boolean) => void;
 }
 
 let globalAsyncExtensions: AnyExtension[] | null = null;
@@ -185,11 +188,13 @@ interface NoteEditorImplProps extends NoteEditorProps {
   asyncExtensions: AnyExtension[];
 }
 
-const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(function NoteEditorImpl({ initialContent, onChange, placeholder, editable = true, pasteContent, pasteFormat, title, asyncExtensions }, ref) {
+const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(function NoteEditorImpl({ initialContent, onChange, placeholder, editable = true, pasteContent, pasteFormat, title, asyncExtensions, onFocusModeChange }, ref) {
   const [showBubble, setShowBubble] = useState(false);
   const [bubblePos, setBubblePos] = useState({ top: 0, left: 0 });
   const [showFindReplace, setShowFindReplace] = useState(false);
   const [popoverConfig, setPopoverConfig] = useState<{ item: SlashMenuItem; editor: any } | null>(null);
+  const [isFocusMode, setIsFocusMode] = useState(false);
+  const [isTypewriterMode, setIsTypewriterMode] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   const editor = useEditor({
@@ -211,12 +216,23 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
       },
       handleKeyDown: (_view, event) => {
         // Ctrl+F / Cmd+F for find & replace
-        if ((event.ctrlKey || event.metaKey) && event.key === 'f') {
+        if ((event.ctrlKey || event.metaKey) && event.key === 'f' && !event.shiftKey) {
           event.preventDefault();
           event.stopPropagation();
           setShowFindReplace(true);
           return true;
         }
+
+        // Ctrl+Shift+D for focus mode
+        if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key === 'd') {
+          event.preventDefault();
+          event.stopPropagation();
+          const next = !isFocusMode;
+          setIsFocusMode(next);
+          onFocusModeChange?.(next);
+          return true;
+        }
+
         event.stopPropagation();
         return false;
       },
@@ -319,6 +335,11 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
       } else {
         setShowBubble(false);
       }
+
+      if (isTypewriterMode) {
+        // Use native DOM scroll for precise centering if available
+        editor.view.dom.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
     },
   });
 
@@ -370,6 +391,7 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
         onChange?.(editor.getJSON());
       }, 50);
     },
+    getEditor: () => editor,
   }), [editor, onChange]);
 
   useEffect(() => {
@@ -481,8 +503,27 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
         />
       )}
 
-      <EditorContent editor={editor} />
-      {editable && <EditorFooter editor={editor} title={title} />}
+      <EditorContent 
+        editor={editor} 
+        className={cn(
+          "transition-all duration-500",
+          isFocusMode ? "max-w-2xl mx-auto py-20" : ""
+        )} 
+      />
+      {editable && (
+        <EditorFooter 
+          editor={editor} 
+          title={title} 
+          isFocusMode={isFocusMode}
+          onToggleFocus={() => {
+            const next = !isFocusMode;
+            setIsFocusMode(next);
+            onFocusModeChange?.(next);
+          }}
+          isTypewriterMode={isTypewriterMode}
+          onToggleTypewriter={() => setIsTypewriterMode(!isTypewriterMode)}
+        />
+      )}
     </div>
   );
 });

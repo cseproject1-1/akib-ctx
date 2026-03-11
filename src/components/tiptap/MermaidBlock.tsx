@@ -1,5 +1,5 @@
 import { NodeViewWrapper, NodeViewProps } from '@tiptap/react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import mermaid from 'mermaid';
 import { Settings, Play, SplitSquareHorizontal, Download, Trash2 } from 'lucide-react';
 
@@ -18,13 +18,7 @@ export function MermaidBlock(props: NodeViewProps) {
     });
   }, []);
 
-  useEffect(() => {
-    if (isPreview && containerRef.current) {
-      renderDiagram();
-    }
-  }, [code, isPreview]);
-
-  const renderDiagram = async () => {
+  const renderDiagram = useCallback(async () => {
     if (!containerRef.current) return;
     setError(null);
     try {
@@ -36,7 +30,13 @@ export function MermaidBlock(props: NodeViewProps) {
       console.error('Mermaid render error:', err);
       setError(err?.message || 'Syntax Error in Mermaid diagram');
     }
-  };
+  }, [code]);
+
+  useEffect(() => {
+    if (isPreview && containerRef.current) {
+      renderDiagram();
+    }
+  }, [code, isPreview, renderDiagram]);
 
   const handleApply = () => {
     props.updateAttributes({ code, previewMode: true });

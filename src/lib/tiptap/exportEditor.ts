@@ -205,7 +205,7 @@ export function editorToPdf(editor: Editor, title?: string) {
   ${html}
   <script>
     setTimeout(() => { window.print(); }, 300);
-  <\/script>
+  </script>
 </body>
 </html>`;
 

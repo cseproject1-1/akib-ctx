@@ -1,5 +1,5 @@
 import { Panel } from '@xyflow/react';
-import { NotebookPen, StickyNote, HelpCircle, BookOpen, FileUp, ImagePlus, Square, Sparkles, Plus, GraduationCap, MessageSquarePlus, ListTodo, Type, Circle, Diamond, Triangle, Pen, Globe, Sigma, Video, Table2, Braces, Cable } from 'lucide-react';
+import { NotebookPen, StickyNote, HelpCircle, BookOpen, FileUp, ImagePlus, Square, Sparkles, Plus, GraduationCap, MessageSquarePlus, ListTodo, Type, Circle, Diamond, Triangle, Pen, Globe, Sigma, Video, Table2, Braces, Cable, Columns3, Bookmark, CalendarDays, Paperclip, Sheet } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -22,6 +22,11 @@ const toolbarItems: { type: NodeType; label: string; icon: React.ElementType; co
   { type: 'video', label: 'Video', icon: Video, color: 'hover:text-red' },
   { type: 'table', label: 'Table', icon: Table2, color: 'hover:text-cyan' },
   { type: 'codeSnippet', label: 'Code', icon: Braces, color: 'hover:text-green' },
+  { type: 'kanban', label: 'Kanban', icon: Columns3, color: 'hover:text-primary' },
+  { type: 'bookmark', label: 'Bookmark', icon: Bookmark, color: 'hover:text-blue-500' },
+  { type: 'calendar', label: 'Calendar', icon: CalendarDays, color: 'hover:text-orange-500' },
+  { type: 'fileAttachment', label: 'File', icon: Paperclip, color: 'hover:text-slate-400' },
+  { type: 'spreadsheet', label: 'Spreadsheet', icon: Sheet, color: 'hover:text-green-600' },
 ];
 
 const shapeItems = [
@@ -51,6 +56,15 @@ const defaultDataForType = (type: NodeType): Record<string, unknown> => {
     case 'video': return { url: '', title: '' };
     case 'table': return { title: 'Table', headers: ['Col A', 'Col B', 'Col C'], rows: [[{ value: '' }, { value: '' }, { value: '' }]] };
     case 'codeSnippet': return { title: 'Code Snippet', code: '', language: 'javascript' };
+    case 'kanban': return { title: 'Kanban', columns: [
+      { id: 'todo', title: 'To Do', color: 'bg-muted text-muted-foreground', cards: [] },
+      { id: 'inprogress', title: 'In Progress', color: 'bg-primary/20 text-primary', cards: [] },
+      { id: 'done', title: 'Done', color: 'bg-green-500/20 text-green-500', cards: [] }
+    ]};
+    case 'bookmark': return { url: '', ogTitle: '', ogDescription: '', ogImage: '', favicon: '', hostname: '' };
+    case 'calendar': return { title: 'Calendar', events: [] };
+    case 'fileAttachment': return { title: 'File Attachment', files: [] };
+    case 'spreadsheet': return { title: 'Spreadsheet', grid: Array.from({ length: 4 }, () => Array.from({ length: 4 }, () => ({ value: '' }))) };
   }
 };
 
@@ -74,6 +88,11 @@ const defaultSizeForType = (type: NodeType): { width: number; height?: number | 
     case 'video': return { width: 420, height: 320 }; // Fixed for Video iframe
     case 'table': return { width: 600, height: 'auto' };
     case 'codeSnippet': return { width: 420, height: 'auto' };
+    case 'kanban': return { width: 500, height: 'auto' };
+    case 'bookmark': return { width: 300, height: 'auto' };
+    case 'calendar': return { width: 300, height: 'auto' };
+    case 'fileAttachment': return { width: 280, height: 'auto' };
+    case 'spreadsheet': return { width: 400, height: 'auto' };
   }
 };
 

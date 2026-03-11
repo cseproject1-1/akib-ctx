@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronRight, ChevronLeft, Sparkles, MousePointer2, Box, Link2, Search as SearchIcon } from 'lucide-react';
+import { X, ChevronRight, ChevronLeft, Sparkles, MousePointer2, Box, Link2, Search as SearchIcon, type LucideIcon } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvasStore';
 
 interface Step {
@@ -8,7 +8,7 @@ interface Step {
   title: string;
   content: string;
   target?: string; // CSS selector
-  icon: any;
+  icon: LucideIcon;
 }
 
 const steps: Step[] = [

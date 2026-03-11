@@ -14,6 +14,7 @@ import AdminPage from "./pages/AdminPage";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 import { useSyncManager } from "@/hooks/useSyncManager";
+import { PWABanner } from "@/components/PWABanner";
 
 const queryClient = new QueryClient();
 

@@ -17,6 +17,11 @@ import { MathNode } from '@/components/nodes/MathNode';
 import { VideoNode } from '@/components/nodes/VideoNode';
 import { TableNode } from '@/components/nodes/TableNode';
 import { CodeSnippetNode } from '@/components/nodes/CodeSnippetNode';
+import { KanbanNode } from '@/components/nodes/KanbanNode';
+import { BookmarkNode } from '@/components/nodes/BookmarkNode';
+import { CalendarNode } from '@/components/nodes/CalendarNode';
+import { FileAttachmentNode } from '@/components/nodes/FileAttachmentNode';
+import { SpreadsheetNode } from '@/components/nodes/SpreadsheetNode';
 
 export const nodeTypes: NodeTypes = {
   aiNote: AINoteNode,
@@ -37,4 +42,9 @@ export const nodeTypes: NodeTypes = {
   video: VideoNode,
   table: TableNode,
   codeSnippet: CodeSnippetNode,
+  kanban: KanbanNode,
+  bookmark: BookmarkNode,
+  calendar: CalendarNode,
+  fileAttachment: FileAttachmentNode,
+  spreadsheet: SpreadsheetNode,
 };

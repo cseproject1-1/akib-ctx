@@ -387,7 +387,9 @@ export async function deleteCanvasNode(workspaceId: string, nodeId: string) {
   try {
     const db = await import('./indexedDB').then(m => m.cacheGet<Node[]>('canvas-nodes', ''));
     // We can't easily know the workspaceId here, so we rely on the caller's cache update
-  } catch { }
+  } catch (err) {
+    console.error('Error deleting canvas node:', err);
+  }
   try {
     await withRetry(() => serverDeleteNode(workspaceId, nodeId));
   } catch (err) {

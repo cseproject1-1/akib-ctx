@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { X, Clock, RotateCcw, Trash2, Plus, Loader2 } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { getSnapshots, createSnapshot, deleteSnapshot, pruneSnapshots } from '@/lib/firebase/canvasData';
@@ -26,7 +26,7 @@ export function VersionHistoryPanel() {
   const [saving, setSaving] = useState(false);
   const [customName, setCustomName] = useState('');
 
-  const loadSnapshots = async () => {
+  const loadSnapshots = useCallback(async () => {
     if (!workspaceId) return;
     try {
       const data = await getSnapshots(workspaceId);
@@ -36,11 +36,11 @@ export function VersionHistoryPanel() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [workspaceId]);
 
   useEffect(() => {
     loadSnapshots();
-  }, [workspaceId]);
+  }, [loadSnapshots]);
 
   const handleSaveVersion = async () => {
     if (!workspaceId) return;
