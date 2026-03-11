@@ -612,8 +612,20 @@ export { clearAllCaches };
 
 // ─── Online listener + periodic retry ───
 
-let _syncInterval: any = null;
+let _syncTimeout: any = null;
 let _onlineHandler: (() => void) | null = null;
+let _startupTimeout: any = null;
+
+function scheduleReplay(delay: number) {
+  if (_syncTimeout) clearTimeout(_syncTimeout);
+  _syncTimeout = setTimeout(async () => {
+    if (navigator.onLine) {
+      await replayPendingOps();
+    }
+    // Schedule next run with current delay
+    scheduleReplay(_retryDelay);
+  }, delay);
+}
 
 /**
  * Starts the global synchronization manager that replays pending operations
@@ -621,35 +633,37 @@ let _onlineHandler: (() => void) | null = null;
  */
 export function startSyncManager() {
   if (typeof window === 'undefined') return;
-  if (_syncInterval) return; // Already running
+  if (_syncTimeout || _startupTimeout) return; // Already running
 
   // On first load, replay after a short delay to let auth initialize
-  setTimeout(() => replayPendingOps(), 3000);
+  _startupTimeout = setTimeout(() => {
+    replayPendingOps();
+    _startupTimeout = null;
+    // Start periodic sync after initial run
+    scheduleReplay(_retryDelay);
+  }, 3000);
 
   _onlineHandler = () => {
     // Small delay to let network stabilize
     setTimeout(() => replayPendingOps(), 2000);
   };
   window.addEventListener('online', _onlineHandler);
-
-  _syncInterval = setInterval(() => {
-    if (navigator.onLine) {
-      replayPendingOps();
-    }
-  }, _retryDelay);
 }
 
 /**
  * Stops the global synchronization manager and cleans up listeners.
  */
 export function stopSyncManager() {
-  if (_syncInterval) {
-    clearInterval(_syncInterval);
-    _syncInterval = null;
+  if (_syncTimeout) {
+    clearTimeout(_syncTimeout);
+    _syncTimeout = null;
+  }
+  if (_startupTimeout) {
+    clearTimeout(_startupTimeout);
+    _startupTimeout = null;
   }
   if (_onlineHandler) {
     window.removeEventListener('online', _onlineHandler);
     _onlineHandler = null;
   }
 }
-

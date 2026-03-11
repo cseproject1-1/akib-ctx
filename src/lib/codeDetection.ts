@@ -108,53 +108,64 @@ const EXPLICIT_MARKERS = {
 
 const FAST_CHECK_REGEX = /[;{}()\[\]=<>!]|\b(const|let|var|def|func|public|private|static|import|if|else|return|class)\b/;
 
+// Basic LRU-like cache for line detections to avoid redundant regex runs
+const DETECTION_CACHE = new Map<string, CodeDetectionResult>();
+const MAX_CACHE_SIZE = 500;
+
 /**
  * Detects if a string is code and identifies its language.
  * Optimized for performance with early exits and fast-path filtering.
  */
 export function detectCode(text: string): CodeDetectionResult {
-  // Fast Path: If it's short or doesn't have common code symbols/keywords, assume it's text
+  // 1. Fast Path: Length and basic character check
   if (text.length < 3) return { isCode: false, language: 'plaintext', confidence: 0, formattedText: text };
+  
+  // 2. Cache check for performance on repeated lines
+  const cached = DETECTION_CACHE.get(text);
+  if (cached) return cached;
+
   if (text.length < 100 && !FAST_CHECK_REGEX.test(text)) {
     return { isCode: false, language: 'plaintext', confidence: 0, formattedText: text };
   }
 
-  // 1. Check for triple-backtick Markdown blocks (Highest Confidence)
+  // 3. Check for triple-backtick Markdown blocks (Highest Confidence)
   if (text.startsWith('```')) {
     const markdownMatch = text.match(/^```(\w+)?\n/);
     if (markdownMatch) {
-      return {
+      const result = {
         isCode: true,
         language: (markdownMatch[1] || 'plaintext').toLowerCase(),
         confidence: 1.0,
         formattedText: text
       };
+      cacheResult(text, result);
+      return result;
     }
   }
 
-  // 2. Check for shebang
+  // 4. Check for shebang
   if (text.startsWith('#!/')) {
     const shebangMatch = text.match(EXPLICIT_MARKERS.shebang);
     if (shebangMatch) {
       const lang = shebangMatch[3].toLowerCase();
-      return {
+      const result = {
         isCode: true,
         language: lang === 'sh' ? 'bash' : lang,
         confidence: 1.0,
         formattedText: text
       };
+      cacheResult(text, result);
+      return result;
     }
   }
 
   let bestLang = 'plaintext';
   let maxScore = 0;
 
-  // 3. Score languages based on patterns (Only if it passed the fast check)
+  // 5. Score languages based on patterns
   for (const [lang, patterns] of Object.entries(LANGUAGE_PATTERNS)) {
     let score = 0;
     for (const pattern of patterns) {
-      // Use test() first if we don't need the count for anything other than scoring
-      // or match() for count if weighting depends on it.
       const matches = text.match(pattern.regex);
       if (matches) {
         score += matches.length * pattern.weight;
@@ -170,35 +181,50 @@ export function detectCode(text: string): CodeDetectionResult {
     if (score > 100) break;
   }
 
-  // 4. Structural analysis
-  const lines = text.split('\n');
-  const totalLines = lines.filter(l => l.trim().length > 0).length;
-  if (totalLines === 0) return { isCode: false, language: 'plaintext', confidence: 0, formattedText: text };
-
-  let codeLikeLines = 0;
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.length === 0) continue;
+  // 6. Structural analysis (Optimized: only if pattern score is low)
+  let codeRatio = 0;
+  if (maxScore < 20) {
+    const lines = text.split('\n');
+    const totalLines = lines.filter(l => l.trim().length > 0).length;
     
-    // Optimized line checking
-    if (/[;{}:]$/.test(trimmed)) { codeLikeLines++; continue; }
-    if (/^(\/\/|#|\/\*|--)/.test(trimmed)) { codeLikeLines++; continue; }
-    if (/^(const|let|var|def|class|public|private|static|import|from|using|namespace)\b/.test(trimmed)) { codeLikeLines++; continue; }
-    if (/^<.*>$/.test(trimmed)) { codeLikeLines++; continue; }
+    if (totalLines > 0) {
+      let codeLikeLines = 0;
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.length === 0) continue;
+        if (/[;{}:]$/.test(trimmed)) { codeLikeLines++; continue; }
+        if (/^(\/\/|#|\/\*|--)/.test(trimmed)) { codeLikeLines++; continue; }
+        if (/^(const|let|var|def|class|public|private|static|import|from|using|namespace)\b/.test(trimmed)) { codeLikeLines++; continue; }
+        if (/^<.*>$/.test(trimmed)) { codeLikeLines++; continue; }
+      }
+      codeRatio = codeLikeLines / totalLines;
+    }
+  } else {
+    codeRatio = 0.5; // Assume moderate structural confidence if pattern score is high
   }
-
-  const codeRatio = codeLikeLines / totalLines;
   
-  // Final decision: blend pattern score and structural ratio
+  // Final decision
   const confidence = Math.min((maxScore / 40) + (codeRatio * 0.6), 1.0);
   const isCode = confidence > 0.45 || (codeRatio > 0.7 && text.length > 20);
 
-  return {
+  const result = {
     isCode,
     language: isCode ? bestLang : 'plaintext',
     confidence,
     formattedText: text
   };
+
+  cacheResult(text, result);
+  return result;
+}
+
+function cacheResult(text: string, result: CodeDetectionResult) {
+  if (DETECTION_CACHE.size >= MAX_CACHE_SIZE) {
+    // Simple eviction: clear entire cache if it gets too big
+    // (Better than full LRU for this simple use case)
+    DETECTION_CACHE.clear();
+  }
+  DETECTION_CACHE.set(text, result);
 }
 
 /**

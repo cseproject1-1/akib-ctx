@@ -2,14 +2,13 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Typography from '@tiptap/extension-typography';
 import TaskList from '@tiptap/extension-task-list';
-import TaskItem from '@tiptap/extension-task-item';
+import { CustomTaskItem } from './TaskItemExtension';
 import Image from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
 import TextAlign from '@tiptap/extension-text-align';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
-import { TableCell } from '@tiptap/extension-table-cell';
-import { TableHeader } from '@tiptap/extension-table-header';
+import { CustomTableCell, CustomTableHeader } from './TableExtensions';
 import Highlight from '@tiptap/extension-highlight';
 import Underline from '@tiptap/extension-underline';
 import Color from '@tiptap/extension-color';
@@ -22,6 +21,11 @@ import { CalloutExtension } from './CalloutExtension';
 import { ToggleExtension } from './ToggleExtension';
 import { WikiLinkExtension } from './WikiLinkExtension';
 import { SmartCodeExtension } from './SmartCodeExtension';
+import { SmartNavigationExtension } from './SmartNavigationExtension';
+import { TypographyExtensions } from './TypographyExtensions';
+import { TableSortExtension } from './TableSortExtension';
+import { TableTemplatesExtension } from './TableTemplatesExtension';
+import { TableFormulaExtension } from './TableFormulaExtension';
 
 export function getEditorExtensions(placeholder = 'Type / for commands, or start typing…') {
   return [
@@ -34,13 +38,13 @@ export function getEditorExtensions(placeholder = 'Type / for commands, or start
     Typography,
     Placeholder.configure({ placeholder }),
     TaskList,
-    TaskItem.configure({ nested: true }),
+    CustomTaskItem.configure({ nested: true }),
     Image.configure({ inline: false, allowBase64: true }),
     TextAlign.configure({ types: ['heading', 'paragraph'] }),
-    Table.configure({ resizable: false, HTMLAttributes: { class: 'tiptap-table' } }),
+    Table.configure({ resizable: true, HTMLAttributes: { class: 'tiptap-table' } }),
     TableRow,
-    TableCell,
-    TableHeader,
+    CustomTableCell,
+    CustomTableHeader,
     Highlight.configure({ multicolor: true }),
     TextStyle,
     Color,
@@ -53,5 +57,10 @@ export function getEditorExtensions(placeholder = 'Type / for commands, or start
     SlashCommand,
     WikiLinkExtension,
     SmartCodeExtension,
+    SmartNavigationExtension,
+    TypographyExtensions,
+    TableSortExtension,
+    TableTemplatesExtension,
+    TableFormulaExtension,
   ];
 }

@@ -550,6 +550,24 @@ export const slashMenuItems: SlashMenuItem[] = [
       `).run();
     },
   },
+  {
+    title: 'Budget Table',
+    icon: BarChart3,
+    group: 'Templates',
+    command: ({ editor, range }) => {
+      editor.chain().focus().deleteRange(range).run();
+      (editor.commands as any).insertBudgetTable();
+    },
+  },
+  {
+    title: 'Calendar Table',
+    icon: Calendar,
+    group: 'Templates',
+    command: ({ editor, range }) => {
+      editor.chain().focus().deleteRange(range).run();
+      (editor.commands as any).insertCalendarTable();
+    },
+  },
 ];
 
 interface SlashMenuListProps {

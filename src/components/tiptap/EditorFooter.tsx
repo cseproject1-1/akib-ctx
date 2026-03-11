@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Download, FileText, FileDown, Eye, MousePointerClick, Zap } from 'lucide-react';
+import { Download, FileText, FileDown, Eye, MousePointerClick, Zap, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Editor } from '@tiptap/react';
 import { editorToMarkdown, downloadFile, editorToPdf } from '@/lib/tiptap/exportEditor';
@@ -14,7 +14,14 @@ interface EditorFooterProps {
   onToggleTypewriter?: () => void;
 }
 
-export function EditorFooter({ editor, title, isFocusMode, onToggleFocus, isTypewriterMode, onToggleTypewriter }: EditorFooterProps) {
+export function EditorFooter({ 
+  editor, 
+  title, 
+  isFocusMode, 
+  onToggleFocus, 
+  isTypewriterMode, 
+  onToggleTypewriter,
+}: EditorFooterProps) {
   const [stats, setStats] = useState({ words: 0, chars: 0, readTime: '0 min' });
   const [showExport, setShowExport] = useState(false);
 

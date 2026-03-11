@@ -163,6 +163,13 @@ export function CanvasWrapper() {
     [setStoreNodes]
   );
 
+  // Cleanup debounce on unmount to prevent leaks
+  useEffect(() => {
+    return () => {
+      debouncedSyncToStore.cancel();
+    };
+  }, [debouncedSyncToStore]);
+
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
       setLocalNodes((prev) => {
@@ -279,8 +286,11 @@ export function CanvasWrapper() {
         // Render window check: skip DOM rendering for nodes outside viewport + buffer
         const isOutOfViewport = (nx + nw < vLeft || nx > vRight || ny + nh < vTop || ny > vBottom);
         
-        // Essential media types that shouldn't be unloaded to preserve their state/players
-        const skipVirtualization = ['video', 'image', 'audio'].includes(n.type || '');
+        // Explicitly skip virtualization for heavy media or static assets that 
+        // are expensive to reload or lose state (like iframes and video players).
+        const skipVirtualization = [
+          'video', 'image', 'audio', 'embed', 'pdf', 'fileAttachment', 'spreadsheet'
+        ].includes(n.type || '');
         const shouldRender = skipVirtualization || !isOutOfViewport;
 
         return {

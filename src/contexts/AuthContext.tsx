@@ -4,10 +4,13 @@ import {
   onAuthStateChanged,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  signOut as firebaseSignOut
+  signOut as firebaseSignOut,
+  GoogleAuthProvider,
+  signInWithPopup,
+  sendEmailVerification
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase/client';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 
 interface AuthContextType {
   user: User | null;
@@ -15,7 +18,9 @@ interface AuthContextType {
   loading: boolean;
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
+  signInWithGoogle: () => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  sendVerification: () => Promise<{ error: Error | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -43,6 +48,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signUp = async (email: string, password: string) => {
     try {
       const { user: newUser } = await createUserWithEmailAndPassword(auth, email, password);
+      
+      // Send verification email
+      await sendEmailVerification(newUser);
+
       // Create user profile in Firestore
       await setDoc(doc(db, 'users', newUser.uid), {
         email: email.toLowerCase(),
@@ -65,6 +74,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const signInWithGoogle = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+
+      // Check if user profile already exists
+      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      
+      if (!userDoc.exists()) {
+        // Create user profile in Firestore only if it doesn't exist
+        await setDoc(doc(db, 'users', user.uid), {
+          email: user.email?.toLowerCase(),
+          display_name: user.displayName || user.email?.split('@')[0],
+          photo_url: user.photoURL,
+          created_at: serverTimestamp(),
+          role: user.email?.toLowerCase() === 'mm.adnanakib@gmail.com' ? 'admin' : 'user'
+        });
+      }
+      
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  };
+
+  const sendVerification = async () => {
+    if (!auth.currentUser) return { error: new Error('No user logged in') };
+    try {
+      await sendEmailVerification(auth.currentUser);
+      return { error: null };
+    } catch (error) {
+      return { error: error as Error };
+    }
+  };
+
   const signOut = async () => {
     const { clearAllCaches } = await import('@/lib/cache/canvasCache');
     await clearAllCaches();
@@ -72,7 +117,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, loading, signUp, signIn, signInWithGoogle, signOut, sendVerification }}>
       {children}
     </AuthContext.Provider>
   );
@@ -88,7 +133,9 @@ export function useAuth() {
       loading: true,
       signUp: async () => ({ error: new Error('Auth not ready') }),
       signIn: async () => ({ error: new Error('Auth not ready') }),
+      signInWithGoogle: async () => ({ error: new Error('Auth not ready') }),
       signOut: async () => { },
+      sendVerification: async () => ({ error: new Error('Auth not ready') }),
     } as AuthContextType;
   }
   return context;

@@ -97,7 +97,7 @@ export const KaTeXExtension = Node.create({
 
       // Click to edit
       let editing = false;
-      rendered.addEventListener('click', (e) => {
+      const onClick = (e: MouseEvent) => {
         e.stopPropagation();
         if (!editor.isEditable) return;
         editing = true;
@@ -105,12 +105,9 @@ export const KaTeXExtension = Node.create({
         source.style.display = 'block';
         rendered.style.display = 'none';
         source.focus();
-      });
+      };
 
-      source.contentEditable = 'true';
-      source.style.display = 'none';
-
-      source.addEventListener('blur', () => {
+      const onBlur = () => {
         const newLatex = source.textContent || '';
         editing = false;
         container.classList.remove('editing');
@@ -129,9 +126,9 @@ export const KaTeXExtension = Node.create({
             );
           }
         }
-      });
+      };
 
-      source.addEventListener('keydown', (e) => {
+      const onKeyDown = (e: KeyboardEvent) => {
         e.stopPropagation();
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
@@ -140,7 +137,13 @@ export const KaTeXExtension = Node.create({
         if (e.key === 'Escape') {
           source.blur();
         }
-      });
+      };
+
+      rendered.addEventListener('click', onClick);
+      source.contentEditable = 'true';
+      source.style.display = 'none';
+      source.addEventListener('blur', onBlur);
+      source.addEventListener('keydown', onKeyDown);
 
       container.append(rendered, source);
 
@@ -158,6 +161,11 @@ export const KaTeXExtension = Node.create({
             renderMath(updatedNode.attrs.latex);
           }
           return true;
+        },
+        destroy: () => {
+          rendered.removeEventListener('click', onClick);
+          source.removeEventListener('blur', onBlur);
+          source.removeEventListener('keydown', onKeyDown);
         },
       };
     };

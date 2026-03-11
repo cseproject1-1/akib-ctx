@@ -3,6 +3,15 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import mermaid from 'mermaid';
 import { Settings, Play, SplitSquareHorizontal, Download, Trash2 } from 'lucide-react';
 
+// Initialize mermaid once globally if in a browser environment
+if (typeof window !== 'undefined') {
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: 'default',
+    securityLevel: 'loose',
+  });
+}
+
 export function MermaidBlock(props: NodeViewProps) {
   const [code, setCode] = useState(props.node.attrs.code || 'graph TD\n  A[Start] --> B[End]');
   const [isPreview, setIsPreview] = useState(props.node.attrs.previewMode ?? true);
@@ -10,13 +19,6 @@ export function MermaidBlock(props: NodeViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphId = useRef(`mermaid-${Math.random().toString(36).substr(2, 9)}`);
 
-  useEffect(() => {
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: 'default',
-      securityLevel: 'loose',
-    });
-  }, []);
 
   const renderDiagram = useCallback(async () => {
     if (!containerRef.current) return;

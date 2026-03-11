@@ -24,9 +24,18 @@ function getStoredSessions(): number {
   return parseInt(localStorage.getItem('pomodoro-sessions') || '0', 10);
 }
 
+let audioCtx: AudioContext | null = null;
+
 function playBeep() {
   try {
-    const ctx = new AudioContext();
+    if (!audioCtx) audioCtx = new AudioContext();
+    const ctx = audioCtx;
+    
+    // Browsers often suspend AudioContext until user interaction
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
+
     const gain = ctx.createGain();
     gain.connect(ctx.destination);
     gain.gain.value = 0.3;
@@ -37,8 +46,8 @@ function playBeep() {
       osc.start(ctx.currentTime + i * 0.15);
       osc.stop(ctx.currentTime + i * 0.15 + 0.12);
     });
-  } catch {
-    // ignore audio context error
+  } catch (err) {
+    console.warn('Failed to play pomodoro beep:', err);
   }
 }
 

@@ -146,6 +146,47 @@ export function downloadFile(content: string, filename: string, mimeType: string
 }
 
 /**
+ * Copy text to clipboard using the Modern Clipboard API.
+ */
+export async function copyToClipboard(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (err) {
+    console.error('Failed to copy: ', err);
+    return false;
+  }
+}
+
+/**
+ * Copy content as HTML to clipboard.
+ */
+export async function copyHtmlToClipboard(editor: Editor) {
+  const html = editor.getHTML();
+  try {
+    const blob = new Blob([html], { type: 'text/html' });
+    const textBlob = new Blob([editor.getText()], { type: 'text/plain' });
+    const item = new ClipboardItem({
+      'text/html': blob,
+      'text/plain': textBlob,
+    });
+    await navigator.clipboard.write([item]);
+    return true;
+  } catch (err) {
+    console.error('Failed to copy HTML: ', err);
+    return false;
+  }
+}
+
+/**
+ * Copy content as Markdown to clipboard.
+ */
+export async function copyMarkdownToClipboard(editor: Editor) {
+  const md = editorToMarkdown(editor);
+  return copyToClipboard(md);
+}
+
+/**
  * Export editor content as a PDF using the browser's print-to-PDF.
  * Creates a clean printable view in a hidden iframe.
  */

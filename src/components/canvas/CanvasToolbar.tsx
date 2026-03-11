@@ -1,5 +1,5 @@
 import { useReactFlow, Panel, useStore, useNodes, useEdges } from '@xyflow/react';
-import { ZoomIn, ZoomOut, Maximize, Undo2, Redo2, ArrowLeft, Save, CheckCircle, AlertCircle, FileDown, Paintbrush, Share2, Eye, MousePointerClick, Presentation, Crosshair, LayoutDashboard, Grid3X3, Lock, Unlock, Trash2, Magnet, Cable, FileText, FileJson, Clock, GitBranch, CloudOff, Sparkles, Upload, Network, Orbit, LayoutGrid, Search, Map as MapIcon, BookmarkPlus, X, History, Pen, Maximize2, Minimize2 } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, Undo2, Redo2, ArrowLeft, Save, CheckCircle, AlertCircle, FileDown, Paintbrush, Share2, Eye, MousePointerClick, Presentation, Crosshair, LayoutDashboard, Grid3X3, Lock, Unlock, Trash2, Magnet, Cable, FileText, FileJson, Clock, GitBranch, CloudOff, Sparkles, Upload, Network, Orbit, LayoutGrid, Search, Map as MapIcon, BookmarkPlus, X, History, Pen, Maximize2, Minimize2, Keyboard } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { getTreeLayout, getCircularLayout } from '@/lib/canvas/layoutUtils';
@@ -21,6 +21,8 @@ import { replayPendingOps } from '@/lib/cache/canvasCache';
 import { NodeSearchPanel, openSearch } from './NodeSearchPanel';
 import { TemplateGallery } from './TemplateGallery';
 import { HistoryPanel, openHistory } from './HistoryPanel';
+import { PresenceList } from './PresenceList';
+import { ShortcutsDialog } from './ShortcutsDialog';
 
 interface CanvasToolbarProps {
   drawingMode?: boolean;
@@ -75,6 +77,7 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
   const [showBookmarks, setShowBookmarks] = useState(false);
   const setAISynthesisOpen = useCanvasStore((s) => s.setAISynthesisOpen);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   // Sync fullscreen state
   useEffect(() => {
@@ -257,11 +260,19 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
           <TipBtn tip="Version history" onClick={() => setVersionHistoryOpen(!versionHistoryOpen)} className={cn("pro-btn flex items-center gap-2 rounded-xl px-2.5 py-2 text-[10px] font-black uppercase tracking-widest transition-all glass-effect", versionHistoryOpen ? "text-primary border-primary/20 bg-primary/5" : "text-muted-foreground/60 hover:text-foreground")}>
             <Clock className="h-3.5 w-3.5" />
           </TipBtn>
-          <TipBtn tip="Branch" onClick={() => setBranchOpen(true)} className="pro-btn flex items-center gap-2 rounded-xl glass-effect px-2.5 py-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 transition-all hover:text-foreground">
+          <TipBtn tip="Branch" onClick={() => setBranchOpen(true)} className="pro-btn flex items-center gap-2 rounded-xl glass-effect px-2.5 py-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 transition-all hover:text-foreground mr-2">
             <GitBranch className="h-3.5 w-3.5" />
+          </TipBtn>
+          <div className="h-4 w-px bg-white/5 mx-0.5" />
+          <PresenceList />
+          <div className="h-4 w-px bg-white/5 mx-0.5" />
+          <TipBtn tip="Keyboard Shortcuts (/)" onClick={() => setShowShortcuts(true)} className="pro-btn flex items-center gap-2 rounded-xl glass-effect px-2.5 py-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 transition-all hover:text-foreground">
+            <Keyboard className="h-3.5 w-3.5" />
           </TipBtn>
         </div>
       </Panel>
+
+      {showShortcuts && <ShortcutsDialog open={showShortcuts} onClose={() => setShowShortcuts(false)} />}
 
       {shareOpen && workspaceId && (
         <ShareWorkspaceModal
