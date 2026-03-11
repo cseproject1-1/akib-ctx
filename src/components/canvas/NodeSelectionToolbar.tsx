@@ -1,16 +1,18 @@
 import { useCallback, useMemo } from 'react';
 import { useReactFlow, useViewport, useNodes } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
-import { Copy, Trash2, Star, Lock, Unlock, Palette } from 'lucide-react';
+import { Copy, Trash2, Star, Lock, Unlock, Palette, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/lib/utils';
 
 const colorOptions = [
-  { name: 'default', css: 'hsl(0 0% 40%)' },
-  { name: 'blue', css: 'hsl(217, 91%, 60%)' },
-  { name: 'green', css: 'hsl(142, 76%, 46%)' },
-  { name: 'red', css: 'hsl(0, 84%, 60%)' },
-  { name: 'purple', css: 'hsl(262, 83%, 58%)' },
-  { name: 'yellow', css: 'hsl(52, 100%, 50%)' },
+  { name: 'default', css: 'bg-zinc-500' },
+  { name: 'blue', css: 'bg-blue-500' },
+  { name: 'green', css: 'bg-emerald-500' },
+  { name: 'red', css: 'bg-rose-500' },
+  { name: 'purple', css: 'bg-violet-500' },
+  { name: 'yellow', css: 'bg-amber-500' },
 ];
 
 export function NodeSelectionToolbar() {
@@ -19,7 +21,6 @@ export function NodeSelectionToolbar() {
   const deleteNode = useCanvasStore((s) => s.deleteNode);
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const { flowToScreenPosition } = useReactFlow();
-  const viewport = useViewport();
 
   const selectedNodes = useMemo(() => nodes.filter((n) => n.selected), [nodes]);
 
@@ -56,60 +57,82 @@ export function NodeSelectionToolbar() {
     y: node.position.y,
   });
 
-  const SAFE_TOP = 70; // Header clearance
-  const SAFE_SIDE = 120;
+  const SAFE_TOP = 80;
+  const SAFE_SIDE = 150;
   
-  const topPos = Math.max(rawPos.y - 52, SAFE_TOP);
+  const topPos = Math.max(rawPos.y - 65, SAFE_TOP);
   const leftPos = Math.max(Math.min(rawPos.x, window.innerWidth - SAFE_SIDE), SAFE_SIDE);
 
-  // Position toolbar centered above the node, high z-index to never overlap
-  const toolbarStyle: React.CSSProperties = {
-    position: 'fixed',
-    left: leftPos,
-    top: topPos,
-    transform: 'translateX(-50%)',
-    zIndex: 1000,
-  };
-
   return (
-    <div style={toolbarStyle} className="animate-slide-up">
-      <div className="flex items-center gap-0.5 rounded-lg border-2 border-border bg-card px-1 py-1 shadow-[4px_4px_0px_hsl(0,0%,15%)] backdrop-blur-sm">
+    <motion.div
+      initial={{ opacity: 0, y: 10, x: '-50%' }}
+      animate={{ opacity: 1, y: 0, x: '-50%' }}
+      exit={{ opacity: 0, y: 10, x: '-50%' }}
+      style={{
+        position: 'fixed',
+        left: leftPos,
+        top: topPos,
+        zIndex: 1000,
+      }}
+      className="pointer-events-auto"
+    >
+      <div className="flex items-center gap-1 rounded-2xl glass-morphism-strong p-1.5 pro-shadow">
         <TBtn onClick={handlePin} title={isPinned ? 'Unpin' : 'Pin'}>
-          <Star className={`h-3.5 w-3.5 ${isPinned ? 'fill-primary text-primary' : ''}`} />
+          <Star className={cn("h-4 w-4 transition-all", isPinned ? 'fill-primary text-primary' : 'text-muted-foreground')} />
         </TBtn>
+        
         <TBtn onClick={handleLock} title={isLocked ? 'Unlock' : 'Lock'}>
-          {isLocked ? <Lock className="h-3.5 w-3.5 text-destructive" /> : <Unlock className="h-3.5 w-3.5" />}
+          {isLocked ? (
+            <Lock className="h-4 w-4 text-red-500 fill-red-500/10" />
+          ) : (
+            <Unlock className="h-4 w-4 text-muted-foreground" />
+          )}
         </TBtn>
+
         <TBtn onClick={() => duplicateNode(node.id)} title="Duplicate">
-          <Copy className="h-3.5 w-3.5" />
+          <Copy className="h-4 w-4 text-muted-foreground" />
         </TBtn>
-        <div className="h-5 w-px bg-border mx-0.5" />
-        {colorOptions.map((c) => (
-          <button
-            key={c.name}
-            className="h-4 w-4 rounded-sm border border-border transition-transform hover:scale-125"
-            style={{ backgroundColor: c.css }}
-            onClick={() => handleColor(c.name)}
-            title={c.name}
-          />
-        ))}
-        <div className="h-5 w-px bg-border mx-0.5" />
-        <TBtn onClick={() => deleteNode(node.id)} title="Delete" className="hover:text-destructive">
-          <Trash2 className="h-3.5 w-3.5" />
+
+        <div className="mx-1 h-6 w-px bg-white/5" />
+
+        <div className="flex items-center gap-1.5 px-2">
+          {colorOptions.map((c) => (
+            <button
+              key={c.name}
+              className={cn(
+                "h-5 w-5 rounded-full ring-offset-2 ring-offset-background transition-all hover:scale-125 focus:ring-2 active:scale-95",
+                c.css,
+                (node.data as any)?.color === c.name ? "ring-2 ring-primary" : "ring-transparent"
+              )}
+              onClick={() => handleColor(c.name)}
+              title={c.name}
+            />
+          ))}
+        </div>
+
+        <div className="mx-1 h-6 w-px bg-white/5" />
+
+        <TBtn onClick={() => deleteNode(node.id)} title="Delete" className="hover:bg-red-500/10 hover:text-red-500">
+          <Trash2 className="h-4 w-4" />
         </TBtn>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
 function TBtn({ children, onClick, title, className }: { children: React.ReactNode; onClick: () => void; title: string; className?: string }) {
   return (
-    <button
+    <motion.button
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
       onClick={onClick}
       title={title}
-      className={`rounded p-1.5 text-muted-foreground transition-all duration-150 hover:bg-accent hover:text-foreground active:scale-90 ${className || ''}`}
+      className={cn(
+        "flex h-9 w-9 items-center justify-center rounded-xl transition-all hover:bg-white/5 active:bg-white/10",
+        className
+      )}
     >
       {children}
-    </button>
+    </motion.button>
   );
 }

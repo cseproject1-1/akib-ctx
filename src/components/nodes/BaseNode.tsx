@@ -130,12 +130,12 @@ export function BaseNode({
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.15, ease: 'easeOut' }}
       className={cn(
-        'animate-node-appear border-2 bg-canvas-node',
-        'rounded-lg relative transition-all duration-200 group/node flex flex-col h-full',
+        'animate-node-appear transition-all duration-300 group/node flex flex-col h-full overflow-hidden',
+        'glass-effect premium-border rounded-xl relative',
         selected
-          ? 'border-primary shadow-[4px_4px_0px_hsl(var(--primary)),0_0_20px_hsla(52,100%,50%,0.15)] scale-[1.01]'
-          : 'border-border shadow-[4px_4px_0px_hsl(0,0%,15%)] hover:shadow-[5px_5px_0px_hsl(0,0%,15%)]',
-        userColor ? `border-l-4 ${userColor.border} ${userColor.bg}` : accent && !selected ? `border-l-4 ${accent.border}` : '',
+          ? 'node-selection-glow scale-[1.01] z-50'
+          : 'pro-shadow hover:scale-[1.005] hover:border-primary/30',
+        userColor ? `${userColor.bg}` : accent && !selected ? `border-l-4 ${accent.border}` : '',
         className
       )}
     >
@@ -186,14 +186,14 @@ export function BaseNode({
           )}
           {onTitleChange && !locked ? (
             <input
-              className="flex-1 bg-transparent text-sm font-bold uppercase tracking-wide text-foreground outline-none placeholder:text-muted-foreground"
+              className="flex-1 bg-transparent text-sm font-medium tracking-tight text-foreground outline-none placeholder:text-muted-foreground/50"
               value={title}
               onChange={(e) => onTitleChange(e.target.value)}
               onClick={(e) => e.stopPropagation()}
               placeholder="Untitled"
             />
           ) : (
-            <span className="flex-1 truncate text-sm font-bold uppercase tracking-wide text-foreground">{title}</span>
+            <span className="flex-1 truncate text-sm font-medium tracking-tight text-foreground">{title}</span>
           )}
           {headerExtra}
           {id && (

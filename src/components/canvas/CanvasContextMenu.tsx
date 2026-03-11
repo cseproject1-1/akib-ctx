@@ -1,23 +1,25 @@
 import { useCanvasStore } from '@/store/canvasStore';
-import { FileText, StickyNote, HelpCircle, BookOpen, FileUp, ImagePlus, Square, GraduationCap, MessageSquare, CheckSquare, Type, Diamond, Sigma, Video, Table2 } from 'lucide-react';
+import { FileText, StickyNote, HelpCircle, BookOpen, FileUp, ImagePlus, Square, GraduationCap, MessageSquare, CheckSquare, Type, Diamond, Sigma, Video, Table2, PlusCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/lib/utils';
 import type { NodeType } from '@/types/canvas';
 
-const menuItems: { type: NodeType; label: string; icon: React.ElementType; separator?: boolean; extraData?: Record<string, unknown> }[] = [
-  { type: 'aiNote', label: 'Note (AI Reply)', icon: FileText },
-  { type: 'summary', label: 'Summary', icon: StickyNote },
-  { type: 'termQuestion', label: 'Term Questions', icon: HelpCircle },
-  { type: 'lectureNotes', label: 'Lecture Notes', icon: BookOpen },
-  { type: 'stickyNote', label: 'Sticky Note', icon: MessageSquare, separator: true },
-  { type: 'checklist', label: 'Checklist', icon: CheckSquare },
-  { type: 'text', label: 'Text', icon: Type },
-  { type: 'shape', label: 'Shape', icon: Diamond, separator: true },
-  { type: 'pdf', label: 'Upload PDF', icon: FileUp, separator: true },
-  { type: 'image', label: 'Upload Image', icon: ImagePlus },
-  { type: 'group', label: 'Group', icon: Square, separator: true },
-  { type: 'flashcard', label: 'Flashcards', icon: GraduationCap },
-  { type: 'math', label: 'Math / LaTeX', icon: Sigma, separator: true },
-  { type: 'video', label: 'Video Embed', icon: Video },
-  { type: 'table', label: 'Table', icon: Table2 },
+const menuItems: { type: NodeType; label: string; icon: React.ElementType; separator?: boolean; category?: string }[] = [
+  { type: 'aiNote', label: 'AI Note', icon: FileText, category: 'AI Tools' },
+  { type: 'flashcard', label: 'Flashcards', icon: GraduationCap, category: 'AI Tools' },
+  { type: 'lectureNotes', label: 'Lecture Notes', icon: BookOpen, category: 'Notes' },
+  { type: 'summary', label: 'Summary Box', icon: StickyNote, category: 'Notes' },
+  { type: 'stickyNote', label: 'Sticky Note', icon: MessageSquare, category: 'Elements' },
+  { type: 'checklist', label: 'Checklist', icon: CheckSquare, category: 'Elements' },
+  { type: 'text', label: 'Text Block', icon: Type, category: 'Elements' },
+  { type: 'termQuestion', label: 'Term Questions', icon: HelpCircle, category: 'Academic' },
+  { type: 'math', label: 'Math / LaTeX', icon: Sigma, category: 'Academic' },
+  { type: 'pdf', label: 'Upload PDF', icon: FileUp, category: 'Media' },
+  { type: 'image', label: 'Upload Image', icon: ImagePlus, category: 'Media' },
+  { type: 'video', label: 'Video Embed', icon: Video, category: 'Media' },
+  { type: 'group', label: 'Group Layer', icon: Square, category: 'Layout' },
+  { type: 'shape', label: 'Basic Shape', icon: Diamond, category: 'Layout' },
+  { type: 'table', label: 'Data Table', icon: Table2, category: 'Layout' },
 ];
 
 const defaultDataForType = (type: NodeType): Record<string, unknown> => {
@@ -84,30 +86,66 @@ export function CanvasContextMenu() {
     setContextMenu(null);
   };
 
+  // Group items by category
+  const categories = Array.from(new Set(menuItems.map(item => item.category)));
+
   return (
-    <>
-      <div
-        className="fixed inset-0 z-50"
-        onClick={() => setContextMenu(null)}
-        onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }}
-      />
-      <div
-        className="fixed z-50 min-w-[220px] max-h-[80vh] overflow-y-auto rounded-lg border-2 border-border bg-card p-1.5 shadow-[4px_4px_0px_hsl(0,0%,15%)] animate-brutal-pop"
-        style={{ left: Math.min(contextMenu.x, window.innerWidth - 240), top: Math.min(contextMenu.y, window.innerHeight - 400) }}
-      >
-        {menuItems.map((item, i) => (
-          <div key={item.type}>
-            {item.separator && i > 0 && <div className="my-1 h-0.5 bg-border" />}
-            <button
-              className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold text-foreground transition-all hover:bg-primary hover:text-primary-foreground"
-              onClick={() => handleAdd(item.type)}
-            >
-              <item.icon className="h-4 w-4" />
-              {item.label}
-            </button>
-          </div>
-        ))}
-      </div>
-    </>
+    <AnimatePresence>
+      {contextMenu && (
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-background/5 backdrop-blur-[1px]"
+            onClick={() => setContextMenu(null)}
+            onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }}
+          />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: -10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -10 }}
+            className="fixed z-50 min-w-[260px] max-h-[85vh] overflow-y-auto scrollbar-none rounded-[2rem] glass-morphism-strong p-2 pro-shadow border border-white/5"
+            style={{ 
+              left: Math.min(contextMenu.x, window.innerWidth - 280), 
+              top: Math.min(contextMenu.y, window.innerHeight - 500) 
+            }}
+          >
+            <div className="px-4 py-3 border-b border-white/5 mb-1.5 flex items-center justify-between bg-white/5 rounded-t-[1.8rem]">
+               <p className="text-[10px] font-black text-foreground/40 uppercase tracking-[3px]">Quick Create</p>
+               <PlusCircle className="h-3.5 w-3.5 text-primary/60" />
+            </div>
+
+            <div className="px-1.5 pb-2 space-y-4">
+              {categories.map((cat) => (
+                <div key={cat} className="space-y-1">
+                  <p className="px-3 text-[9px] font-black text-primary/60 uppercase tracking-[2px] mb-1.5">{cat}</p>
+                  <div className="grid grid-cols-1 gap-0.5">
+                    {menuItems.filter(i => i.category === cat).map((item) => (
+                      <motion.button
+                        key={item.type}
+                        whileHover={{ x: 4, backgroundColor: "rgba(255, 255, 255, 0.08)" }}
+                        whileTap={{ scale: 0.98 }}
+                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[11px] font-bold uppercase tracking-widest text-foreground/80 transition-all hover:text-foreground"
+                        onClick={() => handleAdd(item.type)}
+                      >
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                          <item.icon className="h-3.5 w-3.5" />
+                        </div>
+                        {item.label}
+                      </motion.button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            <div className="mt-2 px-3 py-2 bg-white/5 rounded-b-[1.8rem] text-center">
+              <p className="text-[8px] font-bold text-foreground/30 uppercase tracking-widest">Right-click nodes for more options</p>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
   );
 }

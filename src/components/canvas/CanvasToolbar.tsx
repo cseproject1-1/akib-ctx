@@ -1,5 +1,7 @@
 import { useReactFlow, Panel, useStore, useNodes, useEdges } from '@xyflow/react';
-import { ZoomIn, ZoomOut, Maximize, Undo2, Redo2, ArrowLeft, Save, CheckCircle, AlertCircle, FileDown, Paintbrush, Share2, Eye, MousePointerClick, Presentation, Crosshair, LayoutDashboard, Grid3X3, Lock, Unlock, Trash2, Magnet, Cable, FileText, FileJson, Clock, GitBranch, CloudOff, Sparkles, Upload, Network, Orbit, LayoutGrid, Search, Map as MapIcon, BookmarkPlus, X, History } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, Undo2, Redo2, ArrowLeft, Save, CheckCircle, AlertCircle, FileDown, Paintbrush, Share2, Eye, MousePointerClick, Presentation, Crosshair, LayoutDashboard, Grid3X3, Lock, Unlock, Trash2, Magnet, Cable, FileText, FileJson, Clock, GitBranch, CloudOff, Sparkles, Upload, Network, Orbit, LayoutGrid, Search, Map as MapIcon, BookmarkPlus, X, History, Pen } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/lib/utils';
 import { getTreeLayout, getCircularLayout } from '@/lib/canvas/layoutUtils';
 import { ThemeToggle } from './ThemeToggle';
 import { useCanvasStore } from '@/store/canvasStore';
@@ -200,40 +202,44 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
     <TooltipProvider delayDuration={300}>
       {/* Top-left: back + breadcrumb + workspace switcher + save */}
       <Panel position="top-left" className="!max-w-[calc(100vw-60px)]">
-        <div className="flex flex-wrap items-center gap-1.5 animate-slide-down">
-          <TipBtn tip="Back to Dashboard" onClick={() => { setShowExportMenu(false); navigate('/'); }} className="brutal-btn rounded-lg bg-card p-2 text-foreground flex-shrink-0 transition-transform hover:scale-105 active:scale-95">
+        <div className="flex flex-wrap items-center gap-2 animate-slide-down">
+          <TipBtn tip="Back to Dashboard" onClick={() => { setShowExportMenu(false); navigate('/'); }} className="pro-btn rounded-xl glass-effect p-2.5 text-foreground/60 transition-all hover:text-primary hover:border-primary/20 hover:bg-primary/5">
             <ArrowLeft className="h-4 w-4" />
           </TipBtn>
-          <span className="text-muted-foreground font-bold mx-1 opacity-50">/</span>
+          <div className="h-4 w-px bg-white/5 mx-0.5" />
           <WorkspaceSwitcher
             currentId={workspaceId || ''}
             currentName={workspaceName}
             currentColor={workspaceColor}
           />
-          <div className={`flex items-center gap-1 rounded-lg border-2 border-border bg-card px-2 py-1.5 text-xs font-bold uppercase tracking-wider flex-shrink-0 transition-all ${saveStatus === 'saved' ? 'border-green/50' : saveStatus === 'error' ? 'border-destructive/50' : ''}`} title={lastSavedAt ? `Last saved ${lastSavedLabel}` : undefined}>
-            {saveStatus === 'saving' && <><Save className="h-3 w-3 animate-pulse text-primary" />{!isMobile && <span>Saving…</span>}</>}
-            {saveStatus === 'saved' && <><CheckCircle className="h-3 w-3 text-green animate-scale-in" />{!isMobile && <span className="animate-fade-in">{lastSavedLabel || 'Saved'}</span>}</>}
-            {saveStatus === 'error' && <><AlertCircle className="h-3 w-3 text-destructive animate-bounce-in" />{!isMobile && <span>Error</span>}</>}
-            {saveStatus === 'idle' && <><Save className="h-3 w-3 text-muted-foreground" /></>}
+          <div className={cn(
+            "flex items-center gap-2 rounded-xl border border-white/5 glass-effect px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.15em] transition-all",
+            saveStatus === 'saved' ? 'text-primary' : saveStatus === 'error' ? 'text-destructive' : 'text-muted-foreground/40'
+          )} title={lastSavedAt ? `Last saved ${lastSavedLabel}` : undefined}>
+            {saveStatus === 'saving' && <><Save className="h-3.5 w-3.5 animate-pulse text-primary" />{!isMobile && <span className="pt-0.5">Saving…</span>}</>}
+            {saveStatus === 'saved' && <><CheckCircle className="h-3.5 w-3.5 text-primary animate-scale-in" />{!isMobile && <span className="animate-fade-in pt-0.5">{lastSavedLabel || 'Saved'}</span>}</>}
+            {saveStatus === 'error' && <><AlertCircle className="h-3.5 w-3.5 text-destructive animate-bounce-in" />{!isMobile && <span className="pt-0.5">Error</span>}</>}
+            {saveStatus === 'idle' && <><Save className="h-3.5 w-3.5" /></>}
           </div>
           {pendingCount > 0 && (
             <TipBtn
               tip={`${pendingCount} unsynced change${pendingCount > 1 ? 's' : ''} — click to retry`}
               onClick={() => { replayPendingOps(); toast.info('Retrying sync…'); }}
-              className="brutal-btn flex items-center gap-1 rounded-lg bg-destructive/10 border-2 border-destructive/30 px-2 py-1.5 text-xs font-bold uppercase tracking-wider text-destructive flex-shrink-0 transition-transform hover:scale-105 active:scale-95 animate-pulse"
+              className="flex items-center gap-2 rounded-xl bg-destructive/10 border border-destructive/20 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-destructive transition-all hover:bg-destructive/15 active:scale-95 animate-pulse"
             >
               <CloudOff className="h-3.5 w-3.5" />
               <span>{pendingCount}</span>
             </TipBtn>
           )}
-          <TipBtn tip="Share workspace" onClick={() => setShareOpen(true)} className="brutal-btn flex items-center gap-1.5 rounded-lg bg-primary px-2.5 py-1.5 text-xs font-bold uppercase tracking-wider text-primary-foreground flex-shrink-0 transition-transform hover:scale-105 active:scale-95">
-            <Share2 className="h-3.5 w-3.5" />
-            {!isMobile && <span>Share</span>}
+          <div className="h-4 w-px bg-white/5 mx-0.5" />
+          <TipBtn tip="Share workspace" onClick={() => setShareOpen(true)} className="pro-btn flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-[10px] font-black uppercase tracking-[0.15em] text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:brightness-110 active:scale-95">
+            <Share2 className="h-3.5 w-3.5 fill-primary-foreground/20" />
+            {!isMobile && <span className="pt-0.5">Share</span>}
           </TipBtn>
-          <TipBtn tip="Version history" onClick={() => setVersionHistoryOpen(!versionHistoryOpen)} className={`brutal-btn flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-bold uppercase tracking-wider flex-shrink-0 transition-transform hover:scale-105 active:scale-95 ${versionHistoryOpen ? 'bg-primary text-primary-foreground' : 'bg-card text-foreground'}`}>
+          <TipBtn tip="Version history" onClick={() => setVersionHistoryOpen(!versionHistoryOpen)} className={cn("pro-btn flex items-center gap-2 rounded-xl px-2.5 py-2 text-[10px] font-black uppercase tracking-widest transition-all glass-effect", versionHistoryOpen ? "text-primary border-primary/20 bg-primary/5" : "text-muted-foreground/60 hover:text-foreground")}>
             <Clock className="h-3.5 w-3.5" />
           </TipBtn>
-          <TipBtn tip="Branch workspace" onClick={() => setBranchOpen(true)} className="brutal-btn flex items-center gap-1.5 rounded-lg bg-card px-2.5 py-1.5 text-xs font-bold uppercase tracking-wider text-foreground flex-shrink-0 transition-transform hover:scale-105 active:scale-95">
+          <TipBtn tip="Branch" onClick={() => setBranchOpen(true)} className="pro-btn flex items-center gap-2 rounded-xl glass-effect px-2.5 py-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 transition-all hover:text-foreground">
             <GitBranch className="h-3.5 w-3.5" />
           </TipBtn>
         </div>
@@ -257,8 +263,8 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
       )}
 
       {/* Bottom-center: zoom + undo/redo + tools */}
-      <Panel position="bottom-center" className="mb-4 !max-w-[calc(100vw-24px)]">
-        <div id="canvas-toolbar" className="flex items-center gap-0 rounded-xl border-2 border-border bg-card shadow-[var(--brutal-shadow)] overflow-x-auto overflow-y-hidden scrollbar-none animate-toolbar-appear">
+      <Panel position="bottom-center" className="mb-6 !max-w-[calc(100vw-24px)]">
+        <div id="canvas-toolbar" className="flex items-center gap-1 rounded-2xl toolbar-glass p-2 overflow-x-auto overflow-y-hidden scrollbar-none animate-toolbar-appear">
           <ToolbarBtn onClick={() => undo()} disabled={past.length === 0} tip="Undo (⌘Z)">
             <Undo2 className="h-4 w-4" />
           </ToolbarBtn>
@@ -272,7 +278,7 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
           <ToolbarBtn onClick={() => zoomOut()} tip="Zoom out (⌘−)">
             <ZoomOut className="h-4 w-4" />
           </ToolbarBtn>
-          <span className="w-10 text-center text-[10px] font-bold text-muted-foreground tabular-nums flex-shrink-0">{zoomPercent}%</span>
+          <span className="w-12 text-center text-[10px] font-black text-primary/80 tabular-nums flex-shrink-0 tracking-widest">{zoomPercent}%</span>
           <ToolbarBtn onClick={() => zoomIn()} tip="Zoom in (⌘+)">
             <ZoomIn className="h-4 w-4" />
           </ToolbarBtn>
@@ -280,140 +286,163 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
             <Maximize className="h-4 w-4" />
           </ToolbarBtn>
           <Divider />
-          <ToolbarBtn onClick={() => onToggleDrawing?.()} tip="Drawing mode (D)" className={drawingMode ? 'bg-primary text-primary-foreground' : ''} animated>
-            <Paintbrush className="h-4 w-4" />
+          <ToolbarBtn onClick={() => onToggleDrawing?.()} tip="Drawing mode (D)" className={cn(drawingMode ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'hover:bg-primary/10')}>
+            <Pen className="h-4 w-4" />
           </ToolbarBtn>
-          <ToolbarBtn onClick={() => { const newMode = !connectMode; setConnectMode(newMode); if (newMode) toast.info('Connector mode: click the source node'); }} tip="Connector mode (C)" className={connectMode ? 'bg-primary text-primary-foreground' : ''} animated>
+          <ToolbarBtn onClick={() => { const newMode = !connectMode; setConnectMode(newMode); if (newMode) toast.info('Connector mode: click the source node'); }} tip="Connector mode (C)" className={cn(connectMode ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'hover:bg-primary/10')}>
             <Cable className="h-4 w-4" />
           </ToolbarBtn>
-          <ToolbarBtn onClick={toggleCanvasMode} tip={canvasMode === 'edit' ? 'Switch to view mode (V)' : 'Switch to edit mode (V)'} className={canvasMode === 'view' ? 'bg-primary text-primary-foreground' : ''} animated>
+          <ToolbarBtn onClick={toggleCanvasMode} tip={canvasMode === 'edit' ? 'Switch to view mode (V)' : 'Switch to edit mode (V)'} className={cn(canvasMode === 'view' ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'hover:bg-primary/10')}>
             {canvasMode === 'view' ? <Eye className="h-4 w-4" /> : <MousePointerClick className="h-4 w-4" />}
           </ToolbarBtn>
-          <ToolbarBtn onClick={toggleFocusMode} tip="Focus mode (F)" className={focusMode ? 'bg-primary text-primary-foreground' : ''} animated>
+          <ToolbarBtn onClick={toggleFocusMode} tip="Focus mode (F)" className={cn(focusMode ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'hover:bg-primary/10')}>
             <Crosshair className="h-4 w-4" />
           </ToolbarBtn>
           <Divider />
-          <ToolbarBtn onClick={toggleSnap} tip={`Snap to grid: ${snapEnabled ? 'ON' : 'OFF'} (S)`} className={snapEnabled ? 'bg-accent text-primary' : ''} animated>
+          <ToolbarBtn onClick={toggleSnap} tip={`Snap to grid: ${snapEnabled ? 'ON' : 'OFF'} (S)`} className={cn(snapEnabled ? 'text-primary bg-primary/5 border border-primary/20' : 'hover:bg-primary/10')}>
             <Magnet className="h-4 w-4" />
           </ToolbarBtn>
-          <ToolbarBtn onClick={cycleGridStyle} tip={`Grid style: ${gridLabel} (G)`} animated>
+          <ToolbarBtn onClick={cycleGridStyle} tip={`Grid style: ${gridLabel} (G)`} className="gap-2 px-3">
             <Grid3X3 className="h-4 w-4" />
-            <span className="ml-0.5 text-[9px] font-bold uppercase hidden sm:inline">{gridLabel}</span>
+            <span className="text-[9px] font-black uppercase tracking-widest hidden sm:inline">{gridLabel}</span>
           </ToolbarBtn>
-          <ToolbarBtn onClick={() => toggleLockAll()} tip={allLocked ? 'Unlock all nodes (L)' : 'Lock all nodes (L)'} className={allLocked ? 'bg-accent text-primary' : ''} animated>
+          <ToolbarBtn onClick={() => toggleLockAll()} tip={allLocked ? 'Unlock all nodes (L)' : 'Lock all nodes (L)'} className={cn(allLocked ? 'text-primary bg-primary/5 border border-primary/20' : 'hover:bg-primary/10')}>
             {allLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
           </ToolbarBtn>
           {selectedCount > 1 && (
             <ToolbarBtn 
               onClick={() => setAISynthesisOpen(true)} 
               tip={`Ask AI about ${selectedCount} selected nodes`}
-              className="bg-primary/10 text-primary border-x border-primary/20"
-              animated
+              className="bg-primary/10 text-primary border-x border-primary/20 px-4 group"
             >
-              <Sparkles className="h-4 w-4" />
-              <span className="ml-1 text-[10px] font-bold">Ask AI</span>
+              <Sparkles className="h-4 w-4 group-hover:animate-spin-slow" />
+              <span className="ml-2 text-[10px] font-black uppercase tracking-widest">Ask AI</span>
             </ToolbarBtn>
           )}
           {selectedCount > 0 && (
-            <ToolbarBtn onClick={() => { deleteSelected(); toast.success(`Deleted ${selectedCount} node(s)`); }} tip={`Delete ${selectedCount} selected`}>
+            <ToolbarBtn onClick={() => { deleteSelected(); toast.success(`Deleted ${selectedCount} node(s)`); }} tip={`Delete ${selectedCount} selected`} className="hover:bg-destructive/10">
               <Trash2 className="h-4 w-4 text-destructive" />
             </ToolbarBtn>
           )}
           <Divider />
           <div className="relative">
-            <ToolbarBtn onClick={() => setShowLayoutMenu(!showLayoutMenu)} tip="Layout Options (A)" animated>
+            <ToolbarBtn onClick={() => { setShowLayoutMenu(!showLayoutMenu); setShowExportMenu(false); setShowBookmarks(false); }} tip="Layout Options (A)" className={cn(showLayoutMenu && "text-primary bg-primary/5")}>
               <LayoutDashboard className="h-4 w-4" />
             </ToolbarBtn>
-            {showLayoutMenu && (
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 flex flex-col gap-0.5 rounded-lg border-2 border-border bg-card p-1 shadow-[var(--brutal-shadow)] animate-scale-in z-50 min-w-[150px]">
-                <button onClick={handleGridLayout} className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-accent hover:text-foreground">
-                  <LayoutGrid className="h-3.5 w-3.5" /> Grid Layout
-                </button>
-                <button onClick={handleTreeLayout} className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-accent hover:text-foreground">
-                  <Network className="h-3.5 w-3.5" /> Tree Layout
-                </button>
-                <button onClick={handleCircularLayout} className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-accent hover:text-foreground">
-                  <Orbit className="h-3.5 w-3.5" /> Circular Layout
-                </button>
-              </div>
-            )}
+            <AnimatePresence>
+              {showLayoutMenu && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                  className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 flex flex-col gap-1 rounded-2xl glass-morphism-strong pro-shadow p-2 z-[100] min-w-[200px]"
+                >
+                  <div className="px-3 py-2 text-[9px] font-black uppercase tracking-[2px] text-primary/40 mb-1 border-b border-white/5">Auto Layouts</div>
+                  <button onClick={handleGridLayout} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-all hover:bg-white/10 hover:text-foreground group">
+                    <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-primary/20"><LayoutGrid className="h-3.5 w-3.5 text-primary" /></div> Grid Layout
+                  </button>
+                  <button onClick={handleTreeLayout} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-all hover:bg-white/10 hover:text-foreground group">
+                    <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-primary/20"><Network className="h-3.5 w-3.5 text-primary" /></div> Tree Layout
+                  </button>
+                  <button onClick={handleCircularLayout} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-all hover:bg-white/10 hover:text-foreground group">
+                    <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-primary/20"><Orbit className="h-3.5 w-3.5 text-primary" /></div> Circular Layout
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
           <Divider />
-          <ToolbarBtn onClick={() => openSearch()} tip="Search nodes (⌘K)" animated>
+          <ToolbarBtn onClick={() => openSearch()} tip="Search nodes (⌘K)" className="hover:bg-primary/10">
             <Search className="h-4 w-4" />
           </ToolbarBtn>
-          <ToolbarBtn onClick={() => setShowTemplates(true)} tip="Template Gallery (T)" animated className="text-primary hover:bg-primary/10">
+          <ToolbarBtn onClick={() => setShowTemplates(true)} tip="Template Gallery (T)" className="text-primary hover:bg-primary/10">
             <Sparkles className="h-4 w-4" />
           </ToolbarBtn>
           <div className="relative">
-            <ToolbarBtn onClick={() => setShowExportMenu(!showExportMenu)} tip="Export" animated>
+            <ToolbarBtn onClick={() => { setShowExportMenu(!showExportMenu); setShowLayoutMenu(false); setShowBookmarks(false); }} tip="Export" className={cn(showExportMenu && "text-primary bg-primary/5")}>
               <FileDown className="h-4 w-4" />
             </ToolbarBtn>
-            {showExportMenu && (
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 flex flex-col gap-0.5 rounded-lg border-2 border-border bg-card p-1 shadow-[var(--brutal-shadow)] animate-scale-in z-50 min-w-[140px]">
-                <button onClick={handleExportMd} className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-accent hover:text-foreground">
-                  <FileDown className="h-3.5 w-3.5" /> Markdown
-                </button>
-                <button onClick={handleExportTxt} className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-accent hover:text-foreground">
-                  <FileText className="h-3.5 w-3.5" /> Plain Text
-                </button>
-                <button onClick={handleExportJson} className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-accent hover:text-foreground">
-                  <FileJson className="h-3.5 w-3.5" /> Export JSON
-                </button>
-                <button onClick={handleImportJson} className="flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-accent hover:text-foreground border-t border-border/50 mt-1 pt-2">
-                  <Upload className="h-3.5 w-3.5" /> Import JSON
-                </button>
-              </div>
-            )}
+            <AnimatePresence>
+              {showExportMenu && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                  className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 flex flex-col gap-1 rounded-2xl glass-morphism-strong pro-shadow p-2 z-[100] min-w-[200px]"
+                >
+                  <div className="px-3 py-2 text-[9px] font-black uppercase tracking-[2px] text-primary/40 mb-1 border-b border-white/5">Export / Import</div>
+                  <button onClick={handleExportMd} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-all hover:bg-white/10 hover:text-foreground group">
+                    <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-primary/20"><FileDown className="h-3.5 w-3.5 text-primary" /></div> Markdown
+                  </button>
+                  <button onClick={handleExportTxt} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-all hover:bg-white/10 hover:text-foreground group">
+                    <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-primary/20"><FileText className="h-3.5 w-3.5 text-primary" /></div> Plain Text
+                  </button>
+                  <button onClick={handleExportJson} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-all hover:bg-white/10 hover:text-foreground group">
+                    <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-primary/20"><FileJson className="h-3.5 w-3.5 text-primary" /></div> Export JSON
+                  </button>
+                  <div className="h-px bg-white/5 my-1" />
+                  <button onClick={handleImportJson} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-all hover:bg-white/10 hover:text-foreground group">
+                    <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-primary/20"><Upload className="h-3.5 w-3.5 text-primary" /></div> Import JSON
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
-          <ToolbarBtn onClick={() => window.dispatchEvent(new CustomEvent('start-presentation'))} tip="Presentation mode (P)" animated>
+          <ToolbarBtn onClick={() => window.dispatchEvent(new CustomEvent('start-presentation'))} tip="Presentation mode (P)" className="hover:bg-primary/10">
             <Presentation className="h-4 w-4" />
           </ToolbarBtn>
           <Divider />
           <div className="relative">
-            <ToolbarBtn onClick={() => setShowBookmarks(!showBookmarks)} tip="Viewport Bookmarks (B)" className={showBookmarks ? 'bg-accent text-primary' : ''} animated>
+            <ToolbarBtn onClick={() => { setShowBookmarks(!showBookmarks); setShowLayoutMenu(false); setShowExportMenu(false); }} tip="Viewport Bookmarks (B)" className={cn(showBookmarks ? 'bg-primary/10 text-primary border border-primary/20' : 'hover:bg-primary/10')}>
               <BookmarkPlus className="h-4 w-4" />
             </ToolbarBtn>
-            {showBookmarks && (
-              <div className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 min-w-[220px] rounded-xl border-2 border-border bg-card p-2 shadow-[var(--brutal-shadow-lg)] animate-brutal-pop z-[1000]">
-                <div className="mb-2 flex items-center justify-between border-b-2 border-border pb-2 px-1">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Bookmarks</span>
-                  <button 
-                    onClick={() => {
-                      const name = prompt('Bookmark name:');
-                      if (name) addBookmark(name, getViewport());
-                    }}
-                    className="rounded bg-primary px-2 py-0.5 text-[9px] font-bold uppercase text-primary-foreground hover:opacity-90"
-                  >
-                    Save View
-                  </button>
-                </div>
-                <div className="space-y-1 max-h-[200px] overflow-y-auto pr-1">
-                  {bookmarks.length === 0 ? (
-                    <div className="py-4 text-center text-[10px] font-bold text-muted-foreground opacity-50 italic">No bookmarks yet</div>
-                  ) : (
-                    bookmarks.map((b) => (
-                      <div key={b.id} className="group flex items-center justify-between gap-2 rounded-lg p-2 hover:bg-accent transition-all cursor-pointer" onClick={() => { setViewport(b.viewport, { duration: 800 }); setShowBookmarks(false); }}>
-                        <span className="text-xs font-bold uppercase tracking-tight text-foreground truncate">{b.name}</span>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); removeBookmark(b.id); }}
-                          className="opacity-0 group-hover:opacity-100 p-1 hover:text-destructive text-muted-foreground transition-opacity"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
+            <AnimatePresence>
+              {showBookmarks && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                  className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 min-w-[260px] rounded-2xl glass-morphism-strong pro-shadow p-4 z-[1000]"
+                >
+                  <div className="mb-4 flex items-center justify-between border-b border-white/5 pb-4">
+                    <span className="text-[10px] font-black uppercase tracking-[2px] text-primary/40">Viewports</span>
+                    <button 
+                      onClick={() => {
+                        const name = prompt('Bookmark name:');
+                        if (name) addBookmark(name, getViewport());
+                      }}
+                      className="rounded-lg bg-primary/20 px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-primary transition-all hover:bg-primary/30 active:scale-95"
+                    >
+                      + Save View
+                    </button>
+                  </div>
+                  <div className="space-y-1.5 max-h-[240px] overflow-y-auto pr-1 scrollbar-none">
+                    {bookmarks.length === 0 ? (
+                      <div className="py-8 text-center text-[10px] font-bold text-muted-foreground/20 uppercase tracking-[0.2em] italic">No views saved</div>
+                    ) : (
+                      bookmarks.map((b) => (
+                        <div key={b.id} className="group flex items-center justify-between gap-2 rounded-xl p-3 transition-all cursor-pointer hover:bg-white/5 border border-transparent hover:border-white/10" onClick={() => { setViewport(b.viewport, { duration: 800 }); setShowBookmarks(false); }}>
+                          <span className="text-[11px] font-black uppercase tracking-wider text-foreground/80 truncate">{b.name}</span>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); removeBookmark(b.id); }}
+                            className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-destructive/10 hover:text-destructive text-muted-foreground/40 transition-all"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
           <Divider />
-          <ToolbarBtn onClick={toggleMinimap} tip={`Minimap: ${showMinimap ? 'ON' : 'OFF'} (M)`} className={showMinimap ? 'bg-accent text-primary' : ''} animated>
+          <ToolbarBtn onClick={toggleMinimap} tip={`Minimap: ${showMinimap ? 'ON' : 'OFF'} (M)`} className={cn(showMinimap ? 'text-primary bg-primary/5 border border-primary/20' : 'hover:bg-primary/10')}>
             <MapIcon className="h-4 w-4" />
           </ToolbarBtn>
           <Divider />
-          <ThemeToggle />
+          <div className="px-1.5"><ThemeToggle /></div>
         </div>
 
         <TemplateGallery open={showTemplates} onClose={() => setShowTemplates(false)} />
@@ -424,22 +453,27 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
 }
 
 function Divider() {
-  return <div className="h-8 w-px bg-border flex-shrink-0" />;
+  return <div className="h-6 w-px bg-white/5 mx-1.5 flex-shrink-0" />;
 }
 
-function ToolbarBtn({ children, onClick, disabled, tip, className, animated }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; tip: string; className?: string; animated?: boolean }) {
+function ToolbarBtn({ children, onClick, disabled, tip, className }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; tip: string; className?: string }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button
+        <motion.button
+          whileHover={{ scale: 1.05, y: -2 }}
+          whileTap={{ scale: 0.95 }}
           onClick={onClick}
           disabled={disabled}
-          className={`flex-shrink-0 flex items-center p-2.5 text-muted-foreground transition-all duration-150 hover:bg-accent hover:text-primary active:scale-90 disabled:opacity-20 disabled:hover:bg-transparent ${animated ? 'hover:[&>svg]:rotate-12 hover:[&>svg]:scale-110 [&>svg]:transition-transform [&>svg]:duration-200' : ''} ${className || ''}`}
+          className={cn(
+            "flex-shrink-0 flex items-center justify-center p-2.5 rounded-xl text-muted-foreground/60 transition-all duration-200 hover:text-primary disabled:opacity-20",
+            className
+          )}
         >
           {children}
-        </button>
+        </motion.button>
       </TooltipTrigger>
-      <TooltipContent side="top" className="text-xs font-bold">
+      <TooltipContent side="top" className="premium-tooltip" sideOffset={12}>
         {tip}
       </TooltipContent>
     </Tooltip>
@@ -454,7 +488,7 @@ const TipBtn = React.forwardRef<HTMLButtonElement, { children: React.ReactNode; 
           {children}
         </button>
       </TooltipTrigger>
-      <TooltipContent side="bottom" className="text-xs font-bold">
+      <TooltipContent side="bottom" className="premium-tooltip" sideOffset={8}>
         {tip}
       </TooltipContent>
     </Tooltip>

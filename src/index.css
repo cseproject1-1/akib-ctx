@@ -73,6 +73,12 @@
     --sidebar-accent-foreground: 0 0% 95%;
     --sidebar-border: 0 0% 15%;
     --sidebar-ring: 52 100% 50%;
+
+    /* Pro Premium Tokens */
+    --pro-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.5);
+    --glass-bg: 0 0% 5% / 80%;
+    --glass-border: 0 0% 100% / 10%;
+    --node-glow: 52 100% 50% / 15%;
   }
 
   /* Light theme — higher specificity to override :root */
@@ -137,6 +143,37 @@
     --sidebar-accent-foreground: 0 0% 10%;
     --sidebar-border: 0 0% 85%;
     --sidebar-ring: 52 100% 45%;
+
+    /* Pro Premium Tokens (Light) */
+    --pro-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.1);
+    --glass-bg: 0 0% 100% / 80%;
+    --glass-border: 0 0% 0% / 10%;
+    --node-glow: 52 100% 45% / 10%;
+  }
+
+  /* Professional Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsla(var(--border), 0.3);
+    border-radius: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsla(var(--border), 0.5);
+  }
+
+  /* Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsla(var(--border), 0.3) transparent;
   }
 }
 
@@ -159,6 +196,12 @@
   /* Smooth transitions globally */
   *, *::before, *::after {
     scroll-behavior: smooth;
+  }
+
+  /* Empty state background pattern */
+  .bg-empty-workspace {
+    background-image: radial-gradient(circle at 2px 2px, hsl(var(--primary) / 0.03) 1.5px, transparent 0);
+    background-size: 32px 32px;
   }
 }
 
@@ -187,6 +230,61 @@
   transform: translateY(0px) scale(0.98);
 }
 
+/* Pro Premium Utilities */
+.pro-btn {
+  @apply inline-flex items-center justify-center transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:pointer-events-none;
+}
+
+.pro-card {
+  @apply rounded-2xl glass-effect pro-shadow border border-white/5;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pro-card:hover {
+  @apply border-white/10 brightness-110;
+  transform: translateY(-2px);
+}
+
+.pro-input {
+  @apply w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 placeholder:text-muted-foreground/50;
+}
+
+/* Glass Intensities */
+.glass-morphism-strong {
+  background: hsla(var(--glass-bg), 0.9);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid hsla(var(--glass-border), 0.1);
+}
+
+.glass-morphism-light {
+  background: hsla(var(--glass-bg), 0.4);
+  backdrop-filter: blur(8px);
+  border: 1px solid hsla(var(--glass-border), 0.05);
+}
+
+/* Smooth Navigation Transitions */
+.page-transition-enter {
+  opacity: 0;
+  transform: scale(0.98) translateY(10px);
+}
+
+.page-transition-enter-active {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  transition: opacity 400ms, transform 400ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.page-transition-exit {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+.page-transition-exit-active {
+  opacity: 0;
+  transform: scale(0.98) translateY(-10px);
+  transition: opacity 300ms, transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 /* Stagger animation helper */
 .stagger-children > * {
   opacity: 0;
@@ -207,37 +305,110 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Pro Premium Utilities */
+.glass-effect {
+  @apply backdrop-blur-xl bg-opacity-80;
+  background-color: hsl(var(--glass-bg));
+  border: 1px solid hsl(var(--glass-border));
+}
+
+.pro-shadow {
+  box-shadow: var(--pro-shadow);
+}
+
+.premium-border {
+  border: 1px solid hsl(var(--border) / 0.5);
+}
+
+.node-selection-glow {
+  box-shadow: 0 0 20px hsl(var(--node-glow)), 0 0 0 2px hsl(var(--primary));
+}
+
+.toolbar-glass {
+  @apply backdrop-blur-3xl;
+  background: linear-gradient(
+    135deg,
+    hsla(var(--card), 0.85) 0%,
+    hsla(var(--muted), 0.75) 100%
+  );
+  border: 1px solid hsla(var(--glass-border), 0.15);
+  box-shadow: 
+    0 10px 40px -10px rgba(0, 0, 0, 0.5),
+    0 0 0 1px hsla(var(--glass-border), 0.05);
+  position: relative;
+  overflow: hidden;
+}
+
+.toolbar-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    hsla(var(--foreground), 0.03) 0%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+.premium-tooltip {
+  @apply rounded-xl border border-white/10 glass-effect px-3 py-1.5 text-[10px] font-black uppercase tracking-[2px] text-foreground shadow-2xl;
+  background: hsla(var(--background), 0.95);
+}
+
 /* ReactFlow overrides */
 .react-flow__background {
   background-color: hsl(var(--canvas-bg)) !important;
 }
 
 .react-flow__minimap {
-  background-color: hsl(var(--card)) !important;
-  border: 2px solid hsl(var(--border)) !important;
-  border-radius: var(--radius) !important;
-  box-shadow: var(--brutal-shadow);
+  @apply backdrop-blur-md bg-opacity-80;
+  background-color: hsl(var(--glass-bg)) !important;
+  border: 1px solid hsl(var(--glass-border)) !important;
+  border-radius: 1.5rem !important;
+  box-shadow: var(--pro-shadow) !important;
+  margin: 1.5rem !important;
 }
 
 .react-flow__minimap-mask {
-  fill: hsl(var(--background) / 0.85) !important;
+  fill: hsl(var(--background) / 0.6) !important;
+}
+
+.react-flow__minimap-node {
+  fill: hsl(var(--primary) / 0.4) !important;
+  stroke: none !important;
 }
 
 .react-flow__controls {
-  border: 2px solid hsl(var(--border)) !important;
-  border-radius: var(--radius) !important;
+  @apply backdrop-blur-md bg-opacity-80;
+  background-color: hsl(var(--glass-bg)) !important;
+  border: 1px solid hsl(var(--glass-border)) !important;
+  border-radius: 1rem !important;
   overflow: hidden;
-  box-shadow: var(--brutal-shadow);
+  box-shadow: var(--pro-shadow) !important;
+  margin: 1.5rem !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  padding: 4px !important;
 }
 
 .react-flow__controls-button {
-  background-color: hsl(var(--card)) !important;
-  border-bottom: 2px solid hsl(var(--border)) !important;
-  fill: hsl(var(--foreground)) !important;
+  background-color: transparent !important;
+  border: none !important;
+  fill: hsl(var(--muted-foreground)) !important;
+  border-radius: 0.6rem !important;
+  transition: all 0.2s ease !important;
+  width: 32px !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
 }
 
 .react-flow__controls-button:hover {
-  background-color: hsl(var(--accent)) !important;
+  background-color: hsl(var(--primary) / 0.1) !important;
+  fill: hsl(var(--primary)) !important;
 }
 
 .react-flow__edge-path {
@@ -353,10 +524,11 @@
 
 /* Selection box */
 .react-flow__selection {
-  background: hsla(52, 100%, 50%, 0.06) !important;
-  border: 2px solid hsla(52, 100%, 50%, 0.5) !important;
-  border-radius: 4px !important;
-  transition: all 0.15s ease;
+  @apply backdrop-blur-sm;
+  background: hsla(var(--primary), 0.08) !important;
+  border: 1.5px solid hsla(var(--primary), 0.4) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 0 40px -10px hsla(var(--primary), 0.15);
 }
 
 /* Scrollbar */

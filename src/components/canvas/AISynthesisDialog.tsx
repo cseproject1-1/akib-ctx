@@ -5,6 +5,7 @@ import { askAIAboutNodes, extractNodeText } from '@/lib/aiService';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useReactFlow } from '@xyflow/react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface AISynthesisDialogProps {
   selectedNodes: any[];
@@ -63,17 +64,27 @@ export function AISynthesisDialog({ selectedNodes, onClose }: AISynthesisDialogP
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-background/80 backdrop-blur-md animate-fade-in">
-      <div className="w-full max-w-2xl rounded-2xl border-2 border-border bg-card shadow-[10px_10px_0px_hsl(var(--primary-foreground))] flex flex-col max-h-[85vh] overflow-hidden animate-brutal-pop">
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-background/40 backdrop-blur-xl"
+    >
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.9, y: 20 }}
+        className="w-full max-w-2xl rounded-[32px] glass-effect pro-shadow flex flex-col max-h-[85vh] overflow-hidden border border-white/10"
+      >
         {/* Header */}
-        <div className="flex items-center justify-between border-b-2 border-border p-5 bg-primary/5">
-          <div className="flex items-center gap-3">
-             <div className="rounded-xl bg-primary/10 p-2 shadow-inner">
-               <Sparkles className="h-5 w-5 text-primary" />
+        <div className="flex items-center justify-between border-b border-white/5 p-6 bg-white/5">
+          <div className="flex items-center gap-4">
+             <div className="rounded-2xl bg-primary/10 p-2.5 shadow-inner">
+               <Sparkles className="h-6 w-6 text-primary" />
              </div>
              <div>
-               <h2 className="text-sm font-black uppercase tracking-widest text-foreground">Synthesis Assistant</h2>
-               <p className="text-[10px] font-bold text-muted-foreground uppercase">{selectedNodes.length} nodes in context</p>
+               <h2 className="text-sm font-bold tracking-tight text-foreground uppercase">Synthesis Assistant</h2>
+               <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-widest">{selectedNodes.length} nodes in context</p>
              </div>
           </div>
           <button onClick={onClose} className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-foreground">
@@ -81,11 +92,10 @@ export function AISynthesisDialog({ selectedNodes, onClose }: AISynthesisDialogP
           </button>
         </div>
 
-        {/* Prompt Input */}
-        <div className="p-5 border-b-2 border-border">
-          <div className="flex gap-2">
+        <div className="p-6 border-b border-white/5 bg-white/5">
+          <div className="flex gap-3">
             <textarea
-              className="flex-1 min-h-[60px] max-h-[120px] rounded-xl border-2 border-border bg-muted/30 p-3 text-sm font-bold text-foreground outline-none focus:border-primary transition-all resize-none shadow-inner"
+              className="flex-1 min-h-[70px] max-h-[140px] rounded-2xl bg-white/5 border border-white/10 p-4 text-[13px] font-medium text-foreground outline-none focus:border-primary/40 focus:ring-4 focus:ring-primary/10 transition-all resize-none placeholder:text-muted-foreground/40"
               placeholder="What should AI do with these nodes?"
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
@@ -93,14 +103,16 @@ export function AISynthesisDialog({ selectedNodes, onClose }: AISynthesisDialogP
                  if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); handleAsk(); }
               }}
             />
-            <button
+            <motion.button
+               whileHover={{ scale: 1.05 }}
+               whileTap={{ scale: 0.95 }}
                onClick={handleAsk}
                disabled={loading || !prompt.trim()}
-               className="group flex flex-col items-center justify-center gap-1 rounded-xl bg-primary px-6 text-primary-foreground transition-all hover:scale-[1.02] active:scale-95 disabled:grayscale disabled:opacity-50 shadow-[4px_4px_0px_hsl(var(--primary)/0.3)]"
+               className="group flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-primary px-7 text-primary-foreground shadow-lg shadow-primary/20 transition-all disabled:opacity-50"
             >
               <Send className={cn("h-5 w-5", loading && "animate-pulse")} />
-              <span className="text-[10px] font-black uppercase tracking-tighter">Run (Ctrl+↵)</span>
-            </button>
+              <span className="text-[9px] font-bold uppercase tracking-widest">RUN</span>
+            </motion.button>
           </div>
         </div>
 
@@ -109,44 +121,56 @@ export function AISynthesisDialog({ selectedNodes, onClose }: AISynthesisDialogP
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <div className="relative mb-6">
-                <Brain className="h-12 w-12 text-primary animate-pulse" />
-                <div className="absolute inset-0 h-12 w-12 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                <motion.div 
+                  animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  className="absolute inset-0 bg-primary/20 blur-2xl rounded-full"
+                />
+                <Brain className="h-16 w-16 text-primary relative z-10" />
               </div>
-              <p className="text-xs font-black uppercase tracking-widest text-foreground">AI is thinking...</p>
-              <p className="text-[10px] text-muted-foreground mt-1">Analyzing content and synthesizing relationships</p>
+              <p className="text-sm font-bold tracking-tight text-foreground uppercase">AI is synthesizing...</p>
+              <p className="text-[11px] text-muted-foreground mt-2 font-medium">Extracting key concepts and building connections</p>
             </div>
           ) : response ? (
-            <div className="space-y-4 animate-scale-in">
-              <div className="rounded-xl border-2 border-border bg-card p-4 shadow-sm prose prose-sm prose-invert max-w-none font-medium leading-relaxed">
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="space-y-6"
+            >
+              <div className="rounded-[24px] border border-white/5 bg-white/5 p-6 shadow-inner prose prose-sm prose-invert max-w-none font-medium leading-relaxed text-foreground/90">
                 {response.split('\n').map((line, i) => (
-                  <p key={i} className="mb-1">{line}</p>
+                  <p key={i} className="mb-2">{line}</p>
                 ))}
               </div>
               
-              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/50">
-                 <button 
+              <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-white/5">
+                 <motion.button 
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={() => { navigator.clipboard.writeText(response); toast.success('Copied to clipboard'); }}
-                  className="flex items-center gap-2 rounded-lg border-2 border-border bg-card px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground transition-all hover:bg-accent hover:text-foreground"
+                  className="flex items-center gap-2 rounded-xl bg-white/5 px-4 py-2 text-[11px] font-bold uppercase tracking-widest text-muted-foreground transition-all hover:bg-white/10 hover:text-foreground"
                  >
-                   <Copy className="h-3.5 w-3.5" /> Copy Text
-                 </button>
+                   <Copy className="h-4 w-4" /> Copy Text
+                 </motion.button>
 
-                 <button 
+                 <motion.button 
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                   onClick={handlePasteToCanvas}
-                  className="flex items-center gap-2 rounded-lg border-2 border-border bg-primary px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-primary-foreground transition-all hover:translate-y-[-2px] shadow-[3px_3px_0px_hsl(var(--primary)/0.2)]"
+                  className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-[11px] font-bold uppercase tracking-widest text-primary-foreground shadow-lg shadow-primary/20"
                  >
-                   <FilePlus className="h-3.5 w-3.5" /> Create Note on Canvas
-                 </button>
+                   <FilePlus className="h-4 w-4" /> Create Node
+                 </motion.button>
               </div>
-            </div>
+            </motion.div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-20 text-center opacity-40 grayscale">
-               <Sparkles className="h-10 w-10 mb-3" />
-               <p className="text-[10px] font-black uppercase tracking-widest">Synthesis results will appear here</p>
-            </div>
-          )}
+          <div className="flex flex-col items-center justify-center py-20 text-center opacity-40 grayscale">
+             <Sparkles className="h-12 w-12 mb-4" />
+             <p className="text-[11px] font-bold uppercase tracking-widest">Synthesis results will appear here</p>
+          </div>
+        )}
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

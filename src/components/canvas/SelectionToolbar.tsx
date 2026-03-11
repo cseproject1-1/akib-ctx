@@ -17,6 +17,8 @@ import { useCanvasStore } from '@/store/canvasStore';
 import { useNodes, useEdges } from '@xyflow/react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/lib/utils';
 
 export function SelectionToolbar() {
   const nodes = useNodes();
@@ -104,9 +106,13 @@ export function SelectionToolbar() {
   return (
     <Panel position="top-center" className="mt-20">
       <TooltipProvider delayDuration={300}>
-        <div className="flex items-center gap-1 rounded-xl border-2 border-border bg-card p-1 shadow-[var(--brutal-shadow)] animate-slide-down">
-          <div className="flex items-center px-2 py-1 text-[10px] font-black uppercase tracking-widest text-primary border-r border-border mr-1">
-            {selectedNodes.length} Selected
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-0.5 rounded-2xl toolbar-glass p-1.5 pro-shadow"
+        >
+          <div className="flex items-center px-3 py-1 text-[10px] font-bold tracking-tight text-primary border-r border-border/40 mr-1.5">
+            {selectedNodes.length} SELECTED
           </div>
           
           <ActionBtn onClick={() => handleAlign('left')} tip="Align Left">
@@ -154,7 +160,7 @@ export function SelectionToolbar() {
           <ActionBtn onClick={() => { deleteSelected(); toast.success('Deleted selection'); }} tip="Delete Selection" className="hover:bg-destructive/10 hover:text-destructive">
             <Trash2 className="h-4 w-4" />
           </ActionBtn>
-        </div>
+        </motion.div>
       </TooltipProvider>
     </Panel>
   );
@@ -164,14 +170,19 @@ function ActionBtn({ children, onClick, tip, className }: { children: React.Reac
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
           onClick={onClick}
-          className={`rounded-lg p-2 text-muted-foreground transition-all hover:bg-accent hover:text-foreground active:scale-95 ${className || ''}`}
+          className={cn(
+            "flex h-9 w-9 items-center justify-center rounded-xl text-muted-foreground transition-all hover:bg-white/5 hover:text-foreground active:bg-white/10",
+            className
+          )}
         >
           {children}
-        </button>
+        </motion.button>
       </TooltipTrigger>
-      <TooltipContent side="bottom" className="text-xs font-bold">
+      <TooltipContent side="bottom" className="premium-tooltip">
         {tip}
       </TooltipContent>
     </Tooltip>
@@ -179,5 +190,5 @@ function ActionBtn({ children, onClick, tip, className }: { children: React.Reac
 }
 
 function Divider() {
-  return <div className="h-6 w-px bg-border mx-1" />;
+  return <div className="h-4 w-px bg-white/5 mx-1.5 flex-shrink-0" />;
 }

@@ -14,12 +14,14 @@ import {
   applyNodeChanges,
   type ReactFlowInstance,
 } from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Upload, Sparkles, MousePointerClick, Search } from 'lucide-react';
+import { debounce } from '@/lib/utils/debounce';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { uploadCanvasFile } from '@/lib/r2/storage';
 import { toast } from 'sonner';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { debounce } from '@/lib/utils/debounce';
+import '@xyflow/react/dist/style.css';
 
 import { useCanvasStore, useNodes, useEdges } from '@/store/canvasStore';
 import { CanvasContextMenu } from './CanvasContextMenu';
@@ -732,16 +734,33 @@ export function CanvasWrapper() {
       onDrop={handleDrop}
     >
       {/* Drag overlay */}
-      {dragOver && (
-        <div className="pointer-events-none fixed inset-0 z-[60] flex items-center justify-center bg-primary/10 backdrop-blur-sm animate-fade-in">
-          <div className="rounded-xl border-4 border-dashed border-primary bg-card/90 px-10 py-8 text-center shadow-[6px_6px_0px_hsl(0,0%,10%)] animate-bounce-in">
-            <p className="text-lg font-black uppercase tracking-wider text-primary animate-float">
-              Drop files here
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">PDF or Image files</p>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {dragOver && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center bg-primary/5 backdrop-blur-[8px]"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="rounded-3xl border-2 border-dashed border-primary/50 glass-morphism-strong px-12 py-10 text-center pro-shadow"
+            >
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/20 text-primary">
+                <Upload className="h-8 w-8 animate-bounce" />
+              </div>
+              <p className="text-xl font-black uppercase tracking-[4px] text-primary">
+                Drop to Import
+              </p>
+              <p className="mt-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+                PDF, IMAGES, OR OFFICE DOCUMENTS
+              </p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <TutorialSystem />
       <ActionPalette />
@@ -867,7 +886,6 @@ export function CanvasWrapper() {
             zoomable
             nodeColor={(n) => (n.selected ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground)/0.2)')}
             maskColor="hsl(var(--background)/0.5)"
-            className="!right-4 !bottom-4 !rounded-xl !border-2 !border-border !bg-card !shadow-[var(--brutal-shadow)] overflow-hidden"
           />
         )}
         <HistoryPanel />
@@ -878,7 +896,6 @@ export function CanvasWrapper() {
           onToggleDrawing={() => setDrawingMode(!drawingMode)}
         />
         <AddNodeToolbar />
-        <NodeContextMenu />
         <EdgeContextMenu />
         <svg style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0 }}>
           <defs>
@@ -925,22 +942,49 @@ export function CanvasWrapper() {
         onFinish={() => setDrawingMode(false)}
       />
 
-      {nodes.length === 0 && !dragOver && (
-        <div className="pointer-events-none fixed inset-0 z-30 flex items-center justify-center animate-fade-in">
-          <div className="rounded-xl border-2 border-dashed border-border bg-card/60 px-10 py-8 text-center backdrop-blur-sm shadow-[4px_4px_0px_hsl(0,0%,10%)] animate-float max-w-md">
-            <div className="mb-3 text-4xl">📝</div>
-            <h3 className="text-base font-black uppercase tracking-wider text-foreground mb-2">Empty Canvas</h3>
-            <p className="text-xs font-semibold text-muted-foreground leading-relaxed">
-              Get started by adding your first node using the <span className="text-primary">+</span> button, right-clicking the canvas, or dropping files here.
-            </p>
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
-              <kbd className="rounded border-2 border-border bg-muted px-2 py-1 text-[10px] font-bold text-muted-foreground">Double-click</kbd>
-              <kbd className="rounded border-2 border-border bg-muted px-2 py-1 text-[10px] font-bold text-muted-foreground">⌘K Search</kbd>
-              <kbd className="rounded border-2 border-border bg-muted px-2 py-1 text-[10px] font-bold text-muted-foreground">Drag & Drop</kbd>
-            </div>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {nodes.length === 0 && !dragOver && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="pointer-events-none fixed inset-0 z-30 flex items-center justify-center bg-empty-workspace"
+          >
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="rounded-[2.5rem] glass-morphism-strong px-12 py-10 text-center pro-shadow max-w-lg border border-white/5"
+            >
+              <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-[2rem] bg-primary/10 text-primary shadow-2xl shadow-primary/20 animate-pulse">
+                <Sparkles className="h-10 w-10 fill-primary/20" />
+              </div>
+              <h3 className="text-xl font-black uppercase tracking-[6px] text-foreground mb-4">Start Creating</h3>
+              <p className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/60 leading-relaxed mb-8 max-w-[280px] mx-auto">
+                Your canvas is a blank slate. Bring your ideas to life with nodes, connections, and AI.
+              </p>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col items-center gap-2 rounded-2xl bg-white/5 p-4 border border-white/5 shadow-inner">
+                  <MousePointerClick className="h-5 w-5 text-primary/60" />
+                  <span className="text-[9px] font-black uppercase tracking-widest text-foreground/40">Double Click</span>
+                  <span className="text-[10px] font-bold text-foreground/60">Creative Note</span>
+                </div>
+                <div className="flex flex-col items-center gap-2 rounded-2xl bg-white/5 p-4 border border-white/5 shadow-inner">
+                  <Search className="h-5 w-5 text-primary/60" />
+                  <span className="text-[9px] font-black uppercase tracking-widest text-foreground/40">Command + K</span>
+                  <span className="text-[10px] font-bold text-foreground/60">Quick Search</span>
+                </div>
+              </div>
+              
+              <div className="mt-8 flex justify-center gap-2 items-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground/30">
+                <Upload className="h-3 w-3" />
+                <span>Or Drop Files Anywhere</span>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useReactFlow, useNodes, type Node } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/lib/utils';
 import { 
   Zap, 
   Copy, 
@@ -143,20 +144,28 @@ export function ActionPalette() {
       {/* Trigger in NodeSelectionToolbar would be better, but we can also have it here if needed */}
       <AnimatePresence>
         {isOpen && (
-          <div className="fixed inset-0 z-[2000] flex items-start justify-center pt-[15vh] bg-background/20 backdrop-blur-[2px]" onClick={() => setIsOpen(false)}>
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[2000] flex items-start justify-center pt-[15vh] bg-background/20 backdrop-blur-xl" 
+            onClick={() => setIsOpen(false)}
+          >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: -20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -20 }}
-              className="w-full max-w-md overflow-hidden rounded-xl border-2 border-border bg-card shadow-[var(--brutal-shadow-lg)]"
+              className="w-full max-w-md overflow-hidden rounded-[28px] glass-effect pro-shadow border border-white/10"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center gap-3 border-b-2 border-border p-4">
-                <Zap className="h-5 w-5 text-primary" />
+              <div className="flex items-center gap-4 border-b border-white/5 p-5 bg-white/5">
+                <div className="rounded-xl bg-primary/10 p-2 shadow-inner">
+                  <Zap className="h-5 w-5 text-primary" />
+                </div>
                 <input
                   autoFocus
                   placeholder="Type an action..."
-                  className="w-full bg-transparent text-lg font-bold outline-none placeholder:text-muted-foreground"
+                  className="w-full bg-transparent text-[15px] font-medium outline-none placeholder:text-muted-foreground/40"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   onKeyDown={(e) => {
@@ -170,48 +179,52 @@ export function ActionPalette() {
 
               <div className="max-h-[300px] overflow-y-auto p-2 scrollbar-none">
                 {filteredActions.length > 0 ? (
-                  filteredActions.map((action) => (
-                    <button
-                      key={action.id}
-                      onClick={() => {
-                        action.handler(selectedNode);
-                        setIsOpen(false);
-                      }}
-                      className={`flex w-full items-center justify-between rounded-lg p-3 text-left transition-colors ${
-                        action.variant === 'destructive' 
-                          ? 'hover:bg-destructive/10 text-destructive' 
-                          : action.variant === 'ai'
-                          ? 'hover:bg-primary/10 text-primary'
-                          : 'hover:bg-accent text-foreground'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <action.icon className="h-4 w-4" />
-                        <span className="font-bold uppercase tracking-wider text-xs">{action.label}</span>
-                      </div>
-                      {action.shortcut && (
-                        <span className="text-[10px] font-bold text-muted-foreground opacity-50">{action.shortcut}</span>
-                      )}
-                    </button>
-                  ))
+                  <div className="space-y-0.5">
+                    {filteredActions.map((action) => (
+                      <motion.button
+                        key={action.id}
+                        whileHover={{ x: 4 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => {
+                          action.handler(selectedNode);
+                          setIsOpen(false);
+                        }}
+                        className={cn(
+                          "flex w-full items-center justify-between rounded-xl p-3 text-left transition-all hover:bg-white/10",
+                          action.variant === 'destructive' ? 'text-destructive' : 
+                          action.variant === 'ai' ? 'text-primary' : 'text-foreground'
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <action.icon className="h-4 w-4" />
+                          <span className="text-[13px] font-medium">{action.label}</span>
+                        </div>
+                        {action.shortcut && (
+                          <span className="rounded-lg bg-white/5 px-1.5 py-0.5 text-[9px] font-bold text-muted-foreground border border-white/5">
+                            {action.shortcut}
+                          </span>
+                        )}
+                      </motion.button>
+                    ))}
+                  </div>
                 ) : (
-                  <div className="p-8 text-center text-muted-foreground font-medium">
-                    No actions found for "{search}"
+                  <div className="p-8 text-center text-muted-foreground/50 font-medium text-xs tracking-widest uppercase">
+                    No actions found
                   </div>
                 )}
               </div>
 
-              <div className="border-t-2 border-border bg-muted/30 p-2 px-4 flex justify-between items-center">
-                <div className="flex items-center gap-4 text-[10px] font-bold text-muted-foreground uppercase">
-                    <span className="flex items-center gap-1"><span className="rounded bg-border px-1">↑↓</span> Navigate</span>
-                    <span className="flex items-center gap-1"><span className="rounded bg-border px-1">↵</span> Select</span>
+              <div className="border-t border-white/5 bg-white/5 p-3 px-5 flex justify-between items-center">
+                <div className="flex items-center gap-4 text-[9px] font-bold text-muted-foreground uppercase tracking-widest">
+                    <span className="flex items-center gap-1.5 opacity-60"><span className="rounded-md bg-white/10 px-1.5 py-0.5 border border-white/5 text-foreground">↑↓</span> NAVIGATE</span>
+                    <span className="flex items-center gap-1.5 opacity-60"><span className="rounded-md bg-white/10 px-1.5 py-0.5 border border-white/5 text-foreground">↵</span> SELECT</span>
                 </div>
-                <div className="text-[10px] font-bold text-primary flex items-center gap-1">
-                    <Eye className="h-3 w-3" /> NODE ID: {selectedNode.id.slice(0, 8)}...
+                <div className="text-[9px] font-bold text-primary flex items-center gap-1.5 tracking-widest uppercase">
+                    <Eye className="h-3 w-3" /> ID: {selectedNode.id.slice(0, 8)}
                 </div>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
 
@@ -226,13 +239,15 @@ export function ActionPalette() {
           }}
         >
           <motion.button
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="pointer-events-auto flex items-center gap-1.5 rounded-full border-2 border-border bg-card px-3 py-1 text-[10px] font-bold uppercase tracking-tighter shadow-sm hover:border-primary hover:text-primary transition-all active:scale-95"
+            initial={{ opacity: 0, scale: 0.8, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className="pointer-events-auto flex items-center gap-2 rounded-full glass-effect-light pro-shadow px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-primary border border-white/10"
             onClick={toggleOpen}
             title="Action Palette (Ctrl+/)"
           >
-            <Zap className="h-3 w-3" />
+            <Zap className="h-3.5 w-3.5 fill-primary/20" />
             Actions
           </motion.button>
         </div>

@@ -3,30 +3,47 @@ import { NotebookPen, StickyNote, HelpCircle, BookOpen, FileUp, ImagePlus, Squar
 import { useCanvasStore } from '@/store/canvasStore';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/lib/utils';
 import type { NodeType } from '@/types/canvas';
 
-const toolbarItems: { type: NodeType; label: string; icon: React.ElementType; color: string }[] = [
-  { type: 'aiNote', label: 'Note', icon: NotebookPen, color: 'hover:text-primary' },
-  { type: 'summary', label: 'Summary', icon: StickyNote, color: 'hover:text-yellow' },
-  { type: 'termQuestion', label: 'Questions', icon: HelpCircle, color: 'hover:text-orange' },
-  { type: 'lectureNotes', label: 'Lecture', icon: BookOpen, color: 'hover:text-cyan' },
-  { type: 'stickyNote', label: 'Sticky Note', icon: MessageSquarePlus, color: 'hover:text-yellow' },
-  { type: 'checklist', label: 'Checklist', icon: ListTodo, color: 'hover:text-green' },
-  { type: 'text', label: 'Text', icon: Type, color: 'hover:text-foreground' },
-  { type: 'pdf', label: 'Document', icon: FileUp, color: 'hover:text-red' },
-  { type: 'image', label: 'Image', icon: ImagePlus, color: 'hover:text-green' },
-  { type: 'group', label: 'Group', icon: Square, color: 'hover:text-purple' },
-  { type: 'flashcard', label: 'Flashcard', icon: GraduationCap, color: 'hover:text-pink' },
-  { type: 'embed', label: 'Embed URL', icon: Globe, color: 'hover:text-cyan' },
-  { type: 'math', label: 'Math / LaTeX', icon: Sigma, color: 'hover:text-purple' },
-  { type: 'video', label: 'Video', icon: Video, color: 'hover:text-red' },
-  { type: 'table', label: 'Table', icon: Table2, color: 'hover:text-cyan' },
-  { type: 'codeSnippet', label: 'Code', icon: Braces, color: 'hover:text-green' },
-  { type: 'kanban', label: 'Kanban', icon: Columns3, color: 'hover:text-primary' },
-  { type: 'bookmark', label: 'Bookmark', icon: Bookmark, color: 'hover:text-blue-500' },
-  { type: 'calendar', label: 'Calendar', icon: CalendarDays, color: 'hover:text-orange-500' },
-  { type: 'fileAttachment', label: 'File', icon: Paperclip, color: 'hover:text-slate-400' },
-  { type: 'spreadsheet', label: 'Spreadsheet', icon: Sheet, color: 'hover:text-green-600' },
+const categories: { label: string; items: { type: NodeType; label: string; icon: any; color: string }[] }[] = [
+  {
+    label: 'Knowledge',
+    items: [
+      { type: 'aiNote', label: 'AI Note', icon: NotebookPen, color: 'text-primary' },
+      { type: 'summary', label: 'Summary', icon: StickyNote, color: 'text-yellow' },
+      { type: 'lectureNotes', label: 'Lecture', icon: BookOpen, color: 'text-cyan' },
+      { type: 'flashcard', label: 'Flashcard', icon: GraduationCap, color: 'text-pink' },
+    ]
+  },
+  {
+    label: 'Content',
+    items: [
+      { type: 'text', label: 'Text', icon: Type, color: 'text-foreground' },
+      { type: 'stickyNote', label: 'Sticky', icon: MessageSquarePlus, color: 'text-yellow' },
+      { type: 'checklist', label: 'Checklist', icon: ListTodo, color: 'text-green' },
+      { type: 'table', label: 'Table', icon: Table2, color: 'text-cyan' },
+    ]
+  },
+  {
+    label: 'Media',
+    items: [
+      { type: 'image', label: 'Image', icon: ImagePlus, color: 'text-green' },
+      { type: 'pdf', label: 'PDF', icon: FileUp, color: 'text-red' },
+      { type: 'video', label: 'Video', icon: Video, color: 'text-red' },
+      { type: 'bookmark', label: 'Link', icon: Bookmark, color: 'text-blue-500' },
+    ]
+  },
+  {
+    label: 'Advanced',
+    items: [
+      { type: 'math', label: 'Math', icon: Sigma, color: 'text-purple' },
+      { type: 'codeSnippet', label: 'Code', icon: Braces, color: 'text-green' },
+      { type: 'kanban', label: 'Kanban', icon: Columns3, color: 'text-primary' },
+      { type: 'spreadsheet', label: 'Sheets', icon: Sheet, color: 'text-green-600' },
+    ]
+  }
 ];
 
 const shapeItems = [
@@ -74,18 +91,18 @@ const defaultSizeForType = (type: NodeType): { width: number; height?: number | 
     case 'summary': return { width: 280, height: 'auto' };
     case 'termQuestion': return { width: 300, height: 'auto' };
     case 'lectureNotes': return { width: 420, height: 'auto' };
-    case 'pdf': return { width: 300, height: 180 }; // Fixed for PDF embed
+    case 'pdf': return { width: 300, height: 180 };
     case 'image': return { width: 320, height: 'auto' };
-    case 'group': return { width: 700, height: 500 }; // Fixed for Group container
+    case 'group': return { width: 700, height: 500 };
     case 'flashcard': return { width: 320, height: 'auto' };
     case 'stickyNote': return { width: 200, height: 'auto' };
     case 'checklist': return { width: 280, height: 'auto' };
     case 'text': return { width: 240, height: 'auto' };
-    case 'shape': return { width: 160, height: 120 }; // Fixed for SVGs
-    case 'drawing': return { width: 400, height: 300 }; // Fixed for Canvas bounds
-    case 'embed': return { width: 420, height: 340 }; // Fixed for Website iframe
+    case 'shape': return { width: 160, height: 120 };
+    case 'drawing': return { width: 400, height: 300 };
+    case 'embed': return { width: 420, height: 340 };
     case 'math': return { width: 500, height: 'auto' };
-    case 'video': return { width: 420, height: 320 }; // Fixed for Video iframe
+    case 'video': return { width: 420, height: 320 };
     case 'table': return { width: 600, height: 'auto' };
     case 'codeSnippet': return { width: 420, height: 'auto' };
     case 'kanban': return { width: 500, height: 'auto' };
@@ -125,76 +142,114 @@ export function AddNodeToolbar() {
   };
 
   return (
-    <Panel position="top-right" className="mr-2 mt-2">
-      <div className="flex flex-col items-end gap-1.5">
-        <button
+    <Panel position="top-right" className="mr-6 mt-6">
+      <div className="flex flex-col items-end gap-3">
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
           onClick={() => setExpanded(!expanded)}
-          className={`brutal-btn flex h-10 w-10 items-center justify-center rounded-lg transition-all duration-300 ${
-            expanded ? 'bg-primary text-primary-foreground scale-110 shadow-[0_0_16px_hsla(52,100%,50%,0.3)]' : 'bg-card text-foreground hover:scale-105 active:scale-95'
-          }`}
-          title="Add node"
-        >
-          {expanded ? (
-            <Sparkles className="h-5 w-5 animate-pulse" />
-          ) : (
-            <Plus className="h-5 w-5 transition-transform duration-200" />
+          className={cn(
+            "flex h-12 w-12 items-center justify-center rounded-2xl transition-all duration-300 z-50",
+            expanded 
+              ? "bg-primary text-primary-foreground shadow-[0_0_30px_hsl(var(--primary)/0.4)]" 
+              : "toolbar-glass text-foreground"
           )}
-        </button>
+          title="Add content"
+        >
+          <motion.div
+            animate={{ rotate: expanded ? 45 : 0 }}
+            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          >
+            <Plus className="h-6 w-6" />
+          </motion.div>
+        </motion.button>
 
-        {expanded && (
-          <div className="flex flex-col gap-0.5 rounded-lg border-2 border-border bg-card p-1.5 shadow-[4px_4px_0px_hsl(0,0%,15%)] animate-scale-in origin-top-right">
-            {toolbarItems.map((item, idx) => (
-              <button
-                key={item.type}
-                onClick={() => handleAdd(item.type)}
-                className={`group flex items-center gap-2.5 rounded-md px-3 py-2 text-xs font-bold uppercase tracking-wider text-muted-foreground transition-all hover:bg-accent hover:translate-x-[-2px] ${item.color}`}
-                title={item.label}
-                style={{ animationDelay: `${idx * 20}ms` }}
-              >
-                <item.icon className="h-4 w-4 transition-transform duration-200 group-hover:scale-125 group-hover:rotate-12" />
-                <span>{item.label}</span>
-              </button>
-            ))}
+        <AnimatePresence>
+          {expanded && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: -20, x: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -20, x: 20 }}
+              className="flex flex-col gap-6 rounded-2xl glass-morphism-strong p-6 pro-shadow origin-top-right min-w-[360px]"
+            >
+              <div className="grid grid-cols-2 gap-x-8 gap-y-6">
+                {categories.map((cat) => (
+                  <div key={cat.label} className="space-y-3">
+                    <div className="px-1 text-[9px] font-black uppercase tracking-[0.2em] text-primary/40">
+                      {cat.label}
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      {cat.items.map((item) => (
+                        <button
+                          key={item.type}
+                          onClick={() => { handleAdd(item.type); setExpanded(false); }}
+                          className="group flex items-center gap-3 rounded-xl px-2.5 py-2 transition-all hover:bg-white/5 active:scale-95"
+                        >
+                          <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg bg-white/5 group-hover:bg-primary/20 transition-colors", item.color)}>
+                            <item.icon className="h-4 w-4" />
+                          </div>
+                          <span className="text-[11px] font-bold tracking-tight text-muted-foreground group-hover:text-foreground">
+                            {item.label}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
 
-            {/* Shapes sub-menu */}
-            <div className="relative">
-              <button
-                onClick={() => setShowShapes(!showShapes)}
-                className="group flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-xs font-bold uppercase tracking-wider text-muted-foreground transition-all hover:bg-accent hover:text-cyan"
-              >
-                <Diamond className="h-4 w-4 transition-transform duration-200 group-hover:scale-125 group-hover:rotate-45" />
-                <span>Shapes</span>
-              </button>
-              {showShapes && (
-                <div className="absolute right-full top-0 mr-1 flex flex-col gap-1 rounded-lg border-2 border-border bg-card p-1.5 shadow-[4px_4px_0px_hsl(0,0%,15%)] animate-scale-in">
-                  {shapeItems.map((s) => (
-                    <button
-                      key={s.shape}
-                      onClick={() => handleAdd('shape', { shapeType: s.shape })}
-                      className="group flex items-center gap-2.5 rounded-md px-3 py-2 text-xs font-bold uppercase tracking-wider text-muted-foreground transition-all hover:bg-accent hover:text-foreground"
-                    >
-                      <s.icon className="h-4 w-4 transition-transform duration-200 group-hover:scale-125" />
-                      <span>{s.label}</span>
-                    </button>
-                  ))}
+              <div className="flex flex-col gap-3 border-t border-white/5 pt-5">
+                <div className="px-1 text-[9px] font-black uppercase tracking-[0.2em] text-primary/40">
+                  Quick Actions
                 </div>
-              )}
-            </div>
-
-            {/* Connector / Edge tool */}
-            <div className="border-t border-border mt-1 pt-1">
-              <button
-                onClick={handleConnectorClick}
-                className={`group flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-xs font-bold uppercase tracking-wider transition-all hover:bg-accent ${
-                  connectMode ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-primary'
-                }`}
-              >
-                <Cable className="h-4 w-4 transition-transform duration-200 group-hover:scale-125" />
-                <span>Connector</span>
-              </button>
-            </div>
-          </div>
-        )}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowShapes(!showShapes)}
+                    className={cn(
+                      "flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/5 py-3 text-[11px] font-black uppercase tracking-widest transition-all hover:bg-white/5",
+                      showShapes ? "bg-primary/10 text-primary border-primary/20" : "text-muted-foreground"
+                    )}
+                  >
+                    <Diamond className="h-4 w-4" />
+                    Shapes
+                  </button>
+                  <button
+                    onClick={handleConnectorClick}
+                    className={cn(
+                      "flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/5 py-3 text-[11px] font-black uppercase tracking-widest transition-all hover:bg-white/5",
+                      connectMode ? "bg-primary/10 text-primary border-primary/20" : "text-muted-foreground"
+                    )}
+                  >
+                    <Cable className="h-4 w-4" />
+                    Connect
+                  </button>
+                </div>
+                
+                <AnimatePresence>
+                  {showShapes && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="grid grid-cols-4 gap-2 overflow-hidden"
+                    >
+                      {shapeItems.map((s) => (
+                        <button
+                          key={s.shape}
+                          onClick={() => { handleAdd('shape', { shapeType: s.shape }); setExpanded(false); }}
+                          className="flex flex-col items-center gap-2 rounded-xl border border-white/5 py-3 transition-all hover:bg-white/5 hover:border-primary/20 hover:text-primary group"
+                          title={s.label}
+                        >
+                          <s.icon className="h-4 w-4 transition-transform group-hover:scale-110" />
+                        </button>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </Panel>
   );
