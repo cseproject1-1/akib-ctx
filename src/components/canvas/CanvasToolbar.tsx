@@ -1,5 +1,5 @@
 import { useReactFlow, Panel, useStore, useNodes, useEdges } from '@xyflow/react';
-import { ZoomIn, ZoomOut, Maximize, Undo2, Redo2, ArrowLeft, Save, CheckCircle, AlertCircle, FileDown, Paintbrush, Share2, Eye, MousePointerClick, Presentation, Crosshair, LayoutDashboard, Grid3X3, Lock, Unlock, Trash2, Magnet, Cable, FileText, FileJson, Clock, GitBranch, CloudOff, Sparkles, Upload, Network, Orbit, LayoutGrid, Search, Map as MapIcon, BookmarkPlus, X, History, Pen } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, Undo2, Redo2, ArrowLeft, Save, CheckCircle, AlertCircle, FileDown, Paintbrush, Share2, Eye, MousePointerClick, Presentation, Crosshair, LayoutDashboard, Grid3X3, Lock, Unlock, Trash2, Magnet, Cable, FileText, FileJson, Clock, GitBranch, CloudOff, Sparkles, Upload, Network, Orbit, LayoutGrid, Search, Map as MapIcon, BookmarkPlus, X, History, Pen, Maximize2, Minimize2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { getTreeLayout, getCircularLayout } from '@/lib/canvas/layoutUtils';
@@ -74,6 +74,24 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
   const { getViewport, setViewport } = useReactFlow();
   const [showBookmarks, setShowBookmarks] = useState(false);
   const setAISynthesisOpen = useCanvasStore((s) => s.setAISynthesisOpen);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Sync fullscreen state
+  useEffect(() => {
+    const handleFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handleFsChange);
+    return () => document.removeEventListener('fullscreenchange', handleFsChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => {
+        toast.error(`Error attempting to enable full-screen mode: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  };
 
   // Update "last saved" label every 30s
   useEffect(() => {
@@ -284,6 +302,9 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
           </ToolbarBtn>
           <ToolbarBtn onClick={() => fitView({ duration: 300 })} tip="Fit view (⌘⇧H)">
             <Maximize className="h-4 w-4" />
+          </ToolbarBtn>
+          <ToolbarBtn onClick={toggleFullscreen} tip={isFullscreen ? 'Exit Full Screen (Esc)' : 'Enter Full Screen (F11)'} className={cn(isFullscreen && "text-primary bg-primary/5")}>
+            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </ToolbarBtn>
           <Divider />
           <ToolbarBtn onClick={() => onToggleDrawing?.()} tip="Drawing mode (D)" className={cn(drawingMode ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'hover:bg-primary/10')}>

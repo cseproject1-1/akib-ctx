@@ -40,25 +40,36 @@ export function PWABanner() {
   if (!needRefresh) return null;
 
   return (
-    <div className="fixed bottom-4 right-4 z-[9999] animate-brutal-pop">
-      <div className="flex flex-col gap-4 rounded-xl border-4 border-border bg-card p-6 shadow-[8px_8px_0px_black] dark:shadow-[8px_8px_0px_#ffffff20]">
-        <div className="space-y-1">
-          <h3 className="text-lg font-black uppercase tracking-tight text-foreground">Update Available!</h3>
-          <p className="text-sm font-medium text-muted-foreground">
-            A newer version of CTXNote is available. Reload to get latest features.
+    <div className="fixed bottom-6 right-6 z-[9999] animate-in fade-in slide-in-from-bottom-10 duration-500">
+      <div className="group relative flex flex-col gap-4 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80 p-6 backdrop-blur-xl shadow-2xl transition-all hover:bg-slate-950/90">
+        {/* Animated accent line */}
+        <div className="absolute top-0 left-0 h-1 w-full bg-gradient-to-r from-blue-600 via-violet-600 to-indigo-600" />
+        
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/20 text-blue-400">
+              <RefreshCw className="h-4 w-4" />
+            </div>
+            <h3 className="text-base font-bold tracking-tight text-white">Update Available</h3>
+          </div>
+          <p className="text-sm font-medium leading-relaxed text-slate-400">
+            A new professional version of CtxNote is ready. 
+            Update now to access the latest enhancements.
           </p>
         </div>
+
         <div className="flex items-center gap-3">
           <button
             onClick={() => updateServiceWorker(true)}
-            className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary py-2.5 text-xs font-black uppercase tracking-widest text-primary-foreground transition-all hover:scale-[1.02] active:scale-[0.98]"
+            className="group/btn relative flex flex-1 items-center justify-center gap-2 overflow-hidden rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white transition-all hover:bg-blue-500 active:scale-95"
           >
-            <RefreshCw className="h-4 w-4" />
-            Reload & Update
+            <RefreshCw className="h-4 w-4 transition-transform group-hover/btn:rotate-180 duration-500" />
+            <span>Update Now</span>
           </button>
           <button
             onClick={() => close()}
-            className="rounded-lg border-2 border-border p-2.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="rounded-xl border border-white/10 bg-white/5 p-2.5 text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
+            aria-label="Dismiss"
           >
             <X className="h-4 w-4" />
           </button>
