@@ -7,6 +7,8 @@ import { cn } from '@/lib/utils';
 import { useReactFlow } from '@xyflow/react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+import { autoFormatText } from '@/lib/codeDetection';
+
 interface AISynthesisDialogProps {
   selectedNodes: any[];
   onClose: () => void;
@@ -31,7 +33,8 @@ export function AISynthesisDialog({ selectedNodes, onClose }: AISynthesisDialogP
       }));
 
       const reply = await askAIAboutNodes(context, prompt);
-      setResponse(reply);
+      // Automatically detect and format code in the reply
+      setResponse(autoFormatText(reply));
       toast.success('AI response generated!');
     } catch (err: any) {
       toast.error(err.message || 'AI request failed');
@@ -137,10 +140,10 @@ export function AISynthesisDialog({ selectedNodes, onClose }: AISynthesisDialogP
               animate={{ opacity: 1, y: 0 }}
               className="space-y-6"
             >
-              <div className="rounded-[24px] border border-white/5 bg-white/5 p-6 shadow-inner prose prose-sm prose-invert max-w-none font-medium leading-relaxed text-foreground/90">
-                {response.split('\n').map((line, i) => (
-                  <p key={i} className="mb-2">{line}</p>
-                ))}
+              <div className="rounded-[24px] border border-white/5 bg-white/5 p-6 shadow-inner prose prose-sm prose-invert max-w-none font-medium leading-relaxed text-foreground/90 overflow-auto">
+                <div className="whitespace-pre-wrap">
+                  {response}
+                </div>
               </div>
               
               <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-white/5">

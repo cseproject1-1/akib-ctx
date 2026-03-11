@@ -21,6 +21,7 @@ import SlashCommand from './SlashCommandExtension';
 import { CalloutExtension } from './CalloutExtension';
 import { ToggleExtension } from './ToggleExtension';
 import { WikiLinkExtension } from './WikiLinkExtension';
+import { SmartCodeExtension } from './SmartCodeExtension';
 
 export function getEditorExtensions(placeholder = 'Type / for commands, or start typing…') {
   return [
@@ -51,5 +52,6 @@ export function getEditorExtensions(placeholder = 'Type / for commands, or start
     ColumnExtension,
     SlashCommand,
     WikiLinkExtension,
+    SmartCodeExtension,
   ];
 }
