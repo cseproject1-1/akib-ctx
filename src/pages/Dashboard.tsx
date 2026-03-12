@@ -262,6 +262,21 @@ const Dashboard = () => {
       setLoading(false);
     }
   };
+
+  const handleRenameWorkspace = async (id: string, currentName: string) => {
+    const newName = prompt('Enter new workspace name:', currentName);
+    if (!newName || !newName.trim() || newName.trim() === currentName) return;
+    
+    try {
+      await updateWorkspace(id, { name: newName.trim() });
+      await invalidateWorkspaceList();
+      setWorkspaces(prev => prev.map(ws => ws.id === id ? { ...ws, name: newName.trim() } : ws));
+      toast.success('Workspace renamed');
+    } catch (err) {
+      toast.error('Failed to rename workspace');
+    }
+  };
+
   const handleUpdateTags = async (id: string, newTags: string[]) => {
     try {
       await updateWorkspace(id, { tags: newTags });
@@ -699,6 +714,10 @@ const Dashboard = () => {
                         <DropdownMenuItem onClick={(e) => { e.stopPropagation(); toggleFavorite(ws.id); }}>
                           <Star className={`mr-2 h-4 w-4 ${favorites.has(ws.id) ? 'fill-primary text-primary' : ''}`} />
                           <span>{favorites.has(ws.id) ? 'Unfavorite' : 'Favorite'}</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleRenameWorkspace(ws.id, ws.name); }}>
+                          <Edit2 className="mr-2 h-4 w-4" />
+                          <span>Rename</span>
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDuplicate(e, ws); }}>
                           <Copy className="mr-2 h-4 w-4" />

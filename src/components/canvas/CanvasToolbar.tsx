@@ -1,11 +1,13 @@
 import { useReactFlow, Panel, useStore, useNodes, useEdges } from '@xyflow/react';
-import { ZoomIn, ZoomOut, Maximize, Undo2, Redo2, ArrowLeft, Save, CheckCircle, AlertCircle, FileDown, Paintbrush, Share2, Eye, MousePointerClick, Presentation, Crosshair, LayoutDashboard, Grid3X3, Lock, Unlock, Trash2, Magnet, Cable, FileText, FileJson, Clock, GitBranch, CloudOff, Sparkles, Upload, Network, Orbit, LayoutGrid, Search, Map as MapIcon, BookmarkPlus, X, History, Pen, Maximize2, Minimize2, Keyboard, Zap, ZapOff } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, Undo2, Redo2, ArrowLeft, Save, CheckCircle, AlertCircle, FileDown, Paintbrush, Share2, Eye, MousePointerClick, Presentation, Crosshair, LayoutDashboard, Grid3X3, Lock, Unlock, Trash2, Magnet, Cable, FileText, FileJson, Clock, GitBranch, CloudOff, Sparkles, Upload, Network, Orbit, LayoutGrid, Search, Map as MapIcon, BookmarkPlus, X, History, Pen, Edit2, Maximize2, Minimize2, Keyboard, Zap, ZapOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { getTreeLayout, getCircularLayout } from '@/lib/canvas/layoutUtils';
 import { ThemeToggle } from './ThemeToggle';
 import { useCanvasStore } from '@/store/canvasStore';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
+import { updateWorkspace } from '@/lib/firebase/workspaces';
+import { invalidateWorkspaceList } from '@/lib/cache/canvasCache';
 import { useNavigate } from 'react-router-dom';
 import { useSettingsStore } from '@/store/settingsStore';
 import { exportToMarkdown, exportToPlainText, exportToJSON } from '@/lib/exportCanvas';
@@ -59,6 +61,7 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
   const setConnectMode = useCanvasStore((s) => s.setConnectMode);
   const versionHistoryOpen = useCanvasStore((s) => s.versionHistoryOpen);
   const setVersionHistoryOpen = useCanvasStore((s) => s.setVersionHistoryOpen);
+  const setWorkspaceMeta = useCanvasStore((s) => s.setWorkspaceMeta);
   const loadCanvas = useCanvasStore((s) => s.loadCanvas);
   const pushSnapshot = useCanvasStore((s) => s.pushSnapshot);
   const navigate = useNavigate();
@@ -116,6 +119,21 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
 
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showLayoutMenu, setShowLayoutMenu] = useState(false);
+
+  const handleRenameWorkspace = async () => {
+    if (!workspaceId) return;
+    const newName = prompt('Enter new workspace name:', workspaceName);
+    if (!newName || !newName.trim() || newName.trim() === workspaceName) return;
+
+    try {
+      await updateWorkspace(workspaceId, { name: newName.trim() });
+      await invalidateWorkspaceList();
+      setWorkspaceMeta(newName.trim(), workspaceColor);
+      toast.success('Workspace renamed');
+    } catch (err) {
+      toast.error('Failed to rename workspace');
+    }
+  };
 
   const handleExportMd = () => { exportToMarkdown(nodes, workspaceName); toast.success('Exported to Markdown'); setShowExportMenu(false); };
   const handleExportTxt = () => { exportToPlainText(nodes, workspaceName); toast.success('Exported to Plain Text'); setShowExportMenu(false); };
@@ -234,6 +252,9 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
             currentName={workspaceName}
             currentColor={workspaceColor}
           />
+          <TipBtn tip="Rename Workspace" onClick={handleRenameWorkspace} className="pro-btn rounded-xl glass-effect p-2.5 text-muted-foreground/60 transition-all hover:text-primary hover:border-primary/20 hover:bg-primary/5">
+            <Edit2 className="h-4 w-4" />
+          </TipBtn>
           <div className={cn(
             "flex items-center gap-2 rounded-xl border border-white/5 glass-effect px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.15em] transition-all",
             saveStatus === 'saved' ? 'text-primary' : saveStatus === 'error' ? 'text-destructive' : 'text-muted-foreground/40'
