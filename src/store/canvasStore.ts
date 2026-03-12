@@ -48,6 +48,8 @@ interface CanvasState {
   bookmarks: { id: string; name: string; viewport: { x: number; y: number; zoom: number } }[];
   openWorkspaces: { id: string; name: string; color: string }[];
   isAISynthesisOpen: boolean;
+  isBlockEditorMode: boolean;
+  mobileMode: boolean;
 
   // History
   past: HistorySnapshot[];
@@ -101,6 +103,8 @@ interface CanvasState {
   removeOpenWorkspace: (id: string) => void;
   setAISynthesisOpen: (open: boolean) => void;
   setOpenWorkspaces: (workspaces: { id: string; name: string; color: string }[]) => void;
+  toggleBlockEditorMode: () => void;
+  toggleMobileMode: () => void;
 
   // History actions
   pushSnapshot: (label?: string) => void;
@@ -143,6 +147,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   bookmarks: [],
   openWorkspaces: [],
   isAISynthesisOpen: false,
+  isBlockEditorMode: false,
+  mobileMode: false,
   past: [],
   future: [],
 
@@ -526,6 +532,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     _saveCounter: 0,
     clipboard: [],
     bookmarks: [],
+    isBlockEditorMode: false,
+    mobileMode: false,
   }),
 
   addBookmark: (name, viewport) => set({ bookmarks: [...get().bookmarks, { id: crypto.randomUUID(), name, viewport }] }),
@@ -535,6 +543,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     if (!exists) set({ openWorkspaces: [...get().openWorkspaces, ws] });
   },
   removeOpenWorkspace: (id) => set({ openWorkspaces: get().openWorkspaces.filter(w => w.id !== id) }),
+  toggleBlockEditorMode: () => set({ isBlockEditorMode: !get().isBlockEditorMode }),
+  toggleMobileMode: () => set({ mobileMode: !get().mobileMode }),
 }));
 
 // Custom Selector Hooks

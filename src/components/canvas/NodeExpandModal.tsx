@@ -2,8 +2,10 @@ import { useCanvasStore } from '@/store/canvasStore';
 import { useNodes } from '@xyflow/react';
 import { HybridEditor, type NoteEditorHandle } from '@/components/editor/HybridEditor';
 import { OutlinePanel } from '@/components/tiptap/OutlinePanel';
-import { X, Maximize2, Minimize2, List as ListIcon } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { X, Maximize2, Minimize2, List as ListIcon, ChevronRight, ChevronLeft, Share2 } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
+import { Drawer } from 'vaul';
+import { useIsMobile } from '@/hooks/use-mobile';
 import type { JSONContent } from '@tiptap/react';
 import katex from 'katex';
 import { cn } from '@/lib/utils';
@@ -244,10 +246,34 @@ export function NodeExpandModal() {
   const [showOutline, setShowOutline] = useState(false);
   const editorRef = useRef<NoteEditorHandle>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
 
   const node = nodes.find((n) => n.id === expandedNode);
 
-  const handleClose = useCallback(() => { setExpandedNode(null); setIsFullscreen(false); }, [setExpandedNode]);
+  const handleClose = useCallback(() => { 
+    setExpandedNode(null); 
+    setIsFullscreen(false); 
+  }, [setExpandedNode]);
+
+  const activeIdx = useMemo(() => nodes.findIndex(n => n.id === expandedNode), [nodes, expandedNode]);
+  const handlePrev = () => {
+    const prev = nodes[activeIdx - 1];
+    if (prev) setExpandedNode(prev.id);
+  };
+  const handleNext = () => {
+    const next = nodes[activeIdx + 1];
+    if (next) setExpandedNode(next.id);
+  };
+
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({
+        title: getTitle(),
+        text: `Check out this note from ${useCanvasStore.getState().workspaceName}`,
+        url: window.location.href
+      }).catch(() => {});
+    }
+  };
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -438,6 +464,60 @@ export function NodeExpandModal() {
     }
   };
 
+  if (isMobile) {
+    return (
+      <Drawer.Root open={!!expandedNode} onOpenChange={(open) => !open && handleClose()}>
+        <Drawer.Portal>
+          <Drawer.Overlay className="fixed inset-0 z-[150] bg-black/40 backdrop-blur-sm" />
+          <Drawer.Content className="fixed bottom-0 left-0 right-0 z-[160] flex h-[92vh] flex-col rounded-t-[20px] bg-card border-t shadow-2xl focus:outline-none">
+            <div className="mx-auto mt-4 h-1.5 w-12 shrink-0 rounded-full bg-border" />
+            
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
+              <div className="flex flex-col overflow-hidden mr-4">
+                 <h2 className="text-lg font-bold truncate tracking-tight">{getTitle()}</h2>
+                 <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest leading-none mt-1">
+                   {node.type?.replace(/([A-Z])/g, ' $1')}
+                 </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={handleShare} className="p-2 rounded-full bg-accent/50">
+                  <Share2 className="h-4 w-4" />
+                </button>
+                <button onClick={handleClose} className="p-2 rounded-full bg-accent">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 scrollbar-hide pb-24">
+              {renderContent()}
+            </div>
+
+            <div className="absolute bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-md border-t flex justify-between items-center z-10">
+              <button 
+                onClick={handlePrev} 
+                disabled={activeIdx <= 0}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border bg-card text-xs font-bold disabled:opacity-30 active:scale-95 transition-transform"
+              >
+                <ChevronLeft className="h-4 w-4" /> Previous
+              </button>
+              <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">
+                {activeIdx + 1} / {nodes.length}
+              </span>
+              <button 
+                onClick={handleNext}
+                disabled={activeIdx >= nodes.length - 1}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border bg-card text-xs font-bold disabled:opacity-30 active:scale-95 transition-transform text-primary"
+              >
+                Next <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </Drawer.Content>
+        </Drawer.Portal>
+      </Drawer.Root>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/90 backdrop-blur-sm">
       <div
@@ -459,12 +539,19 @@ export function NodeExpandModal() {
             placeholder="Untitled"
           />
           <div className="flex items-center gap-1">
+            <button
+               onClick={handleShare}
+               className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground hidden sm:block"
+               title="Share Note"
+            >
+               <Share2 className="h-4 w-4" />
+            </button>
             {(nodeType === 'aiNote' || nodeType === 'lectureNotes') && (
               <button
                 onClick={() => setShowOutline(!showOutline)}
                 className={cn(
-                  "rounded-lg p-1.5 transition-all",
-                  showOutline ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                  "rounded-lg p-1.5 transition-all text-muted-foreground",
+                  showOutline ? "bg-primary text-primary-foreground shadow-sm" : "hover:bg-accent hover:text-foreground"
                 )}
                 title="Toggle outline"
               >
@@ -490,7 +577,9 @@ export function NodeExpandModal() {
         {/* Body */}
         <div className="flex-1 flex overflow-hidden">
           <div className="flex-1 overflow-y-auto px-6 py-4 scrollbar-hide">
-            {renderContent()}
+             <div className="max-w-4xl mx-auto">
+                {renderContent()}
+             </div>
           </div>
           
           {(nodeType === 'aiNote' || nodeType === 'lectureNotes') && showOutline && (
@@ -501,6 +590,22 @@ export function NodeExpandModal() {
               />
             </div>
           )}
+        </div>
+
+        {/* Desktop Footer Nav */}
+        <div className="border-t-2 border-border px-6 py-3 flex items-center justify-between text-muted-foreground overflow-hidden">
+           <div className="flex items-center gap-4">
+              <button onClick={handlePrev} disabled={activeIdx <= 0} className="hover:text-primary disabled:opacity-30 transition-colors uppercase text-[10px] font-black tracking-widest">
+                ← Previous
+              </button>
+              <div className="h-4 w-[1px] bg-border" />
+              <button onClick={handleNext} disabled={activeIdx >= nodes.length - 1} className="hover:text-primary disabled:opacity-30 transition-colors uppercase text-[10px] font-black tracking-widest text-primary">
+                Next →
+              </button>
+           </div>
+           <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40">
+             {activeIdx + 1} / {nodes.length} Items in Workspace
+           </span>
         </div>
       </div>
     </div>

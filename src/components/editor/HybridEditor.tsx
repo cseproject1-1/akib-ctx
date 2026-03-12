@@ -3,6 +3,7 @@ import { NoteEditor, type NoteEditorHandle } from '@/components/tiptap/NoteEdito
 import { EditorGhost } from './EditorGhost';
 import { migrateToBlockNote, migrateToTiPTap, getEditorVersion } from '@/lib/editor/migration';
 import { useSettingsStore } from '@/store/settingsStore';
+import { useCanvasStore } from '@/store/canvasStore';
 import type { JSONContent } from '@tiptap/react';
 
 export type { NoteEditorHandle };
@@ -46,10 +47,13 @@ export const HybridEditor = forwardRef<any, HybridEditorProps>(function HybridEd
   const currentVersion = useMemo(() => getEditorVersion(initialContent), [initialContent]);
   const enableHybridEditor = useSettingsStore((s) => s.enableHybridEditor);
 
+  const isBlockEditorMode = useCanvasStore((s) => s.isBlockEditorMode);
+
   // Decision logic:
-  // If enableHybridEditor is OFF, we always use Tiptap.
-  // Otherwise, use forceBlockNote (modal) or currentVersion detection.
-  const useBlockNote = enableHybridEditor && (forceBlockNote || (!forceTiptap && currentVersion === 2));
+  // If isBlockEditorMode is ON (from Share view), we favor BlockNote.
+  const useBlockNote = isBlockEditorMode 
+    ? true 
+    : enableHybridEditor && (forceBlockNote || (!forceTiptap && currentVersion === 2));
 
   // Rules of Hooks: Define all hooks UNCONDITIONALLY at the top level
   const ghostContent = useMemo(() => {

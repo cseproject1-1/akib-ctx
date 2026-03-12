@@ -34,6 +34,30 @@ const ViewWorkspacePage = () => {
         const wsData = wsSnap.data();
         setWorkspaceMeta(wsData.name, wsData.color);
 
+        // Update meta data for SEO & Social Sharing
+        document.title = `${wsData.name} | CtxNote`;
+        
+        const updateMeta = (name: string, content: string, attr: string = 'name') => {
+          let el = document.querySelector(`meta[${attr}="${name}"]`);
+          if (el) {
+            el.setAttribute('content', content);
+          } else {
+            el = document.createElement('meta');
+            el.setAttribute(attr, name);
+            el.setAttribute('content', content);
+            document.head.appendChild(el);
+          }
+        };
+
+        const description = `Shared workspace: ${wsData.name} on CtxNote. Interactive canvas for AI-assisted note taking.`;
+        updateMeta('description', description);
+        updateMeta('og:title', `${wsData.name} | CtxNote`, 'property');
+        updateMeta('og:description', description, 'property');
+        updateMeta('og:type', 'website', 'property');
+        updateMeta('twitter:card', 'summary_large_image');
+        updateMeta('twitter:title', `${wsData.name} | CtxNote`);
+        updateMeta('twitter:description', description);
+
         const nodesSnap = await getDocs(collection(wsRef, 'nodes'));
         const edgesSnap = await getDocs(collection(wsRef, 'edges'));
 
@@ -67,6 +91,10 @@ const ViewWorkspacePage = () => {
       }
     };
     load();
+
+    return () => {
+      document.title = 'CtxNote';
+    };
   }, [workspaceId, loadCanvas, setWorkspaceId, setWorkspaceMeta]);
 
   if (loading) {
