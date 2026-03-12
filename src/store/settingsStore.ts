@@ -9,6 +9,7 @@ interface SettingsState extends UserSettings {
   updateHotkey: (key: string, value: string) => Promise<void>;
   setTheme: (theme: UserSettings['theme']) => Promise<void>;
   setCanvasTheme: (theme: string) => Promise<void>;
+  setHybridEditorEnabled: (enabled: boolean) => Promise<void>;
 }
 
 const DEFAULT_HOTKEYS: Record<string, string> = {
@@ -31,6 +32,7 @@ export const useSettingsStore = create<SettingsState>()(
       hotkeys: DEFAULT_HOTKEYS,
       theme: 'system',
       canvasTheme: 'dots',
+      enableHybridEditor: true,
       isLoading: false,
       error: null,
 
@@ -67,6 +69,15 @@ export const useSettingsStore = create<SettingsState>()(
         set({ canvasTheme });
         try {
           await updateUserSettings({ canvasTheme });
+        } catch (err) {
+          set({ error: (err as Error).message });
+        }
+      },
+      
+      setHybridEditorEnabled: async (enableHybridEditor) => {
+        set({ enableHybridEditor });
+        try {
+          await updateUserSettings({ enableHybridEditor });
         } catch (err) {
           set({ error: (err as Error).message });
         }

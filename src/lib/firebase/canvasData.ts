@@ -43,13 +43,19 @@ export async function loadCanvasEdges(workspaceId: string): Promise<Edge[]> {
 function sanitizeForFirestore(data: any): any {
     if (data === null || data === undefined) return data;
     if (Array.isArray(data)) {
-        return data.map(v => (Array.isArray(v) ? JSON.stringify(v) : sanitizeForFirestore(v)));
+        return data.map(v => {
+            const result = sanitizeForFirestore(v);
+            return Array.isArray(result) ? JSON.stringify(result) : result;
+        });
     }
     if (typeof data === 'object') {
         const result: Record<string, any> = {};
         for (const key in data) {
             if (Object.prototype.hasOwnProperty.call(data, key)) {
-                result[key] = sanitizeForFirestore(data[key]);
+                const val = sanitizeForFirestore(data[key]);
+                if (val !== undefined) {
+                    result[key] = val;
+                }
             }
         }
         return result;
@@ -78,19 +84,21 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export async function saveEdge(workspaceId: string, edge: Edge) {
     const edgeId = UUID_RE.test(edge.id) ? edge.id : crypto.randomUUID();
     const edgeRef = doc(db, `workspaces/${workspaceId}/edges`, edgeId);
+    const sanitizedStyle = sanitizeForFirestore(edge.data || {});
     await setDoc(edgeRef, {
         id: edgeId,
         workspace_id: workspaceId,
         source_node_id: edge.source,
         target_node_id: edge.target,
         label: (edge.label as string) || null,
-        style: (edge.data as unknown as Json) || {},
+        style: sanitizedStyle as unknown as Json,
     }, { merge: true });
 }
 
 export async function updateEdgeDataInDb(workspaceId: string, edgeId: string, data: Record<string, unknown>, label?: string) {
     if (!UUID_RE.test(edgeId)) return;
-    const update: Record<string, unknown> = { style: data as unknown as Json };
+    const sanitizedData = sanitizeForFirestore(data);
+    const update: Record<string, unknown> = { style: sanitizedData as unknown as Json };
     if (label !== undefined) update.label = label || null;
     const edgeRef = doc(db, `workspaces/${workspaceId}/edges`, edgeId);
     await updateDoc(edgeRef, update);
@@ -134,12 +142,14 @@ export async function getNodeCount(workspaceId: string): Promise<number> {
 
 export async function createSnapshot(workspaceId: string, name: string, nodesData: unknown[], edgesData: unknown[], createdBy: string) {
     const snapshotRef = doc(collection(db, `workspaces/${workspaceId}/snapshots`));
+    const sanitizedNodes = sanitizeForFirestore(nodesData);
+    const sanitizedEdges = sanitizeForFirestore(edgesData);
     await setDoc(snapshotRef, {
         id: snapshotRef.id,
         workspace_id: workspaceId,
         name,
-        nodes_data: nodesData as unknown as Json,
-        edges_data: edgesData as unknown as Json,
+        nodes_data: sanitizedNodes as unknown as Json,
+        edges_data: sanitizedEdges as unknown as Json,
         created_by: createdBy,
         created_at: new Date().toISOString()
     });

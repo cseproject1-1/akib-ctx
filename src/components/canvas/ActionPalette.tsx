@@ -42,6 +42,7 @@ export function ActionPalette() {
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const isAnyNodeExpanded = useCanvasStore(s => s.nodes.some(n => (n.data as any)?.expanded));
 
   const toggleOpen = useCallback(() => setIsOpen(prev => !prev), []);
 
@@ -228,30 +229,6 @@ export function ActionPalette() {
         )}
       </AnimatePresence>
 
-      {/* Trigger Button - Floating near node when selected */}
-      {!isOpen && (
-        <div 
-          className="fixed z-[1001] pointer-events-none"
-          style={{ 
-            left: screenPos.x, 
-            top: screenPos.y + 12, 
-            transform: 'translateX(-50%)' 
-          }}
-        >
-          <motion.button
-            initial={{ opacity: 0, scale: 0.8, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            className="pointer-events-auto flex items-center gap-2 rounded-full glass-effect-light pro-shadow px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-primary border border-white/10"
-            onClick={toggleOpen}
-            title="Action Palette (Ctrl+/)"
-          >
-            <Zap className="h-3.5 w-3.5 fill-primary/20" />
-            Actions
-          </motion.button>
-        </div>
-      )}
     </>
   );
 }

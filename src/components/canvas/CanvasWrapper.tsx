@@ -128,6 +128,7 @@ export function CanvasWrapper() {
   const copySelectedNodes = useCanvasStore((s) => s.copySelectedNodes);
   const pasteNodes = useCanvasStore((s) => s.pasteNodes);
   const selectAllNodes = useCanvasStore((s) => s.selectAllNodes);
+  const deleteSelected = useCanvasStore((s) => s.deleteSelected);
   const addNode = useCanvasStore((s) => s.addNode);
   const workspaceId = useCanvasStore((s) => s.workspaceId);
   const canvasMode = useCanvasStore((s) => s.canvasMode);
@@ -154,7 +155,9 @@ export function CanvasWrapper() {
 
   useEffect(() => {
     if (!isDraggingRef.current) {
-      setLocalNodes(nodes);
+      // JSON.stringify is a simple way to check for deep equality in this context
+      // to avoid triggering updates if the store didn't actually change content
+      setLocalNodes(prev => JSON.stringify(prev) === JSON.stringify(nodes) ? prev : nodes);
     }
   }, [nodes]);
 
@@ -503,6 +506,17 @@ export function CanvasWrapper() {
         });
       }
 
+      // Delete selected nodes/edges
+      if (e.key === 'Delete' || (e.key === 'Backspace' && !mod)) {
+        const { nodes: currentNodes } = useCanvasStore.getState();
+        const selectedNodes = currentNodes.filter(n => n.selected);
+        if (selectedNodes.length > 0) {
+          e.preventDefault();
+          deleteSelected();
+          toast.success(`Deleted ${selectedNodes.length} node(s)`);
+        }
+      }
+
       // Arrow keys to pan the canvas
       const PAN_STEP = 80;
       if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
@@ -530,7 +544,7 @@ export function CanvasWrapper() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, copySelectedNodes, pasteNodes, selectAllNodes, toggleMinimap, setContextMenu, setNodeContextMenu, drawingMode, setDrawingMode, handleClipboardPaste, hotkeys, addNode, openSearch]);
+  }, [undo, redo, copySelectedNodes, pasteNodes, selectAllNodes, toggleMinimap, setContextMenu, setNodeContextMenu, drawingMode, setDrawingMode, handleClipboardPaste, hotkeys, addNode, openSearch, deleteSelected]);
 
   const handleContextMenu = useCallback(
     (event: React.MouseEvent) => {
@@ -746,13 +760,13 @@ export function CanvasWrapper() {
       {/* Drag overlay */}
       <AnimatePresence>
         {dragOver && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center bg-primary/5 backdrop-blur-[8px]"
           >
-            <motion.div 
+            <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
@@ -853,7 +867,7 @@ export function CanvasWrapper() {
         snapGrid={[12, 12]}
         minZoom={0.1}
         maxZoom={4}
-        deleteKeyCode={[]}
+        deleteKeyCode={['Delete', 'Backspace']}
         onSelectionChange={handleSelectionChange}
         selectionOnDrag={!isViewMode && !connectMode}
         selectionMode={SelectionMode.Partial}

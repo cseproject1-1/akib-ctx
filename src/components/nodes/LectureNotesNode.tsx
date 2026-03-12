@@ -2,7 +2,7 @@ import { memo, useCallback, useRef, useMemo } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import { BookOpen } from 'lucide-react';
 import { BaseNode } from './BaseNode';
-import { NoteEditor } from '@/components/tiptap/NoteEditor';
+import { HybridEditor } from '@/components/editor/HybridEditor';
 import { useCanvasStore } from '@/store/canvasStore';
 import type { JSONContent } from '@tiptap/react';
 
@@ -30,10 +30,10 @@ export const LectureNotesNode = memo(({ id, data, selected }: NodeProps) => {
   const nodeData = data as { title: string; content?: JSONContent | null; viewMode?: boolean; collapsed?: boolean; emoji?: string; dueDate?: string; opacity?: number; createdAt?: string; tags?: string[]; progress?: number };
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
 
-  const handleContentChange = useCallback((json: JSONContent) => {
+  const handleContentChange = useCallback((json: any, extraData?: any) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      updateNodeData(id, { content: json });
+      updateNodeData(id, { content: json, ...extraData });
     }, 800);
   }, [id, updateNodeData]);
 
@@ -61,11 +61,13 @@ export const LectureNotesNode = memo(({ id, data, selected }: NodeProps) => {
       progress={nodeData.progress}
       headerExtra={null}
     >
-      <NoteEditor
+      <HybridEditor
         initialContent={nodeData.content}
         onChange={handleContentChange}
         onProgressChange={(progress) => updateNodeData(id, { progress })}
         placeholder="Start typing your lecture notes…"
+        forceTiptap={true}
+        isGhost={!selected}
       />
     </BaseNode>
   );

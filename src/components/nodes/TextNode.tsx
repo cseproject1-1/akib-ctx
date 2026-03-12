@@ -23,7 +23,7 @@ export const TextNode = memo(({ id, data, selected }: NodeProps) => {
     <div
       className="relative min-w-[100px] min-h-[40px] max-h-[60vh] flex flex-col group p-2 rounded-md hover:bg-accent/10 transition-colors"
       style={{ opacity: (d.opacity ?? 100) / 100 }}
-      onDoubleClick={() => !d.locked && setEditing(true)}
+      onDoubleClick={() => !d.locked && selected && setEditing(true)}
     >
       <div className="absolute top-0 right-0 p-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none text-[9px] text-muted-foreground bg-background/50 rounded-bl">
         Double-click to edit

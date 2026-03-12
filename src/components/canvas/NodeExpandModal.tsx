@@ -1,6 +1,6 @@
 import { useCanvasStore } from '@/store/canvasStore';
 import { useNodes } from '@xyflow/react';
-import { NoteEditor, type NoteEditorHandle } from '@/components/tiptap/NoteEditor';
+import { HybridEditor, type NoteEditorHandle } from '@/components/editor/HybridEditor';
 import { OutlinePanel } from '@/components/tiptap/OutlinePanel';
 import { X, Maximize2, Minimize2, List as ListIcon } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -285,10 +285,10 @@ export function NodeExpandModal() {
   };
   const nodeType = node.type || 'aiNote';
 
-  const handleContentChange = (json: JSONContent) => {
+  const handleContentChange = (json: any, extraData?: any) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      updateNodeData(expandedNode, { content: json });
+      updateNodeData(expandedNode, { content: json, ...extraData });
     }, 800);
   };
 
@@ -299,7 +299,7 @@ export function NodeExpandModal() {
       case 'aiNote':
       case 'lectureNotes':
         return (
-          <NoteEditor
+          <HybridEditor
             ref={editorRef}
             initialContent={nodeData.content}
             onChange={handleContentChange}
@@ -308,9 +308,7 @@ export function NodeExpandModal() {
             pasteFormat={nodeData.pasteFormat}
             editable={!isViewMode}
             title={getTitle()}
-            onFocusModeChange={(active) => {
-              if (active) setShowOutline(false);
-            }}
+            forceBlockNote={true}
           />
         );
 

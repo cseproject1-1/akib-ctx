@@ -59,6 +59,7 @@ export const TermQuestionNode = memo(forwardRef<HTMLDivElement, NodeProps>(({ id
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => e.stopPropagation()}
           placeholder="Title / Year…"
+          readOnly={!selected}
         />
       </div>
       <ul className="space-y-2">
@@ -72,6 +73,7 @@ export const TermQuestionNode = memo(forwardRef<HTMLDivElement, NodeProps>(({ id
               onKeyDown={(e) => handleKeyDown(e, i)}
               onClick={(e) => e.stopPropagation()}
               placeholder="Type a question…"
+              readOnly={!selected}
             />
           </li>
         ))}

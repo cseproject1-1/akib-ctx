@@ -33,6 +33,8 @@ export interface SharedNodeFields {
   dueDate?: string; // ISO date string
   opacity?: number; // 25-100, default 100
   createdAt?: string; // ISO datetime string
+  blockVersion?: 1 | 2;
+  _v1Backup?: any; // Backup of Tiptap content before migration
 }
 
 export interface AINoteNodeData extends SharedNodeFields {

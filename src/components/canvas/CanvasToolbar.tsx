@@ -1,5 +1,5 @@
 import { useReactFlow, Panel, useStore, useNodes, useEdges } from '@xyflow/react';
-import { ZoomIn, ZoomOut, Maximize, Undo2, Redo2, ArrowLeft, Save, CheckCircle, AlertCircle, FileDown, Paintbrush, Share2, Eye, MousePointerClick, Presentation, Crosshair, LayoutDashboard, Grid3X3, Lock, Unlock, Trash2, Magnet, Cable, FileText, FileJson, Clock, GitBranch, CloudOff, Sparkles, Upload, Network, Orbit, LayoutGrid, Search, Map as MapIcon, BookmarkPlus, X, History, Pen, Maximize2, Minimize2, Keyboard } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, Undo2, Redo2, ArrowLeft, Save, CheckCircle, AlertCircle, FileDown, Paintbrush, Share2, Eye, MousePointerClick, Presentation, Crosshair, LayoutDashboard, Grid3X3, Lock, Unlock, Trash2, Magnet, Cable, FileText, FileJson, Clock, GitBranch, CloudOff, Sparkles, Upload, Network, Orbit, LayoutGrid, Search, Map as MapIcon, BookmarkPlus, X, History, Pen, Maximize2, Minimize2, Keyboard, Zap, ZapOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { getTreeLayout, getCircularLayout } from '@/lib/canvas/layoutUtils';
@@ -7,6 +7,7 @@ import { ThemeToggle } from './ThemeToggle';
 import { useCanvasStore } from '@/store/canvasStore';
 import { WorkspaceSwitcher } from './WorkspaceSwitcher';
 import { useNavigate } from 'react-router-dom';
+import { useSettingsStore } from '@/store/settingsStore';
 import { exportToMarkdown, exportToPlainText, exportToJSON } from '@/lib/exportCanvas';
 import { toast } from 'sonner';
 import React, { useState, useEffect } from 'react';
@@ -473,6 +474,21 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
           <ToolbarBtn onClick={toggleMinimap} tip={`Minimap: ${showMinimap ? 'ON' : 'OFF'} (M)`} className={cn(showMinimap ? 'text-primary bg-primary/5 border border-primary/20' : 'hover:bg-primary/10')}>
             <MapIcon className="h-4 w-4" />
           </ToolbarBtn>
+          <Divider />
+          <TipBtn 
+            tip={`Hybrid Editor (Mantine + BlockNote): ${useSettingsStore.getState().enableHybridEditor ? 'ON' : 'OFF'}`} 
+            onClick={() => useSettingsStore.getState().setHybridEditorEnabled(!useSettingsStore.getState().enableHybridEditor)}
+            className={cn(
+              "pro-btn rounded-xl px-2.5 py-2 transition-all glass-effect",
+              useSettingsStore((s) => s.enableHybridEditor) ? "text-yellow-400 border-yellow-400/20 bg-yellow-400/5" : "text-muted-foreground/40"
+            )}
+          >
+            {useSettingsStore((s) => s.enableHybridEditor) ? (
+              <Zap className="h-4 w-4 fill-yellow-400/20 animate-pulse" />
+            ) : (
+              <ZapOff className="h-4 w-4" />
+            )}
+          </TipBtn>
           <Divider />
           <div className="px-1.5"><ThemeToggle /></div>
         </div>

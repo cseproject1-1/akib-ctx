@@ -27,8 +27,11 @@ export function SelectionToolbar() {
   const pushSnapshot = useCanvasStore((s) => s.pushSnapshot);
   const { fitView } = useReactFlow();
 
+  const expandedNode = useCanvasStore((s) => s.expandedNode);
+  const isAISynthesisOpen = useCanvasStore((s) => s.isAISynthesisOpen);
+
   const selectedNodes = nodes.filter((n) => n.selected);
-  if (selectedNodes.length < 2) return null;
+  if (selectedNodes.length < 2 || expandedNode || isAISynthesisOpen) return null;
 
   const handleAlign = (type: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => {
     pushSnapshot();

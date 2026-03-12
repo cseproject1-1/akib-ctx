@@ -20,7 +20,9 @@ export function NodeSelectionToolbar() {
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   const deleteNode = useCanvasStore((s) => s.deleteNode);
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const { flowToScreenPosition } = useReactFlow();
+  const expandedNode = useCanvasStore((s) => s.expandedNode);
+  const isAISynthesisOpen = useCanvasStore((s) => s.isAISynthesisOpen);
+  const { flowToScreenPosition, getZoom } = useReactFlow();
 
   const selectedNodes = useMemo(() => nodes.filter((n) => n.selected), [nodes]);
 
@@ -44,23 +46,32 @@ export function NodeSelectionToolbar() {
     selectedNodes.forEach((n) => updateNodeData(n.id, { color }));
   }, [selectedNodes, updateNodeData]);
 
-  if (selectedNodes.length !== 1) return null;
+  if (selectedNodes.length !== 1 || expandedNode || isAISynthesisOpen) return null;
 
   const node = selectedNodes[0];
   const isLocked = (node.data as { locked?: boolean })?.locked;
   const isPinned = (node.data as { pinned?: boolean })?.pinned;
 
   const nodeWidth = (node.measured?.width ?? node.width ?? 200) as number;
+  const nodeHeight = (node.measured?.height ?? node.height ?? 100) as number;
+  const zoom = getZoom();
 
   const rawPos = flowToScreenPosition({
     x: node.position.x + nodeWidth / 2,
     y: node.position.y,
   });
 
-  const SAFE_TOP = 80;
+  const SAFE_TOP = 100;
   const SAFE_SIDE = 150;
   
-  const topPos = Math.max(rawPos.y - 65, SAFE_TOP);
+  // Decide position: prefers top, flips to bottom if not enough space
+  // We need at least ~70px of space above the node to show the toolbar without overlap
+  const showAtBottom = rawPos.y < SAFE_TOP + 70;
+
+  const topPos = showAtBottom 
+    ? rawPos.y + (nodeHeight * zoom) + 15
+    : rawPos.y - 65;
+
   const leftPos = Math.max(Math.min(rawPos.x, window.innerWidth - SAFE_SIDE), SAFE_SIDE);
 
   return (

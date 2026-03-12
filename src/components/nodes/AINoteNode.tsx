@@ -2,7 +2,7 @@ import { memo, useCallback, useRef, useMemo } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import { FileText, RefreshCw } from 'lucide-react';
 import { BaseNode } from './BaseNode';
-import { NoteEditor, type NoteEditorHandle } from '@/components/tiptap/NoteEditor';
+import { HybridEditor, type NoteEditorHandle } from '@/components/editor/HybridEditor';
 import { useCanvasStore } from '@/store/canvasStore';
 import type { JSONContent } from '@tiptap/react';
 
@@ -31,10 +31,15 @@ export const AINoteNode = memo(({ id, data, selected }: NodeProps) => {
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const editorRef = useRef<NoteEditorHandle>(null);
 
-  const handleContentChange = useCallback((json: JSONContent) => {
+  const handleContentChange = useCallback((json: any, extraData?: any) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      updateNodeData(id, { content: json, pasteContent: undefined, pasteFormat: undefined });
+      updateNodeData(id, { 
+        content: json, 
+        pasteContent: undefined, 
+        pasteFormat: undefined,
+        ...extraData 
+      });
     }, 800);
   }, [id, updateNodeData]);
 
@@ -74,7 +79,7 @@ export const AINoteNode = memo(({ id, data, selected }: NodeProps) => {
         </button>
       }
     >
-      <NoteEditor
+      <HybridEditor
         ref={editorRef}
         initialContent={nodeData.content}
         onChange={handleContentChange}
@@ -82,6 +87,8 @@ export const AINoteNode = memo(({ id, data, selected }: NodeProps) => {
         placeholder="Paste an AI reply here…"
         pasteContent={nodeData.pasteContent}
         pasteFormat={nodeData.pasteFormat}
+        forceTiptap={true}
+        isGhost={!selected}
       />
     </BaseNode>
   );

@@ -64,6 +64,7 @@ export function StickyNoteNode({ id, data, selected }: NodeProps) {
         style={{ color: palette.text, fontSize: FONT_SIZES[fontSize] }}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => e.stopPropagation()}
+        readOnly={!selected}
       />
 
       {/* Fullscreen button */}

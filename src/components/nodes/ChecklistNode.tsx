@@ -4,6 +4,7 @@ import { BaseNode } from './BaseNode';
 import { CheckSquare, Plus, X, GripVertical } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { useCallback, useState } from 'react';
+import { cn } from '@/lib/utils';
 
 interface CheckItem {
   id: string;
@@ -110,6 +111,7 @@ export function ChecklistNode({ id, data, selected }: NodeProps) {
                     ? 'border-primary bg-primary text-primary-foreground'
                     : 'border-border bg-transparent'
                 }`}
+                disabled={!selected}
               >
                 {item.done && <span className="text-[10px] font-bold">✓</span>}
               </button>
@@ -122,6 +124,7 @@ export function ChecklistNode({ id, data, selected }: NodeProps) {
                 onClick={(e) => e.stopPropagation()}
                 onKeyDown={(e) => e.stopPropagation()}
                 placeholder="To-do item..."
+                readOnly={!selected}
               />
               <button
                 onClick={(e) => { e.stopPropagation(); removeItem(item.id); }}
@@ -135,8 +138,11 @@ export function ChecklistNode({ id, data, selected }: NodeProps) {
 
         {/* Add button */}
         <button
-          onClick={(e) => { e.stopPropagation(); addItem(); }}
-          className="mt-1 flex items-center gap-1.5 rounded px-1 py-1 text-xs font-semibold text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          disabled={!selected}
+          className={cn(
+            "mt-1 flex items-center gap-1.5 rounded px-1 py-1 text-xs font-semibold text-muted-foreground transition-colors",
+            selected ? "hover:bg-accent hover:text-foreground" : "opacity-50 cursor-default"
+          )}
         >
           <Plus className="h-3 w-3" /> Add item
         </button>

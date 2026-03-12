@@ -5,6 +5,7 @@ export interface UserSettings {
   hotkeys: Record<string, string>;
   theme: 'light' | 'dark' | 'system';
   canvasTheme: string;
+  enableHybridEditor: boolean;
 }
 
 const DEFAULT_HOTKEYS: Record<string, string> = {
@@ -29,10 +30,12 @@ export async function getUserSettings(): Promise<UserSettings> {
   const snap = await getDoc(docRef);
 
   if (snap.exists() && snap.data().settings) {
+    const data = snap.data().settings;
     return {
-      hotkeys: { ...DEFAULT_HOTKEYS, ...snap.data().settings.hotkeys },
-      theme: snap.data().settings.theme || 'system',
-      canvasTheme: snap.data().settings.canvasTheme || 'dots',
+      hotkeys: { ...DEFAULT_HOTKEYS, ...data.hotkeys },
+      theme: data.theme || 'system',
+      canvasTheme: data.canvasTheme || 'dots',
+      enableHybridEditor: data.enableHybridEditor !== undefined ? data.enableHybridEditor : true,
     };
   }
 
@@ -40,6 +43,7 @@ export async function getUserSettings(): Promise<UserSettings> {
     hotkeys: DEFAULT_HOTKEYS,
     theme: 'system',
     canvasTheme: 'dots',
+    enableHybridEditor: true,
   };
 }
 

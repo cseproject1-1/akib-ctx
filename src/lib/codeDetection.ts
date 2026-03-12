@@ -36,14 +36,14 @@ const LANGUAGE_PATTERNS: Record<string, { regex: RegExp; weight: number }[]> = {
     { regex: /\btry\s*:\s*\n\s+/g, weight: 15 },
     { regex: /\bprint\(.*\)/g, weight: 8 },
     { regex: /\b__init__\b/g, weight: 15 },
-    { regex: /\@\w+/g, weight: 10 },
+    { regex: /@\w+/g, weight: 10 },
   ],
   java: [
     { regex: /\bpublic\s+class\s+\w+/g, weight: 20 },
     { regex: /\bpublic\s+static\s+void\s+main\b/g, weight: 25 },
     { regex: /\bSystem\.out\.print(ln)?\(/g, weight: 15 },
     { regex: /\bString\[\]\s+args\b/g, weight: 15 },
-    { regex: /\@Override\b/g, weight: 12 },
+    { regex: /@Override\b/g, weight: 12 },
     { regex: /\bextends\s+\w+|\bimplements\s+\w+/g, weight: 12 },
   ],
   cpp: [
@@ -70,7 +70,7 @@ const LANGUAGE_PATTERNS: Record<string, { regex: RegExp; weight: number }[]> = {
   css: [
     { regex: /[.#]\w+\s*\{/g, weight: 15 },
     { regex: /\b(margin|padding|color|background|display|flex|grid):/g, weight: 10 },
-    { regex: /\@media\s+.*\s*\{/g, weight: 15 },
+    { regex: /@media\s+.*\s*\{/g, weight: 15 },
     { regex: /!important/g, weight: 10 },
   ],
   sql: [
@@ -82,9 +82,9 @@ const LANGUAGE_PATTERNS: Record<string, { regex: RegExp; weight: number }[]> = {
     { regex: /\bGROUP\s+BY\b/gi, weight: 15 },
   ],
   json: [
-    { regex: /^\s*[\{\[]/g, weight: 10 },
+    { regex: /^\s*[{[]/g, weight: 10 },
     { regex: /"\w+"\s*:/g, weight: 15 },
-    { regex: /:\s*["\d\[\{]/g, weight: 10 },
+    { regex: /:\s*["\d[{]/g, weight: 10 },
   ],
   bash: [
     { regex: /^#!\/(bin|usr)\/(env\s+)?(bash|sh|zsh)/m, weight: 30 },
@@ -106,7 +106,7 @@ const EXPLICIT_MARKERS = {
   shebang: /^#!\/(bin|usr)\/(env\s+)?(\w+)/m,
 };
 
-const FAST_CHECK_REGEX = /[;{}()\[\]=<>!]|\b(const|let|var|def|func|public|private|static|import|if|else|return|class)\b/;
+const FAST_CHECK_REGEX = /[;{}()[\]=<>!]|\b(const|let|var|def|func|public|private|static|import|if|else|return|class)\b/;
 
 // Basic LRU-like cache for line detections to avoid redundant regex runs
 const DETECTION_CACHE = new Map<string, CodeDetectionResult>();
@@ -252,7 +252,7 @@ export function autoFormatText(text: string): string {
     };
   });
 
-  let result: string[] = [];
+  const result: string[] = [];
   let i = 0;
 
   while (i < lines.length) {
@@ -262,8 +262,8 @@ export function autoFormatText(text: string): string {
     // A code block starts if we see a cluster of high-score lines
     let lookAhead = 0;
     let clusterScore = 0;
-    let potentialBlock: string[] = [];
-    let detectedLangs: Record<string, number> = {};
+    const potentialBlock: string[] = [];
+    const detectedLangs: Record<string, number> = {};
 
     while (i + lookAhead < lines.length) {
       const det = detections[i + lookAhead];
@@ -304,7 +304,7 @@ export function autoFormatText(text: string): string {
         i++;
       }
       
-      let blockLines: string[] = [];
+      const blockLines: string[] = [];
       while (potentialBlock.length > 0) {
         const nextDet = detections[i + blockLines.length];
         // If we hit a very low score line, stop the block

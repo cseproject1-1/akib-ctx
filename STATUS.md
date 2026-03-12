@@ -44,3 +44,9 @@
 - Completed: Enhanced Signup success state with "Resend Verification" functionality.
 - Completed: Ensured backward compatibility for existing accounts and Firestore data integrity.
 - Next: Final production build and end-to-end auth flow verification.
+
+## 2026-03-12 12:40 UTC
+- Completed: Removed the floating "Actions" trigger toolbar from the canvas to streamline the UI.
+- Completed: Implemented standard "Delete" and "Backspace" key shortcuts for deleting selected nodes and edges.
+- Completed: Optimized keyboard event listeners in `CanvasWrapper` to use direct store access, preventing stale state and unnecessary re-renders.
+- Next: Final UI/UX review and performance validation.

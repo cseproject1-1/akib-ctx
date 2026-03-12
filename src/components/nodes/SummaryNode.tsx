@@ -68,7 +68,7 @@ export function SummaryNode({ id, data, selected }: NodeProps) {
               onChange={(e) => handleBulletChange(i, e.target.value)}
               onKeyDown={(e) => handleBulletKeyDown(i, e)}
               onClick={(e) => e.stopPropagation()}
-              placeholder="Type a point…"
+              readOnly={!selected}
             />
           </div>
         ))}
