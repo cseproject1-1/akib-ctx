@@ -3,6 +3,7 @@ import { useCanvasStore } from '@/store/canvasStore';
 import { BaseNode } from './BaseNode';
 import { Paperclip, Upload, X, FileText, FileImage, FileArchive, FileCode, FileAudio, FileVideo, Download, Loader2 } from 'lucide-react';
 import { useState, useRef, useCallback } from 'react';
+import { uploadCanvasFile } from '@/lib/r2/storage';
 
 interface AttachedFile {
   id: string;
@@ -10,6 +11,7 @@ interface AttachedFile {
   size: number; // bytes
   type: string; // MIME
   url: string;  // object URL or R2 URL
+  path?: string; // R2 storage path
 }
 
 /** Return a suitable icon for the file MIME type */
@@ -53,14 +55,36 @@ export function FileAttachmentNode({ id, data, selected }: NodeProps) {
 
   const processFiles = async (fileList: FileList) => {
     setUploading(true);
-    const newFiles: AttachedFile[] = [];
-    for (const f of Array.from(fileList)) {
-      // Create an object URL for local use
-      const url = URL.createObjectURL(f);
-      newFiles.push({ id: crypto.randomUUID(), name: f.name, size: f.size, type: f.type || 'application/octet-stream', url });
+    const workspaceId = id.split('/')[0]; // Assuming ID might be composite or we can get it from context
+    // Actually, it's better to use the active workspace ID from the store or props if available.
+    // For now, let's try to infer if not passed. NodeProps might not have it directly.
+    // Let's check canvasStore for the current workspaceId.
+    
+    const currentWorkspaceId = useCanvasStore.getState().workspaceId;
+
+    try {
+      const newFiles: AttachedFile[] = [];
+      for (const f of Array.from(fileList)) {
+        if (!currentWorkspaceId) throw new Error('No active workspace');
+        
+        // Upload to R2
+        const { url, path } = await uploadCanvasFile(currentWorkspaceId, f);
+        
+        newFiles.push({ 
+          id: crypto.randomUUID(), 
+          name: f.name, 
+          size: f.size, 
+          type: f.type || 'application/octet-stream', 
+          url,
+          path // Store the path for deletion
+        });
+      }
+      setFiles([...files, ...newFiles]);
+    } catch (error) {
+      console.error('Failed to upload files:', error);
+    } finally {
+      setUploading(false);
     }
-    setFiles([...files, ...newFiles]);
-    setUploading(false);
   };
 
   const handleDrop = (e: React.DragEvent) => {

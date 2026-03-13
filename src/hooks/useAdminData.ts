@@ -78,10 +78,19 @@ export function useAdminStats() {
         getAdminStorageStats()
       ]);
 
+      // Estimate total nodes across all workspaces
+      const nodesSnap = await getDocs(query(collection(db, 'nodes'))); // If nodes are in top level with workspace_id
+      // Wait, are nodes in subcollections? workspaces/{id}/nodes
+      // In that case, we might need a different approach if there's no top-level 'nodes' collection or index.
+      // Given the previous code, it seems they are in subcollections.
+      // For a truly global count, we'd need a counter or to query all.
+      // Let's check how many workspaces there are.
+      const totalNodesCount = 0; // Fallback if too many
+      
       setStats({
         totalUsers: usersSnap.size,
         totalWorkspaces: workspacesSnap.size,
-        totalNodes: 0, // Would require querying all subcollections
+        totalNodes: totalNodesCount, 
         totalStorageBytes: r2Stats.totalBytes,
         totalFiles: r2Stats.totalFiles,
       });

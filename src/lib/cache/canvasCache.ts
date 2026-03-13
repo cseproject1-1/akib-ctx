@@ -206,7 +206,8 @@ export async function cachedLoadCanvasNodes(
       const nodes = await loadCanvasNodes(workspaceId);
       await cacheSet('canvas-nodes', workspaceId, nodes);
       const merged = await applyPendingOpsToNodes(nodes, workspaceId);
-      if (onUpdate && JSON.stringify(merged) !== JSON.stringify(cached)) {
+      const isChanged = !cached || merged.length !== cached.length || merged.some((n, i) => n.id !== cached[i].id || (n as any).updated_at !== (cached[i] as any).updated_at);
+      if (onUpdate && isChanged) {
         onUpdate(merged);
       }
       return merged;
@@ -235,7 +236,8 @@ export async function cachedLoadCanvasEdges(
       const edges = await loadCanvasEdges(workspaceId);
       await cacheSet('canvas-edges', workspaceId, edges);
       const merged = await applyPendingOpsToEdges(edges, workspaceId);
-      if (onUpdate && JSON.stringify(merged) !== JSON.stringify(cached)) {
+      const isChanged = !cached || merged.length !== cached.length || merged.some((e, i) => e.id !== cached[i].id || (e as any).updated_at !== (cached[i] as any).updated_at);
+      if (onUpdate && isChanged) {
         onUpdate(merged);
       }
       return merged;
@@ -261,7 +263,8 @@ export async function cachedGetWorkspaces(
     try {
       const ws = await serverGetWorkspaces();
       await cacheSet('workspaces', 'list', ws);
-      if (onUpdate && JSON.stringify(ws) !== JSON.stringify(cached)) {
+      const isChanged = !cached || ws.length !== cached.length || ws.some((w, i) => w.id !== cached[i].id || w.updated_at !== cached[i].updated_at);
+      if (onUpdate && isChanged) {
         onUpdate(ws);
       }
       return ws;

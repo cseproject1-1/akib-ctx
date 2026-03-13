@@ -37,7 +37,11 @@ export function ViewCanvasWrapper() {
         title: workspaceName,
         text: `Check out this workspace: ${workspaceName}`,
         url: window.location.href
-      }).catch(() => {});
+      }).catch((err) => {
+        if (err.name !== 'AbortError') {
+          console.error('Error sharing:', err);
+        }
+      });
     }
   };
 

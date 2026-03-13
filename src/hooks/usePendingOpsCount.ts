@@ -7,7 +7,7 @@ export function usePendingOpsCount() {
 
   useEffect(() => {
     const poll = () => {
-      getAllPendingOps().then(ops => setCount(ops.length)).catch(() => {});
+      getAllPendingOps().then(ops => setCount(ops.length)).catch((err) => console.error('Failed to fetch pending ops:', err));
     };
     poll();
     const id = setInterval(poll, 5000);

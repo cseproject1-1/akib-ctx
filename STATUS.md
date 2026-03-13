@@ -49,4 +49,14 @@
 - Completed: Removed the floating "Actions" trigger toolbar from the canvas to streamline the UI.
 - Completed: Implemented standard "Delete" and "Backspace" key shortcuts for deleting selected nodes and edges.
 - Completed: Optimized keyboard event listeners in `CanvasWrapper` to use direct store access, preventing stale state and unnecessary re-renders.
-- Next: Final UI/UX review and performance validation.
+- Next: Phase 2 Bug Fixes and Optimizations.
+
+## 2026-03-13 13:00 UTC
+- Completed: Implemented persistent file attachments by uploading to R2 storage (`FileAttachmentNode`).
+- Completed: Optimized storage cleanup with paginated deletion in `deleteWorkspaceFiles` and `deleteUserFiles`.
+- Completed: Resolved performance bottlenecks by replacing `JSON.stringify` deep equality checks in `canvasCache` and `CanvasWrapper`.
+- Completed: Hardened asynchronous operations across `Dashboard`, `workspaces.ts`, and `WorkspacePage` using `Promise.all`.
+- Completed: Enhanced security with `crypto.randomUUID()` for node/edge ID generation.
+- Completed: Improved backend worker reliability with input sanitization in `/api/scrape`.
+- Completed: Fixed legacy test suite failures (import paths and code block assertions) to ensure 100% test pass rate.
+- Next: Final production verification and performance monitoring.

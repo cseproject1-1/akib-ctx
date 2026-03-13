@@ -10,6 +10,7 @@ import {
   BlockNoteSchema,
   defaultBlockSpecs,
   createCodeBlockSpec,
+  Block,
 } from "@blocknote/core";
 
 // Syntax highlighting
@@ -46,8 +47,8 @@ const supportedLanguages = {
 };
 
 interface BlockNoteEditorProps {
-  initialContent?: any[];
-  onChange?: (blocks: any[]) => void;
+  initialContent?: Block[];
+  onChange?: (blocks: Block[]) => void;
   editable?: boolean;
   placeholder?: string;
   className?: string;
@@ -96,7 +97,7 @@ export const BlockNoteEditor = ({
   useEffect(() => {
     if (editor && pasteContent) {
       const handleInitialPaste = async () => {
-        let blocks: any[] = [];
+        let blocks: Block[] = [];
         if (pasteFormat === 'markdown') {
           blocks = await editor.tryParseMarkdownToBlocks(pasteContent);
         } else if (pasteFormat === 'html') {

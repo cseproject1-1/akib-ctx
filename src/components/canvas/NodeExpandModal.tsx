@@ -271,7 +271,11 @@ export function NodeExpandModal() {
         title: getTitle(),
         text: `Check out this note from ${useCanvasStore.getState().workspaceName}`,
         url: window.location.href
-      }).catch(() => {});
+      }).catch((err) => {
+        if (err.name !== 'AbortError') {
+          console.error('Error sharing:', err);
+        }
+      });
     }
   };
 

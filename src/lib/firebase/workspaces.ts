@@ -88,10 +88,11 @@ export async function permanentlyDeleteWorkspace(id: string) {
     const nodesSnap = await getDocs(collection(wsRef, 'nodes'));
     const edgesSnap = await getDocs(collection(wsRef, 'edges'));
     
-    const deletes: Promise<void>[] = [];
-    nodesSnap.forEach(d => deletes.push(deleteDoc(d.ref)));
-    edgesSnap.forEach(d => deletes.push(deleteDoc(d.ref)));
-    await Promise.all(deletes);
+    const deletePromises = [
+      ...nodesSnap.docs.map(d => deleteDoc(d.ref)),
+      ...edgesSnap.docs.map(d => deleteDoc(d.ref))
+    ];
+    await Promise.all(deletePromises);
     
     await deleteDoc(wsRef);
 }
@@ -144,7 +145,7 @@ export async function branchWorkspace(sourceId: string, name: string): Promise<W
     const writes: (() => void)[] = [];
 
     if (!nodesSnap.empty) {
-        nodesSnap.docs.forEach(docSnap => {
+        for (const docSnap of nodesSnap.docs) {
             const oldNode = docSnap.data();
             const newNodeRef = doc(collection(db, `workspaces/${branchWsRef.id}/nodes`));
             idMap.set(docSnap.id, newNodeRef.id);
@@ -154,14 +155,14 @@ export async function branchWorkspace(sourceId: string, name: string): Promise<W
                 id: newNodeRef.id,
                 workspace_id: branchWsRef.id
             }));
-        });
+        }
     }
 
     const edgesQ = query(collection(db, `workspaces/${sourceId}/edges`));
     const edgesSnap = await getDocs(edgesQ);
 
     if (!edgesSnap.empty) {
-        edgesSnap.docs.forEach(docSnap => {
+        for (const docSnap of edgesSnap.docs) {
             const oldEdge = docSnap.data();
             if (idMap.has(oldEdge.source_node_id) && idMap.has(oldEdge.target_node_id)) {
                 const newEdgeRef = doc(collection(db, `workspaces/${branchWsRef.id}/edges`));
@@ -173,7 +174,7 @@ export async function branchWorkspace(sourceId: string, name: string): Promise<W
                     target_node_id: idMap.get(oldEdge.target_node_id)
                 }));
             }
-        });
+        }
     }
 
     // Execute writes
@@ -213,7 +214,7 @@ export async function duplicateWorkspace(sourceId: string, name: string, color: 
     const writes: (() => void)[] = [];
 
     if (!nodesSnap.empty) {
-        nodesSnap.docs.forEach(docSnap => {
+        for (const docSnap of nodesSnap.docs) {
             const oldNode = docSnap.data();
             const newNodeRef = doc(collection(db, `workspaces/${newWsRef.id}/nodes`));
             idMap.set(docSnap.id, newNodeRef.id);
@@ -223,14 +224,14 @@ export async function duplicateWorkspace(sourceId: string, name: string, color: 
                 id: newNodeRef.id,
                 workspace_id: newWsRef.id
             }));
-        });
+        }
     }
 
     const edgesQ = query(collection(db, `workspaces/${sourceId}/edges`));
     const edgesSnap = await getDocs(edgesQ);
 
     if (!edgesSnap.empty) {
-        edgesSnap.docs.forEach(docSnap => {
+        for (const docSnap of edgesSnap.docs) {
             const oldEdge = docSnap.data();
             if (idMap.has(oldEdge.source_node_id) && idMap.has(oldEdge.target_node_id)) {
                 const newEdgeRef = doc(collection(db, `workspaces/${newWsRef.id}/edges`));
@@ -242,7 +243,7 @@ export async function duplicateWorkspace(sourceId: string, name: string, color: 
                     target_node_id: idMap.get(oldEdge.target_node_id)
                 }));
             }
-        });
+        }
     }
 
     await Promise.all(writes.map(w => w()));

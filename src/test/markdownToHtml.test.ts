@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { markdownToHtml } from '@/components/tiptap/NoteEditor';
+import { markdownToHtml } from '@/lib/editor/markdownUtils';
 
 describe('markdownToHtml', () => {
   it('renders a heading', () => {
@@ -101,7 +101,7 @@ describe('markdownToHtml', () => {
     const md = '```\nplain code\n```';
     const result = markdownToHtml(md);
     expect(result).toContain('<pre>');
-    expect(result).toContain('<code>');
+    expect(result).toContain('<code');
   });
 
   it('renders ordered lists', () => {

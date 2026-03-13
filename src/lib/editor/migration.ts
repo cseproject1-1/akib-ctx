@@ -4,7 +4,7 @@ import { Block } from '@blocknote/core';
 /**
  * Fast ID generator to replace fastId() for bulk migrations
  */
-const fastId = () => Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+const fastId = () => typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
 
 /**
  * Detects the editor version of the content.
