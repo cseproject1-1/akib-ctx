@@ -2,29 +2,65 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { FileUp, FileText, Globe, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { parseMarkdownToNodes, parseNotionHtmlToNodes } from '@/lib/import/importService';
-import { createWorkspace } from '@/lib/firebase/workspaces';
-import { saveNode } from '@/lib/cache/canvasCache';
+import { createWorkspace, getWorkspaces, Workspace } from '@/lib/firebase/workspaces';
+import { saveNode, saveEdge } from '@/lib/firebase/canvasData';
+import { importFromZip, importFromMarkdown } from '@/lib/exportCanvas';
+import { useCanvasStore } from '@/store/canvasStore';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
 
-export function ImportModal({ open, onOpenChange }: { open: boolean, onOpenChange: (open: boolean) => void }) {
+export function ImportModal({ open, onOpenChange, initialFiles }: { 
+  open: boolean, 
+  onOpenChange: (open: boolean) => void,
+  initialFiles?: FileList | null
+}) {
   const [isImporting, setIsImporting] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const navigate = useNavigate();
 
+  useEffect(() => {
+    if (open && initialFiles && initialFiles.length > 0) {
+      handleFiles(initialFiles);
+    }
+  }, [open, initialFiles]);
+
   const handleFiles = async (files: FileList) => {
     setIsImporting(true);
     try {
+      // Get existing workspaces to handle name collisions
+      const existingWorkspaces = await getWorkspaces();
+      const existingNames = new Set(existingWorkspaces.map(ws => ws.name.toLowerCase()));
+
+      const getUniqueName = (baseName: string) => {
+        let name = baseName;
+        let counter = 1;
+        while (existingNames.has(name.toLowerCase())) {
+          name = `${baseName} (${counter})`;
+          counter++;
+        }
+        existingNames.add(name.toLowerCase()); // Add to set for subsequent files in same batch
+        return name;
+      };
+
       for (const file of Array.from(files)) {
-        const text = await file.text();
         let nodes = [];
+        let edges = [];
         const isHtml = file.type === 'text/html' || file.name.endsWith('.html');
         const isMd = file.name.endsWith('.md') || file.name.endsWith('.markdown') || file.type === 'text/markdown';
+        const isZip = file.name.endsWith('.zip') || file.type === 'application/zip';
 
-        if (isHtml) {
-          nodes = parseNotionHtmlToNodes(text);
-        } else if (isMd) {
-          nodes = parseMarkdownToNodes(text);
+        if (isZip) {
+          const zipData = await importFromZip(file);
+          nodes = zipData.nodes;
+          edges = zipData.edges;
+        } else if (isHtml || isMd) {
+          const text = await file.text();
+          if (isHtml) {
+            nodes = parseNotionHtmlToNodes(text);
+          } else {
+            nodes = parseMarkdownToNodes(text);
+          }
         } else {
           toast.error(`Unsupported file type: ${file.name}`);
           continue;
@@ -36,26 +72,42 @@ export function ImportModal({ open, onOpenChange }: { open: boolean, onOpenChang
         }
 
         // Create a new workspace for this import
-        const workspaceName = file.name.replace(/\.[^/.]+$/, "");
+        const baseName = file.name.replace(/\.[^/.]+$/, "");
+        const workspaceName = getUniqueName(baseName);
         const ws = await createWorkspace(workspaceName, '#3b82f6');
         const wsId = ws.id;
         
-        // Save all nodes
-        const savePromises = nodes.map(n => saveNode(wsId, {
-            id: crypto.randomUUID(),
-            type: n.type,
-            position: n.position,
-            data: n.data,
-            style: n.style
-        } as any));
+        // Re-map IDs to prevent collisions and maintain connections
+        const idMap = new Map<string, string>();
+        const remappedNodes = nodes.map(n => {
+          const newId = crypto.randomUUID();
+          idMap.set(n.id, newId);
+          return { 
+            ...n, 
+            id: newId,
+            data: { ...n.data, workspaceId: wsId }
+          };
+        });
 
-        await Promise.all(savePromises);
-        toast.success(`Imported ${file.name} as "${workspaceName}"`);
-        
-        // If it's the only/last file, navigate to it
+        const remappedEdges = edges.map(e => ({
+          ...e,
+          id: crypto.randomUUID(),
+          source: idMap.get(e.source) || e.source,
+          target: idMap.get(e.target) || e.target,
+        }));
+
+        // ALWAYS save to Firebase to ensure dashboard count and persistence are correct
+        const nodePromises = remappedNodes.map(n => saveNode(wsId, n as any));
+        const edgePromises = remappedEdges.map(e => saveEdge(wsId, e as any));
+        await Promise.all([...nodePromises, ...edgePromises]);
+
+        // Use loadCanvas to batch everything if we are navigating there
         if (files.length === 1) {
-            navigate(`/workspace/${wsId}`);
+          useCanvasStore.getState().loadCanvas(remappedNodes, remappedEdges);
+          navigate(`/workspace/${wsId}`);
         }
+
+        toast.success(`Imported ${file.name} as "${workspaceName}"`);
       }
       onOpenChange(false);
     } catch (err) {
@@ -81,7 +133,7 @@ export function ImportModal({ open, onOpenChange }: { open: boolean, onOpenChang
             Import Knowledge
           </DialogTitle>
           <DialogDescription className="font-bold text-foreground/70">
-            Import your Obsidian vaults (.md) or Notion exports (.html). We'll convert headers into canvas nodes.
+            Import your Obsidian vaults (.md), Notion exports (.html), or CtxNote ZIP backups.
           </DialogDescription>
         </DialogHeader>
 
@@ -107,6 +159,10 @@ export function ImportModal({ open, onOpenChange }: { open: boolean, onOpenChang
                     <Globe className="h-10 w-10 text-primary" />
                     <span className="text-[10px] font-bold uppercase">Notion</span>
                 </div>
+                <div className="flex flex-col items-center gap-1">
+                    <FileUp className="h-10 w-10 text-primary" />
+                    <span className="text-[10px] font-bold uppercase">ZIP</span>
+                </div>
               </div>
               <p className="text-center text-sm font-bold text-foreground/60">
                 Drag and drop files here or click below
@@ -116,7 +172,7 @@ export function ImportModal({ open, onOpenChange }: { open: boolean, onOpenChang
                 <input
                   type="file"
                   multiple
-                  accept=".md,.markdown,.html"
+                  accept=".md,.markdown,.html,.zip"
                   className="hidden"
                   onChange={(e) => e.target.files && handleFiles(e.target.files)}
                 />

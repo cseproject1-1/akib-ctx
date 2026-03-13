@@ -87,4 +87,37 @@ app.post('/api/aiStudy', async (c) => {
     }
 });
 
+// 3. scrape
+app.post('/api/scrape', async (c) => {
+    const { title, url, content } = await c.req.json();
+    const GEMINI_API_KEY = c.env.GEMINI_API_KEY;
+
+    if (!GEMINI_API_KEY) {
+        return c.json({ title, summary: content.substring(0, 1000) + '...' });
+    }
+
+    try {
+        const prompt = `You are a researcher. Summarize the following web page content into a concise Markdown note. Focus on key information and takeaways. 
+        Source: ${url}
+        Title: ${title}
+        
+        Content: ${content.substring(0, 4000)}`;
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }]
+            })
+        });
+
+        const data: any = await response.json();
+        const summary = data.candidates?.[0]?.content?.parts?.[0]?.text || content.substring(0, 1000);
+
+        return c.json({ title, summary });
+    } catch (err) {
+        return c.json({ title, summary: content.substring(0, 1000) });
+    }
+});
+
 export default app;

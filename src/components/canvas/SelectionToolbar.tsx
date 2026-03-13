@@ -11,7 +11,8 @@ import {
   Lock,
   Unlock,
   Trash2,
-  Trash
+  Trash,
+  FileDown
 } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { useNodes, useEdges } from '@xyflow/react';
@@ -19,9 +20,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
+import { exportToZip } from '@/lib/exportCanvas';
 
 export function SelectionToolbar() {
   const nodes = useNodes();
+  const edges = useEdges();
   const setNodes = useCanvasStore((s) => s.setNodes);
   const deleteSelected = useCanvasStore((s) => s.deleteSelected);
   const pushSnapshot = useCanvasStore((s) => s.pushSnapshot);
@@ -106,6 +109,17 @@ export function SelectionToolbar() {
     toast.success(`${lock ? 'Locked' : 'Unlocked'} ${selectedNodes.length} nodes`);
   };
 
+  const handleExportSelection = async () => {
+    const selectedEdges = edges.filter(e => {
+      const source = selectedNodes.find(n => n.id === e.source);
+      const target = selectedNodes.find(n => n.id === e.target);
+      return !!source && !!target;
+    });
+    
+    await exportToZip(selectedNodes, selectedEdges, useCanvasStore.getState().workspaceName);
+    toast.success(`Exported ${selectedNodes.length} nodes to ZIP`);
+  };
+
   return (
     <Panel position="top-center" className="mt-20">
       <TooltipProvider delayDuration={300}>
@@ -162,6 +176,12 @@ export function SelectionToolbar() {
 
           <ActionBtn onClick={() => { deleteSelected(); toast.success('Deleted selection'); }} tip="Delete Selection" className="hover:bg-destructive/10 hover:text-destructive">
             <Trash2 className="h-4 w-4" />
+          </ActionBtn>
+
+          <Divider />
+
+          <ActionBtn onClick={handleExportSelection} tip="Export Selection" className="text-primary hover:bg-primary/10">
+            <FileDown className="h-4 w-4" />
           </ActionBtn>
         </motion.div>
       </TooltipProvider>

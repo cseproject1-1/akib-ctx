@@ -10,7 +10,7 @@ import { updateWorkspace } from '@/lib/firebase/workspaces';
 import { invalidateWorkspaceList } from '@/lib/cache/canvasCache';
 import { useNavigate } from 'react-router-dom';
 import { useSettingsStore } from '@/store/settingsStore';
-import { exportToMarkdown, exportToPlainText, exportToJSON } from '@/lib/exportCanvas';
+import { exportToMarkdown, exportToPlainText, exportToJSON, exportToZip, importFromMarkdown, importFromZip } from '@/lib/exportCanvas';
 import { toast } from 'sonner';
 import React, { useState, useEffect } from 'react';
 import { ShareWorkspaceModal } from './ShareWorkspaceModal';
@@ -63,6 +63,7 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
   const setVersionHistoryOpen = useCanvasStore((s) => s.setVersionHistoryOpen);
   const setWorkspaceMeta = useCanvasStore((s) => s.setWorkspaceMeta);
   const loadCanvas = useCanvasStore((s) => s.loadCanvas);
+  const importNodes = useCanvasStore((s) => s.importNodes);
   const pushSnapshot = useCanvasStore((s) => s.pushSnapshot);
   const navigate = useNavigate();
   const [shareOpen, setShareOpen] = useState(false);
@@ -135,7 +136,24 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
     }
   };
 
-  const handleExportMd = () => { exportToMarkdown(nodes, workspaceName); toast.success('Exported to Markdown'); setShowExportMenu(false); };
+  const handleExportMd = (fullFidelity = false) => { exportToMarkdown(nodes, workspaceName, fullFidelity); toast.success(`Exported to Markdown${fullFidelity ? ' (Full Fidelity)' : ''}`); setShowExportMenu(false); };
+  const handleExportZip = async (selectedOnly = false) => {
+    const nodesToExport = selectedOnly ? nodes.filter(n => n.selected) : nodes;
+    const edgesToExport = selectedOnly ? edges.filter(e => {
+      const source = nodes.find(n => n.id === e.source);
+      const target = nodes.find(n => n.id === e.target);
+      return source?.selected && target?.selected;
+    }) : edges;
+
+    if (nodesToExport.length === 0) {
+      toast.error('No nodes selected to export');
+      return;
+    }
+
+    await exportToZip(nodesToExport, edgesToExport, workspaceName);
+    toast.success(`Exported ${selectedOnly ? 'Selection' : 'Workspace'} to ZIP`);
+    setShowExportMenu(false);
+  };
   const handleExportTxt = () => { exportToPlainText(nodes, workspaceName); toast.success('Exported to Plain Text'); setShowExportMenu(false); };
   const handleExportJson = () => { exportToJSON(nodes, workspaceName); toast.success('Exported to JSON'); setShowExportMenu(false); };
 
@@ -225,6 +243,63 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
         }
       };
       reader.readAsText(file);
+    };
+    input.click();
+    setShowExportMenu(false);
+  };
+
+  const handleImportMarkdown = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.md';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      try {
+        const node = await importFromMarkdown(file);
+        if (node) {
+          importNodes([node]);
+          toast.success('Markdown imported successfully!');
+        }
+      } catch (err) {
+        toast.error('Failed to import Markdown');
+      }
+    };
+    input.click();
+    setShowExportMenu(false);
+  };
+
+  const handleImportZip = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.zip';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      try {
+        const { nodes: newNodes, edges: newEdges } = await importFromZip(file);
+        if (newNodes.length > 0) {
+          // Re-map IDs to prevent collisions
+          const idMap = new Map<string, string>();
+          const remappedNodes = newNodes.map(n => {
+            const newId = crypto.randomUUID();
+            idMap.set(n.id, newId);
+            return { ...n, id: newId };
+          });
+          const remappedEdges = newEdges.map(e => ({
+            ...e,
+            id: crypto.randomUUID(),
+            source: idMap.get(e.source) || e.source,
+            target: idMap.get(e.target) || e.target,
+          }));
+
+          loadCanvas([...nodes, ...remappedNodes], [...edges, ...remappedEdges]);
+          toast.success(`Imported ${remappedNodes.length} nodes and ${remappedEdges.length} edges from ZIP!`);
+        }
+      } catch (err) {
+        toast.error('Failed to import ZIP');
+        console.error(err);
+      }
     };
     input.click();
     setShowExportMenu(false);
@@ -425,9 +500,20 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
                   className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 flex flex-col gap-1 rounded-2xl glass-morphism-strong pro-shadow p-2 z-[100] min-w-[200px]"
                 >
                   <div className="px-3 py-2 text-[9px] font-black uppercase tracking-[2px] text-primary/40 mb-1 border-b border-white/5">Export / Import</div>
-                  <button onClick={handleExportMd} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-all hover:bg-white/10 hover:text-foreground group">
+                  <button onClick={() => handleExportMd(false)} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-all hover:bg-white/10 hover:text-foreground group">
                     <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-primary/20"><FileDown className="h-3.5 w-3.5 text-primary" /></div> Markdown
                   </button>
+                  <button onClick={() => handleExportMd(true)} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-all hover:bg-white/10 hover:text-foreground group">
+                    <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-primary/20"><FileText className="h-3.5 w-3.5 text-primary" /></div> MD (Full Fidelity)
+                  </button>
+                  <button onClick={() => handleExportZip(false)} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-all hover:bg-white/10 hover:text-foreground group">
+                    <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-primary/20"><GitBranch className="h-3.5 w-3.5 text-primary" /></div> Export ZIP
+                  </button>
+                  {selectedCount > 0 && (
+                    <button onClick={() => handleExportZip(true)} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider text-primary transition-all hover:bg-primary/10 group animate-pulse">
+                      <div className="p-1.5 rounded-lg bg-primary/20"><FileDown className="h-3.5 w-3.5 text-primary" /></div> Export Selection
+                    </button>
+                  )}
                   <button onClick={handleExportTxt} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-all hover:bg-white/10 hover:text-foreground group">
                     <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-primary/20"><FileText className="h-3.5 w-3.5 text-primary" /></div> Plain Text
                   </button>
@@ -435,6 +521,12 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
                     <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-primary/20"><FileJson className="h-3.5 w-3.5 text-primary" /></div> Export JSON
                   </button>
                   <div className="h-px bg-white/5 my-1" />
+                  <button onClick={handleImportMarkdown} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-all hover:bg-white/10 hover:text-foreground group">
+                    <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-primary/20"><Upload className="h-3.5 w-3.5 text-primary" /></div> Import MD
+                  </button>
+                  <button onClick={handleImportZip} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-all hover:bg-white/10 hover:text-foreground group">
+                    <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-primary/20"><Upload className="h-3.5 w-3.5 text-primary" /></div> Import ZIP
+                  </button>
                   <button onClick={handleImportJson} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-all hover:bg-white/10 hover:text-foreground group">
                     <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-primary/20"><Upload className="h-3.5 w-3.5 text-primary" /></div> Import JSON
                   </button>

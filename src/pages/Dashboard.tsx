@@ -15,7 +15,9 @@ import { ImportModal } from '@/components/dashboard/ImportModal';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useCanvasStore } from '@/store/canvasStore';
 import { usePWAInstall } from '@/hooks/usePWAInstall';
-import { Download } from 'lucide-react';
+import { Download, FileDown } from 'lucide-react';
+import { loadCanvasNodes, loadCanvasEdges } from '@/lib/firebase/canvasData';
+import { exportToZip } from '@/lib/exportCanvas';
 
 const WORKSPACE_ICONS: { icon: LucideIcon; label: string; color: string }[] = [
   { icon: LayoutGrid, label: 'Grid', color: '#3b82f6' },
@@ -69,6 +71,21 @@ const Dashboard = () => {
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [importFiles, setImportFiles] = useState<FileList | null>(null);
+
+  const handleGlobalDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleGlobalDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      setImportFiles(e.dataTransfer.files);
+      setShowImport(true);
+    }
+  };
 
   const toggleFavorite = (id: string) => {
     setFavorites((prev) => {
@@ -262,6 +279,22 @@ const Dashboard = () => {
       setLoading(false);
     }
   };
+  
+  const handleExportWorkspace = async (e: React.MouseEvent, id: string, name: string) => {
+    e.stopPropagation();
+    try {
+      toast.info(`Preparing export for "${name}"...`);
+      const [nodes, edges] = await Promise.all([
+        loadCanvasNodes(id),
+        loadCanvasEdges(id)
+      ]);
+      await exportToZip(nodes, edges, name);
+      toast.success(`Exported "${name}" successfully`);
+    } catch (err) {
+      toast.error('Failed to export workspace');
+      console.error(err);
+    }
+  };
 
   const handleRenameWorkspace = async (id: string, currentName: string) => {
     const newName = prompt('Enter new workspace name:', currentName);
@@ -367,7 +400,11 @@ const Dashboard = () => {
   const allTags = Array.from(new Set(workspaces.filter(ws => !ws.is_deleted).flatMap(ws => ws.tags || []))).sort();
 
   return (
-    <div className="flex min-h-screen bg-background font-sans">
+    <div 
+      className="flex min-h-screen bg-background font-sans"
+      onDragOver={handleGlobalDragOver}
+      onDrop={handleGlobalDrop}
+    >
       {/* Dashboard Sidebar */}
       <motion.aside 
         initial={false}
@@ -520,7 +557,7 @@ const Dashboard = () => {
       </motion.aside>
 
       <HotkeySettingsModal open={isSettingsOpen} onOpenChange={setIsSettingsOpen} />
-      <ImportModal open={showImport} onOpenChange={setShowImport} />
+      <ImportModal open={showImport} onOpenChange={(open) => { setShowImport(open); if (!open) setImportFiles(null); }} initialFiles={importFiles} />
 
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
         <header className="flex h-14 items-center justify-between border-b-2 border-border bg-card px-6">
@@ -722,6 +759,10 @@ const Dashboard = () => {
                         <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleDuplicate(e, ws); }}>
                           <Copy className="mr-2 h-4 w-4" />
                           <span>Duplicate</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => handleExportWorkspace(e, ws.id, ws.name)}>
+                          <FileDown className="mr-2 h-4 w-4 text-primary" />
+                          <span className="font-bold text-primary">Export ZIP</span>
                         </DropdownMenuItem>
                         
                         <DropdownMenuSeparator />

@@ -99,6 +99,7 @@ export const HybridEditor = forwardRef<any, HybridEditorProps>(function HybridEd
         pasteFormat={pasteFormat}
         title={title}
         onProgressChange={onProgressChange}
+        nodeId={nodeId}
       />
     );
   }
@@ -137,6 +138,7 @@ export const HybridEditor = forwardRef<any, HybridEditorProps>(function HybridEd
       pasteFormat={pasteFormat}
       title={title}
       onProgressChange={onProgressChange}
+      nodeId={nodeId}
     />
   );
 });

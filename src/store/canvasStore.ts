@@ -50,6 +50,8 @@ interface CanvasState {
   isAISynthesisOpen: boolean;
   isBlockEditorMode: boolean;
   mobileMode: boolean;
+  backlinks: Record<string, string[]>; // targetId -> sourceIds[]
+
 
   // History
   past: HistorySnapshot[];
@@ -105,6 +107,10 @@ interface CanvasState {
   setOpenWorkspaces: (workspaces: { id: string; name: string; color: string }[]) => void;
   toggleBlockEditorMode: () => void;
   toggleMobileMode: () => void;
+  importNodes: (nodes: Node[]) => void;
+  updateBacklinks: (sourceId: string, targetIds: string[]) => void;
+
+
 
   // History actions
   pushSnapshot: (label?: string) => void;
@@ -151,6 +157,34 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   mobileMode: false,
   past: [],
   future: [],
+  backlinks: {},
+
+
+  importNodes: (newNodes) => {
+    get().pushSnapshot('Import Nodes');
+    set({ nodes: [...get().nodes, ...newNodes] });
+  },
+
+  updateBacklinks: (sourceId, targetIds) => {
+    const newBacklinks = { ...get().backlinks };
+    
+    // Remove old backlinks from this source
+    Object.keys(newBacklinks).forEach(targetId => {
+      newBacklinks[targetId] = newBacklinks[targetId].filter(id => id !== sourceId);
+      if (newBacklinks[targetId].length === 0) delete newBacklinks[targetId];
+    });
+
+    // Add new backlinks
+    targetIds.forEach(targetId => {
+      if (!newBacklinks[targetId]) newBacklinks[targetId] = [];
+      if (!newBacklinks[targetId].includes(sourceId)) {
+        newBacklinks[targetId].push(sourceId);
+      }
+    });
+
+    set({ backlinks: newBacklinks });
+  },
+
 
   setWorkspaceId: (id) => set({ workspaceId: id }),
   setWorkspaceMeta: (name, color) => set({ workspaceName: name, workspaceColor: color }),
@@ -158,7 +192,24 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   setEdges: (edges) => set({ edges }),
 
   onNodesChange: (changes) => {
-    set({ nodes: applyNodeChanges(changes, get().nodes) });
+    const nodes = get().nodes;
+    const removedIds = changes
+      .filter((c) => c.type === 'remove')
+      .map((c) => (c as any).id);
+
+    if (removedIds.length > 0) {
+      const newBacklinks = { ...get().backlinks };
+      removedIds.forEach(id => {
+        delete newBacklinks[id];
+        Object.keys(newBacklinks).forEach(targetId => {
+          newBacklinks[targetId] = newBacklinks[targetId].filter(sourceId => sourceId !== id);
+          if (newBacklinks[targetId].length === 0) delete newBacklinks[targetId];
+        });
+      });
+      set({ backlinks: newBacklinks });
+    }
+
+    set({ nodes: applyNodeChanges(changes, nodes) });
   },
 
   onEdgesChange: (changes) => {
@@ -189,9 +240,17 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   deleteNode: (id) => {
     get().pushSnapshot('Remove Node');
+    const newBacklinks = { ...get().backlinks };
+    delete newBacklinks[id];
+    Object.keys(newBacklinks).forEach(targetId => {
+      newBacklinks[targetId] = newBacklinks[targetId].filter(sourceId => sourceId !== id);
+      if (newBacklinks[targetId].length === 0) delete newBacklinks[targetId];
+    });
+
     set({
       nodes: get().nodes.filter((n) => n.id !== id),
       edges: get().edges.filter((e) => e.source !== id && e.target !== id),
+      backlinks: newBacklinks,
     });
   },
 
@@ -431,9 +490,20 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     if (selected.length === 0) return;
     get().pushSnapshot('Delete Selected');
     const ids = new Set(selected.map((n) => n.id));
+
+    const newBacklinks = { ...get().backlinks };
+    ids.forEach(id => {
+      delete newBacklinks[id];
+      Object.keys(newBacklinks).forEach(targetId => {
+        newBacklinks[targetId] = newBacklinks[targetId].filter(sourceId => sourceId !== id);
+        if (newBacklinks[targetId].length === 0) delete newBacklinks[targetId];
+      });
+    });
+
     set({
       nodes: get().nodes.filter((n) => !ids.has(n.id)),
       edges: get().edges.filter((e) => !ids.has(e.source) && !ids.has(e.target)),
+      backlinks: newBacklinks,
     });
   },
 

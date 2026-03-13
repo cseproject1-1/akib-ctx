@@ -48,6 +48,7 @@ interface NoteEditorProps {
   title?: string;
   onFocusModeChange?: (active: boolean) => void;
   onProgressChange?: (progress: number | undefined) => void;
+  nodeId?: string;
 }
 
 let globalAsyncExtensions: AnyExtension[] | null = null;
@@ -94,7 +95,7 @@ interface NoteEditorImplProps extends NoteEditorProps {
   asyncExtensions: AnyExtension[];
 }
 
-const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(function NoteEditorImpl({ initialContent, onChange, placeholder, editable = true, pasteContent, pasteFormat, title, asyncExtensions, onFocusModeChange, onProgressChange }, ref) {
+const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(function NoteEditorImpl({ nodeId, initialContent, onChange, placeholder, editable = true, pasteContent, pasteFormat, title, asyncExtensions, onFocusModeChange, onProgressChange }, ref) {
   const [showBubble, setShowBubble] = useState(false);
   const [bubblePos, setBubblePos] = useState({ top: 0, left: 0 });
   const [showFindReplace, setShowFindReplace] = useState(false);
@@ -227,6 +228,21 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
       const json = editor.getJSON();
       onChange?.(json);
       onProgressChange?.(calculateProgress(json));
+
+      // Sync backlinks
+      if (nodeId) {
+        const targetIds: string[] = [];
+        const traverse = (node: any) => {
+          if (node.type === 'wiki-link' && node.attrs?.nodeId) {
+            targetIds.push(node.attrs.nodeId);
+          }
+          if (node.content && Array.isArray(node.content)) {
+            node.content.forEach(traverse);
+          }
+        };
+        traverse(json);
+        useCanvasStore.getState().updateBacklinks(nodeId, [...new Set(targetIds)]);
+      }
     },
     onSelectionUpdate: ({ editor }) => {
       const { from, to } = editor.state.selection;

@@ -11,6 +11,7 @@ import ViewWorkspacePage from "./pages/ViewWorkspacePage";
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import AdminPage from "./pages/AdminPage";
+import ImportPage from "./pages/ImportPage";
 import NotFound from "./pages/NotFound";
 import { Loader2 } from "lucide-react";
 import { useSyncManager } from "@/hooks/useSyncManager";
@@ -49,6 +50,7 @@ function AppRoutes() {
         <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/workspace/:workspaceId" element={<ProtectedRoute><WorkspacePage /></ProtectedRoute>} />
         <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
+        <Route path="/import" element={<ProtectedRoute><ImportPage /></ProtectedRoute>} />
         <Route path="/view/:workspaceId" element={<ViewWorkspacePage />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
