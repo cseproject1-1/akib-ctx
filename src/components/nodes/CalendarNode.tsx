@@ -4,13 +4,7 @@ import { BaseNode } from './BaseNode';
 import { CalendarDays, ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
 import { useState, useCallback } from 'react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, isSameMonth, isToday, addMonths, subMonths } from 'date-fns';
-
-interface CalendarEvent {
-  id: string;
-  date: string; // ISO date
-  label: string;
-  color: string;
-}
+import { CalendarNodeData } from '@/types/canvas';
 
 const EVENT_COLORS = [
   'bg-primary text-primary-foreground',
@@ -30,16 +24,16 @@ const EVENT_COLORS = [
 export function CalendarNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
-  const nodeData = data as any;
+  const nodeData = data as unknown as CalendarNodeData;
 
-  const events: CalendarEvent[] = nodeData.events || [];
+  const events = nodeData.events || [];
   const [viewDate, setViewDate] = useState(() => new Date());
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [newLabel, setNewLabel] = useState('');
   const [newColor, setNewColor] = useState(EVENT_COLORS[0]);
 
   const setEvents = useCallback(
-    (evts: CalendarEvent[]) => updateNodeData(id, { events: evts }),
+    (evts: NonNullable<CalendarNodeData['events']>) => updateNodeData(id, { events: evts }),
     [id, updateNodeData]
   );
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Timer, Play, Pause, RotateCcw, X, Coffee, BookOpen, Settings } from 'lucide-react';
+import { Timer, Play, Pause, RotateCcw, X, Coffee, BookOpen, Settings, Target } from 'lucide-react';
+import { useCanvasStore } from '@/store/canvasStore';
 
 type TimerMode = 'work' | 'shortBreak' | 'longBreak';
 
@@ -69,6 +70,9 @@ export function PomodoroTimer() {
   const [secondsLeft, setSecondsLeft] = useState(durations.work * 60);
   const [running, setRunning] = useState(false);
   const [sessions, setSessions] = useState(getStoredSessions);
+  const nodes = useCanvasStore((s) => s.nodes);
+  const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
+  const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const modes: ModeConfig[] = [
@@ -241,6 +245,25 @@ export function PomodoroTimer() {
               >
                 <RotateCcw className="h-4 w-4" />
               </button>
+            </div>
+
+            {/* Node Selector for Focus */}
+            <div className="mt-4 w-full px-4">
+              <div className="flex items-center gap-2 mb-2 p-2 rounded-lg bg-white/5 border border-white/5">
+                <Target className="h-3.5 w-3.5 text-primary" />
+                <select 
+                  value={focusedNodeId || ''} 
+                  onChange={(e) => setFocusedNodeId(e.target.value || null)}
+                  className="bg-transparent text-[11px] font-bold uppercase tracking-wider text-foreground outline-none flex-1 truncate"
+                >
+                  <option value="" className="bg-card">No target selected</option>
+                  {nodes.map(node => (
+                    <option key={node.id} value={node.id} className="bg-card">
+                      {(node.data as any).title || node.type}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 

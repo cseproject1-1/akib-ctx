@@ -5,8 +5,9 @@ import { BaseNode } from './BaseNode';
 import { HybridEditor, type NoteEditorHandle } from '@/components/editor/HybridEditor';
 import { useCanvasStore } from '@/store/canvasStore';
 import type { JSONContent } from '@tiptap/react';
+import { AINoteNodeData } from '@/types/canvas';
 
-function countWords(content: any): { words: number; chars: number } {
+function countWords(content: JSONContent | null | string): { words: number; chars: number } {
   if (!content) return { words: 0, chars: 0 };
   const text = extractText(content);
   const chars = text.length;
@@ -27,14 +28,14 @@ function extractText(content: any): string {
 export const AINoteNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
-  const nodeData = data as { title?: string; content?: JSONContent | null; pasteContent?: string; pasteFormat?: 'markdown' | 'html'; collapsed?: boolean; emoji?: string; dueDate?: string; opacity?: number; createdAt?: string; tags?: string[]; progress?: number };
+  const nodeData = data as unknown as AINoteNodeData;
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const editorRef = useRef<NoteEditorHandle>(null);
   const backlinks = useCanvasStore((s) => s.backlinks[id] || []);
   const allNodes = useCanvasStore((s) => s.nodes);
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
 
-  const handleContentChange = useCallback((json: any, extraData?: any) => {
+  const handleContentChange = useCallback((json: JSONContent, extraData?: Partial<AINoteNodeData>) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       updateNodeData(id, { 

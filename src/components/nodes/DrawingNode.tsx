@@ -1,6 +1,7 @@
 import { memo, useCallback } from 'react';
 import { Handle, Position, type NodeProps, NodeResizer } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
+import { DrawingNodeData } from '@/types/canvas';
 
 interface PathData {
   d: string;
@@ -9,25 +10,17 @@ interface PathData {
   opacity?: number;
 }
 
-interface DrawingData {
-  paths?: PathData[];
-  width?: number;
-  height?: number;
-  originalWidth?: number;
-  originalHeight?: number;
-}
-
 export const DrawingNode = memo(({ id, data, selected }: NodeProps) => {
-  const d = data as DrawingData;
+  const nodeData = data as unknown as DrawingNodeData;
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   
   // Current dimensions (can be resized)
-  const w = d.width || 400;
-  const h = d.height || 300;
+  const w = nodeData.width || 400;
+  const h = nodeData.height || 300;
   
   // Original dimensions (for scaling paths)
-  const origW = d.originalWidth || w;
-  const origH = d.originalHeight || h;
+  const origW = nodeData.originalWidth || w;
+  const origH = nodeData.originalHeight || h;
   
   // Calculate scale factors
   const scaleX = w / origW;
@@ -60,7 +53,7 @@ export const DrawingNode = memo(({ id, data, selected }: NodeProps) => {
         className="rounded-lg" 
         style={{ background: 'transparent' }}
       >
-        {(d.paths || []).map((p, i) => (
+        {((nodeData.paths as unknown as PathData[]) || []).map((p, i) => (
           <path
             key={i}
             d={p.d}

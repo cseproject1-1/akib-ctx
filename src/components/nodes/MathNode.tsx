@@ -5,6 +5,7 @@ import { Sigma, Eye, Code2 } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvasStore';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+import { MathNodeData } from '@/types/canvas';
 
 const EXAMPLES = [
   '\\int_{0}^{\\infty} e^{-x^2} dx = \\frac{\\sqrt{\\pi}}{2}',
@@ -16,7 +17,8 @@ const EXAMPLES = [
 export function MathNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const canvasMode = useCanvasStore((s) => s.canvasMode);
-  const [latex, setLatex] = useState((data as any).latex || '');
+  const nodeData = data as unknown as MathNodeData;
+  const [latex, setLatex] = useState(nodeData.latex || '');
   const [viewMode, setViewMode] = useState<'split' | 'preview'>('split');
   const previewRef = useRef<HTMLDivElement>(null);
   const isView = canvasMode === 'view';
@@ -49,7 +51,7 @@ export function MathNode({ id, data, selected }: NodeProps) {
   }, [renderKatex]);
 
   // Sync local state from data changes (e.g. undo/redo)
-  const dataLatex = (data as { latex?: string })?.latex;
+  const dataLatex = nodeData.latex;
   useEffect(() => {
     if (dataLatex !== undefined && dataLatex !== latex) {
       setLatex(dataLatex);
@@ -66,14 +68,14 @@ export function MathNode({ id, data, selected }: NodeProps) {
     return (
       <BaseNode
         id={id}
-        title={(data as any).title || 'Math'}
+        title={nodeData.title || 'Math'}
         icon={<Sigma className="h-4 w-4" />}
         selected={selected}
         onTitleChange={isView ? undefined : (t) => updateNodeData(id, { title: t })}
-        tags={(data as any)?.tags}
-      locked={(data as any).locked}
-      color={(data as any).color}
-      headerExtra={
+        tags={nodeData.tags}
+        locked={nodeData.locked}
+        color={nodeData.color}
+        headerExtra={
           !isView ? (
             <button
               onClick={(e) => { e.stopPropagation(); setViewMode('split'); }}
@@ -101,13 +103,13 @@ export function MathNode({ id, data, selected }: NodeProps) {
   return (
     <BaseNode
       id={id}
-      title={(data as any).title || 'Math'}
+      title={nodeData.title || 'Math'}
       icon={<Sigma className="h-4 w-4" />}
       selected={selected}
       onTitleChange={(t) => updateNodeData(id, { title: t })}
-      tags={(data as any)?.tags}
-      locked={(data as any).locked}
-      color={(data as any).color}
+      tags={nodeData.tags}
+      locked={nodeData.locked}
+      color={nodeData.color}
       headerExtra={
         <button
           onClick={(e) => { e.stopPropagation(); setViewMode('preview'); }}

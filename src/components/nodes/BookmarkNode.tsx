@@ -3,6 +3,7 @@ import { useCanvasStore } from '@/store/canvasStore';
 import { BaseNode } from './BaseNode';
 import { Bookmark, ExternalLink, Globe, Loader2, RefreshCw } from 'lucide-react';
 import { useState, useCallback } from 'react';
+import { BookmarkNodeData } from '@/types/canvas';
 
 /**
  * @component BookmarkNode
@@ -13,7 +14,7 @@ import { useState, useCallback } from 'react';
 export function BookmarkNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
-  const nodeData = data as any;
+  const nodeData = data as unknown as BookmarkNodeData;
 
   const [inputUrl, setInputUrl] = useState(nodeData.url || '');
   const [loading, setLoading] = useState(false);

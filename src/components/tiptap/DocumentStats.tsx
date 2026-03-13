@@ -8,16 +8,15 @@ export const DocumentStats = ({ editor }: { editor: Editor }) => {
     readingTime: 0,
   });
 
-  const updateStats = () => {
-    const text = editor.getText();
-    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-    const characters = text.length;
-    const readingTime = Math.ceil(words / 200); // Average 200 words per minute
-    setStats({ words, characters, readingTime });
-  };
-
   useEffect(() => {
     if (!editor) return;
+    const updateStats = () => {
+      const text = editor.getText();
+      const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+      const characters = text.length;
+      const readingTime = Math.ceil(words / 200); // Average 200 words per minute
+      setStats({ words, characters, readingTime });
+    };
     updateStats();
     editor.on('update', updateStats);
     return () => {

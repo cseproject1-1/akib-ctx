@@ -147,9 +147,9 @@ export default defineConfig(({ mode }) => ({
       output: {
         manualChunks: {
           'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
-          'vendor-react': ['react', 'react-dom', 'react-router-dom', '@tanstack/react-query'],
+          'vendor-react': ['react', 'react-dom', 'react-router-dom', '@tanstack/react-query', '@tanstack/react-table'],
           'vendor-icons': ['lucide-react'],
-          'vendor-ui': ['framer-motion', 'clsx', 'tailwind-merge'],
+          'vendor-ui': ['framer-motion', 'clsx', 'tailwind-merge', 'cmdk'],
           'vendor-canvas': ['@xyflow/react'],
         }
       }

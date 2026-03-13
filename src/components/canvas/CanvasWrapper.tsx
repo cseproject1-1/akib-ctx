@@ -24,6 +24,7 @@ import { toast } from 'sonner';
 import '@xyflow/react/dist/style.css';
 
 import { useCanvasStore, useNodes, useEdges } from '@/store/canvasStore';
+import { HANDLE_IDS } from '@/lib/constants/canvas';
 import { CanvasContextMenu } from './CanvasContextMenu';
 import { NodeContextMenu } from './NodeContextMenu';
 import { EdgeContextMenu } from './EdgeContextMenu';
@@ -34,6 +35,8 @@ import { PomodoroTimer } from './PomodoroTimer';
 import { PinnedNodesPanel } from './PinnedNodesPanel';
 import { CanvasStats } from './CanvasStats';
 import { SearchPalette } from './SearchPalette';
+import { CommandPalette } from './CommandPalette';
+import { ThemeEditor } from './ThemeEditor';
 import { NodeSelectionToolbar } from './NodeSelectionToolbar';
 import { DrawingLayer } from './DrawingLayer';
 import { SelectionToolbar } from './SelectionToolbar';
@@ -77,9 +80,16 @@ const safeNodeTypes = Object.fromEntries(
   Object.entries(nodeTypes).map(([key, Component]) => [key, memoizeNode(withErrorBoundary(Component as React.ComponentType<Record<string, unknown>>))])
 );
 
+const TYPE_LABELS: Record<string, string> = {
+  video: '🎥 Video', embed: '🔗 Embed', image: '🖼️ Image', pdf: '📄 PDF',
+  codeSnippet: '💻 Code', math: '🧮 Math', table: '📊 Table',
+  checklist: '✅ Checklist', summary: '📋 Summary', flashcard: '🃏 Flashcard',
+  termQuestion: '📖 Term', aiNote: '📝 Note',
+};
+
 /** Compute the best source/target handle IDs based on relative node positions */
 function computeBestHandles(sourceNode: Node | undefined, targetNode: Node | undefined): { sourceHandle: string; targetHandle: string } {
-  if (!sourceNode || !targetNode) return { sourceHandle: 's-right', targetHandle: 't-left' };
+  if (!sourceNode || !targetNode) return { sourceHandle: HANDLE_IDS.SOURCE.RIGHT, targetHandle: HANDLE_IDS.TARGET.LEFT };
 
   const sw = (sourceNode.style?.width as number) || sourceNode.measured?.width || 300;
   const sh = (sourceNode.style?.height as number) || sourceNode.measured?.height || 200;
@@ -99,12 +109,12 @@ function computeBestHandles(sourceNode: Node | undefined, targetNode: Node | und
 
   if (Math.abs(dx) > Math.abs(dy)) {
     // Horizontal dominant
-    sourceHandle = dx > 0 ? 's-right' : 's-left';
-    targetHandle = dx > 0 ? 't-left' : 't-right';
+    sourceHandle = dx > 0 ? HANDLE_IDS.SOURCE.RIGHT : HANDLE_IDS.SOURCE.LEFT;
+    targetHandle = dx > 0 ? HANDLE_IDS.TARGET.LEFT : HANDLE_IDS.TARGET.RIGHT;
   } else {
     // Vertical dominant
-    sourceHandle = dy > 0 ? 's-bottom' : 's-top';
-    targetHandle = dy > 0 ? 't-top' : 't-bottom';
+    sourceHandle = dy > 0 ? HANDLE_IDS.SOURCE.BOTTOM : HANDLE_IDS.SOURCE.TOP;
+    targetHandle = dy > 0 ? HANDLE_IDS.TARGET.TOP : HANDLE_IDS.TARGET.BOTTOM;
   }
 
   return { sourceHandle, targetHandle };
@@ -329,7 +339,7 @@ export function CanvasWrapper() {
           },
         };
       }) as Node[];
-  }, [localNodes, isViewMode, focusMode, focusedNodeId, vLeft, vRight, vTop, vBottom]);
+  }, [localNodes, focusMode, focusedNodeId, vLeft, vRight, vTop, vBottom]);
 
   // Pro-level paste type detection with smart title extraction
   const detectPasteType = (text: string, html?: string): { type: string; data: Record<string, unknown>; style?: { width: number; height: number } } => {
@@ -372,14 +382,6 @@ export function CanvasWrapper() {
       },
       style: { width: 420, height: Math.min(600, 150 + lines.length * 24) }
     };
-  };
-
-  // Friendly label map for toast messages
-  const typeLabels: Record<string, string> = {
-    video: '🎥 Video', embed: '🔗 Embed', image: '🖼️ Image', pdf: '📄 PDF',
-    codeSnippet: '💻 Code', math: '🧮 Math', table: '📊 Table',
-    checklist: '✅ Checklist', summary: '📋 Summary', flashcard: '🃏 Flashcard',
-    termQuestion: '📖 Term', aiNote: '📝 Note',
   };
 
   // Handle clipboard paste (images + text + nodes)
@@ -445,7 +447,7 @@ export function CanvasWrapper() {
               data: detected.data,
               style: detected.style || { width: 380, height: 400 },
             });
-            toast.success(`${typeLabels[detected.type] || detected.type} created from paste`);
+            toast.success(`${TYPE_LABELS[detected.type] || detected.type} created from paste`);
             return;
           }
         }
@@ -476,7 +478,7 @@ export function CanvasWrapper() {
             data: detected.data,
             style: detected.style || { width: 420, height: 500 },
           });
-          toast.success(`${typeLabels[detected.type] || '📝 Note'} created from paste`);
+          toast.success(`${TYPE_LABELS[detected.type] || '📝 Note'} created from paste`);
           return;
         }
       }
@@ -484,7 +486,7 @@ export function CanvasWrapper() {
       // Clipboard API not available or denied — fall back to node paste
       pasteNodes();
     }
-  }, [workspaceId, addNode, pasteNodes, typeLabels]);
+  }, [workspaceId, addNode, pasteNodes]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -563,7 +565,7 @@ export function CanvasWrapper() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, copySelectedNodes, pasteNodes, selectAllNodes, toggleMinimap, setContextMenu, setNodeContextMenu, drawingMode, setDrawingMode, handleClipboardPaste, hotkeys, addNode, openSearch, deleteSelected]);
+  }, [undo, redo, copySelectedNodes, pasteNodes, selectAllNodes, toggleMinimap, setContextMenu, setNodeContextMenu, drawingMode, setDrawingMode, handleClipboardPaste, hotkeys, addNode, deleteSelected]);
 
   const handleContextMenu = useCallback(
     (event: React.MouseEvent) => {
@@ -971,6 +973,8 @@ export function CanvasWrapper() {
       <NodeContextMenu />
       <NodeExpandModal />
       <SearchPalette />
+      <CommandPalette />
+      <ThemeEditor />
       <NodeSelectionToolbar />
       <SelectionToolbar />
       <ActionPalette />

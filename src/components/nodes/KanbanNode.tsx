@@ -3,6 +3,7 @@ import { useCanvasStore } from '@/store/canvasStore';
 import { BaseNode } from './BaseNode';
 import { Columns3, Plus, X, GripVertical } from 'lucide-react';
 import { useCallback, useState } from 'react';
+import { KanbanNodeData } from '@/types/canvas';
 
 interface KanbanCard {
   id: string;
@@ -30,9 +31,9 @@ const DEFAULT_COLUMNS: KanbanColumn[] = [
 export function KanbanNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
-  const nodeData = data as any;
+  const nodeData = data as unknown as KanbanNodeData;
   const title: string = nodeData.title || 'Kanban';
-  const columns: KanbanColumn[] = nodeData.columns || DEFAULT_COLUMNS;
+  const columns: KanbanColumn[] = (nodeData.columns as unknown as KanbanColumn[]) || DEFAULT_COLUMNS;
 
   // Drag state: { cardId, fromColId }
   const [drag, setDrag] = useState<{ cardId: string; fromColId: string } | null>(null);
@@ -40,7 +41,7 @@ export function KanbanNode({ id, data, selected }: NodeProps) {
   const [newCardText, setNewCardText] = useState('');
 
   const setColumns = useCallback(
-    (cols: KanbanColumn[]) => updateNodeData(id, { columns: cols }),
+    (cols: KanbanColumn[]) => updateNodeData(id, { columns: cols as any }),
     [id, updateNodeData]
   );
 

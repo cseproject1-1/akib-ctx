@@ -2,6 +2,7 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { Expand } from 'lucide-react';
 import { useCallback, useMemo } from 'react';
+import { StickyNoteNodeData } from '@/types/canvas';
 
 const STICKY_COLORS: Record<string, { bg: string; text: string }> = {
   yellow: { bg: 'hsl(52, 100%, 50%)', text: 'hsl(0, 0%, 0%)' },
@@ -18,10 +19,11 @@ const FONT_CYCLE: ('S' | 'M' | 'L')[] = ['S', 'M', 'L'];
 export function StickyNoteNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setExpandedNode = useCanvasStore((s) => s.setExpandedNode);
-  const color = (data as any).color || 'yellow';
-  const text = (data as any).text || '';
-  const fontSize: 'S' | 'M' | 'L' = (data as any).fontSize || 'M';
-  const opacity: number = (data as any).opacity ?? 100;
+  const nodeData = data as unknown as StickyNoteNodeData;
+  const color = nodeData.color || 'yellow';
+  const text = nodeData.text || '';
+  const fontSize: 'S' | 'M' | 'L' = nodeData.fontSize || 'M';
+  const opacity: number = nodeData.opacity ?? 100;
   const palette = STICKY_COLORS[color] || STICKY_COLORS.yellow;
 
   const handleTextChange = useCallback(

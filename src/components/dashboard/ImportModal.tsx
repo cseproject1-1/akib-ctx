@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { FileUp, FileText, Globe, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { parseMarkdownToNodes, parseNotionHtmlToNodes } from '@/lib/import/importService';
@@ -8,7 +8,6 @@ import { importFromZip, importFromMarkdown } from '@/lib/exportCanvas';
 import { useCanvasStore } from '@/store/canvasStore';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
 
 export function ImportModal({ open, onOpenChange, initialFiles }: { 
   open: boolean, 
@@ -19,13 +18,7 @@ export function ImportModal({ open, onOpenChange, initialFiles }: {
   const [dragActive, setDragActive] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (open && initialFiles && initialFiles.length > 0) {
-      handleFiles(initialFiles);
-    }
-  }, [open, initialFiles]);
-
-  const handleFiles = async (files: FileList) => {
+  const handleFiles = useCallback(async (files: FileList) => {
     setIsImporting(true);
     try {
       // Get existing workspaces to handle name collisions
@@ -116,7 +109,13 @@ export function ImportModal({ open, onOpenChange, initialFiles }: {
     } finally {
       setIsImporting(false);
     }
-  };
+  }, [navigate, onOpenChange]);
+
+  useEffect(() => {
+    if (open && initialFiles && initialFiles.length > 0) {
+      handleFiles(initialFiles);
+    }
+  }, [open, initialFiles, handleFiles]);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();

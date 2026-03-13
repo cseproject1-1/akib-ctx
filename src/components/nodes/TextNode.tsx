@@ -1,10 +1,11 @@
 import { memo, useState, useCallback, useMemo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
+import { TextNodeData } from '@/types/canvas';
 
 export const TextNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const d = data as { text?: string; fontSize?: number; locked?: boolean; opacity?: number; createdAt?: string };
+  const nodeData = data as unknown as TextNodeData;
   const [editing, setEditing] = useState(false);
 
   const handleBlur = useCallback((e: React.FocusEvent<HTMLTextAreaElement>) => {
@@ -12,7 +13,7 @@ export const TextNode = memo(({ id, data, selected }: NodeProps) => {
     updateNodeData(id, { text: e.target.value });
   }, [id, updateNodeData]);
 
-  const text = d.text || '';
+  const text = nodeData.text || '';
   const wordCount = useMemo(() => {
     if (!text.trim()) return null;
     const words = text.trim().split(/\s+/).length;
@@ -22,8 +23,8 @@ export const TextNode = memo(({ id, data, selected }: NodeProps) => {
   return (
     <div
       className="relative min-w-[100px] min-h-[40px] max-h-[60vh] flex flex-col group p-2 rounded-md hover:bg-accent/10 transition-colors"
-      style={{ opacity: (d.opacity ?? 100) / 100 }}
-      onDoubleClick={() => !d.locked && selected && setEditing(true)}
+      style={{ opacity: (nodeData.opacity ?? 100) / 100 }}
+      onDoubleClick={() => !nodeData.locked && selected && setEditing(true)}
     >
       <div className="absolute top-0 right-0 p-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none text-[9px] text-muted-foreground bg-background/50 rounded-bl">
         Double-click to edit
@@ -31,7 +32,7 @@ export const TextNode = memo(({ id, data, selected }: NodeProps) => {
       {editing ? (
         <textarea
           className="w-full flex-1 bg-transparent text-foreground outline-none resize-none overflow-y-auto custom-scrollbar"
-          style={{ fontSize: d.fontSize || 16 }}
+          style={{ fontSize: nodeData.fontSize || 16 }}
           defaultValue={text}
           onBlur={handleBlur}
           onKeyDown={(e) => e.stopPropagation()}
@@ -41,7 +42,7 @@ export const TextNode = memo(({ id, data, selected }: NodeProps) => {
       ) : (
         <p
           className="whitespace-pre-wrap text-foreground flex-1 overflow-hidden"
-          style={{ fontSize: d.fontSize || 16 }}
+          style={{ fontSize: nodeData.fontSize || 16 }}
         >
           {text || 'Empty Text'}
         </p>

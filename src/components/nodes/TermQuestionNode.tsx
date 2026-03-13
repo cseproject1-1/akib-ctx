@@ -1,8 +1,8 @@
 import { memo, forwardRef } from 'react';
 import { type NodeProps } from '@xyflow/react';
-import { HelpCircle } from 'lucide-react';
 import { BaseNode } from './BaseNode';
 import { useCanvasStore } from '@/store/canvasStore';
+import { TermQuestionNodeData } from '@/types/canvas';
 
 const colorMap: Record<string, { bg: string; num: string; text: string }> = {
   yellow: { bg: '!bg-yellow/90 !border-yellow/70', num: 'text-yellow-foreground/50', text: 'text-yellow-foreground' },
@@ -16,7 +16,7 @@ const colorMap: Record<string, { bg: string; num: string; text: string }> = {
 export const TermQuestionNode = memo(forwardRef<HTMLDivElement, NodeProps>(({ id, data, selected }, ref) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
-  const nodeData = data as { year: string; questions: string[]; color?: string };
+  const nodeData = data as unknown as TermQuestionNodeData;
   const colors = colorMap[nodeData.color || 'yellow'] || colorMap.yellow;
 
   const handleQuestionChange = (index: number, value: string) => {
@@ -49,7 +49,15 @@ export const TermQuestionNode = memo(forwardRef<HTMLDivElement, NodeProps>(({ id
       className={colors.bg}
       bodyClassName="p-4"
       onMenuClick={(e) => setNodeContextMenu({ x: e.clientX, y: e.clientY, nodeId: id })}
-      tags={(data as any)?.tags}
+      tags={nodeData.tags}
+      collapsed={nodeData.collapsed}
+      onToggleCollapse={() => updateNodeData(id, { collapsed: !nodeData.collapsed })}
+      emoji={nodeData.emoji}
+      dueDate={nodeData.dueDate}
+      opacity={nodeData.opacity}
+      createdAt={nodeData.createdAt}
+      color={nodeData.color}
+      nodeType="termQuestion"
     >
       <div className="mb-3">
         <input
@@ -63,7 +71,7 @@ export const TermQuestionNode = memo(forwardRef<HTMLDivElement, NodeProps>(({ id
         />
       </div>
       <ul className="space-y-2">
-        {(nodeData.questions || ['']).map((q: string, i: number) => (
+        {(nodeData.questions || ['']).map((q, i) => (
           <li key={i} className="flex items-start gap-2">
             <span className={`mt-1 text-xs font-mono ${colors.num}`}>{i + 1}.</span>
             <input

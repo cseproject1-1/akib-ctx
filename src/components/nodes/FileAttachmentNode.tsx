@@ -1,9 +1,11 @@
 import { type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
+import { toast } from 'sonner';
 import { BaseNode } from './BaseNode';
 import { Paperclip, Upload, X, FileText, FileImage, FileArchive, FileCode, FileAudio, FileVideo, Download, Loader2 } from 'lucide-react';
 import { useState, useRef, useCallback } from 'react';
 import { uploadCanvasFile } from '@/lib/r2/storage';
+import { FileAttachmentNodeData } from '@/types/canvas';
 
 interface AttachedFile {
   id: string;
@@ -41,34 +43,34 @@ function formatBytes(bytes: number): string {
 export function FileAttachmentNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
-  const nodeData = data as any;
+  const nodeData = data as unknown as FileAttachmentNodeData;
 
-  const files: AttachedFile[] = nodeData.files || [];
+  const files = nodeData.files || [];
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const setFiles = useCallback(
-    (f: AttachedFile[]) => updateNodeData(id, { files: f }),
+    (f: AttachedFile[]) => updateNodeData(id, { files: f as any }),
     [id, updateNodeData]
   );
 
   const processFiles = async (fileList: FileList) => {
     setUploading(true);
-    const workspaceId = id.split('/')[0]; // Assuming ID might be composite or we can get it from context
-    // Actually, it's better to use the active workspace ID from the store or props if available.
-    // For now, let's try to infer if not passed. NodeProps might not have it directly.
-    // Let's check canvasStore for the current workspaceId.
-    
     const currentWorkspaceId = useCanvasStore.getState().workspaceId;
 
     try {
       const newFiles: AttachedFile[] = [];
       for (const f of Array.from(fileList)) {
-        if (!currentWorkspaceId) throw new Error('No active workspace');
+        if (!currentWorkspaceId) {
+          toast.error('No active workspace found. Please select a workspace first.');
+          break;
+        }
         
         // Upload to R2
+        toast.loading(`Uploading ${f.name}...`, { id: `upload-${f.name}` });
         const { url, path } = await uploadCanvasFile(currentWorkspaceId, f);
+        toast.success(`Uploaded ${f.name}`, { id: `upload-${f.name}` });
         
         newFiles.push({ 
           id: crypto.randomUUID(), 
@@ -79,9 +81,10 @@ export function FileAttachmentNode({ id, data, selected }: NodeProps) {
           path // Store the path for deletion
         });
       }
-      setFiles([...files, ...newFiles]);
+      setFiles([...files as unknown as AttachedFile[], ...newFiles]);
     } catch (error) {
       console.error('Failed to upload files:', error);
+      toast.error('Failed to upload files. Please try again.');
     } finally {
       setUploading(false);
     }
@@ -95,9 +98,10 @@ export function FileAttachmentNode({ id, data, selected }: NodeProps) {
   };
 
   const removeFile = (fileId: string) => {
-    const f = files.find((f) => f.id === fileId);
+    const filesTyped = files as unknown as AttachedFile[];
+    const f = filesTyped.find((f) => f.id === fileId);
     if (f?.url.startsWith('blob:')) URL.revokeObjectURL(f.url);
-    setFiles(files.filter((f) => f.id !== fileId));
+    setFiles(filesTyped.filter((f) => f.id !== fileId));
   };
 
   return (
@@ -154,7 +158,7 @@ export function FileAttachmentNode({ id, data, selected }: NodeProps) {
         {/* File list */}
         {files.length > 0 && (
           <div className="flex flex-col gap-1">
-            {files.map((f) => (
+            {(files as unknown as AttachedFile[]).map((f) => (
               <div key={f.id} className="group/file flex items-center gap-2 rounded-lg border border-border bg-card px-2 py-1.5 transition-all hover:border-primary/40 hover:shadow-sm">
                 <FileIcon type={f.type} className="h-4 w-4 flex-shrink-0 text-primary" />
                 <div className="flex-1 min-w-0">
@@ -165,9 +169,11 @@ export function FileAttachmentNode({ id, data, selected }: NodeProps) {
                   <a
                     href={f.url}
                     download={f.name}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
                     className="rounded p-0.5 text-muted-foreground hover:text-primary"
-                    title="Download"
+                    title="Download/View"
                   >
                     <Download className="h-3.5 w-3.5" />
                   </a>

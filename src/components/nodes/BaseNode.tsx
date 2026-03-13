@@ -6,6 +6,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { useCanvasStore } from '@/store/canvasStore';
 import { motion, AnimatePresence } from 'framer-motion';
+import { HANDLE_IDS } from '@/lib/constants/canvas';
 
 const NODE_COLORS: Record<string, { border: string; bg: string }> = {
   blue:    { border: 'border-l-blue-500',   bg: 'bg-blue-500/5' },
@@ -118,7 +119,9 @@ export function BaseNode({
   const setExpandedNode = useCanvasStore((s) => s.setExpandedNode);
   const deleteNode = useCanvasStore((s) => s.deleteNode);
   const canvasMode = useCanvasStore((s) => s.canvasMode);
+  const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
   const edgeCount = id ? edges.filter((e) => e.source === id || e.target === id).length : 0;
+  const isFocused = id && focusedNodeId === id;
 
   const resolvedType = nodeType || detectedType;
   const accent = resolvedType ? NODE_TYPE_ACCENTS[resolvedType] : undefined;
@@ -137,6 +140,7 @@ export function BaseNode({
         selected
           ? 'border-primary shadow-[6px_6px_0px_rgba(0,0,0,0.2)] scale-[1.01] z-50'
           : 'shadow-[4px_4px_0px_rgba(0,0,0,0.1)] hover:scale-[1.005] hover:border-primary/50 hover:shadow-[6px_6px_0px_rgba(0,0,0,0.15)]',
+        isFocused && 'ring-4 ring-primary ring-opacity-30 shadow-[0_0_20px_rgba(var(--primary-rgb),0.3)] animate-pulse border-primary',
         userColor ? `${userColor.bg}` : accent && !selected ? `border-l-4 ${accent.border}` : '',
         className
       )}
@@ -278,15 +282,15 @@ export function BaseNode({
       {handles && (
         <>
           {/* Source handles (outgoing) */}
-          <Handle type="source" position={Position.Top} id="s-top" className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ left: '50%', transform: 'translateX(-50%)' }} />
-          <Handle type="source" position={Position.Bottom} id="s-bottom" className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ left: '50%', transform: 'translateX(-50%)' }} />
-          <Handle type="source" position={Position.Left} id="s-left" className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ top: '50%', transform: 'translateY(-50%)' }} />
-          <Handle type="source" position={Position.Right} id="s-right" className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ top: '50%', transform: 'translateY(-50%)' }} />
+          <Handle type="source" position={Position.Top} id={HANDLE_IDS.SOURCE.TOP} className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ left: '50%', transform: 'translateX(-50%)' }} />
+          <Handle type="source" position={Position.Bottom} id={HANDLE_IDS.SOURCE.BOTTOM} className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ left: '50%', transform: 'translateX(-50%)' }} />
+          <Handle type="source" position={Position.Left} id={HANDLE_IDS.SOURCE.LEFT} className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ top: '50%', transform: 'translateY(-50%)' }} />
+          <Handle type="source" position={Position.Right} id={HANDLE_IDS.SOURCE.RIGHT} className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ top: '50%', transform: 'translateY(-50%)' }} />
           {/* Target handles (incoming) */}
-          <Handle type="target" position={Position.Top} id="t-top" className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ left: '50%', transform: 'translateX(-50%)' }} />
-          <Handle type="target" position={Position.Bottom} id="t-bottom" className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ left: '50%', transform: 'translateX(-50%)' }} />
-          <Handle type="target" position={Position.Left} id="t-left" className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ top: '50%', transform: 'translateY(-50%)' }} />
-          <Handle type="target" position={Position.Right} id="t-right" className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ top: '50%', transform: 'translateY(-50%)' }} />
+          <Handle type="target" position={Position.Top} id={HANDLE_IDS.TARGET.TOP} className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ left: '50%', transform: 'translateX(-50%)' }} />
+          <Handle type="target" position={Position.Bottom} id={HANDLE_IDS.TARGET.BOTTOM} className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ left: '50%', transform: 'translateX(-50%)' }} />
+          <Handle type="target" position={Position.Left} id={HANDLE_IDS.TARGET.LEFT} className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ top: '50%', transform: 'translateY(-50%)' }} />
+          <Handle type="target" position={Position.Right} id={HANDLE_IDS.TARGET.RIGHT} className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ top: '50%', transform: 'translateY(-50%)' }} />
         </>
       )}
     </Wrapper>

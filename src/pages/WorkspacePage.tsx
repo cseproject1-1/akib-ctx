@@ -51,14 +51,22 @@ const WorkspacePage = () => {
             // Background update when server data arrives
             serverNodeIds.current = new Set(freshNodes.map(n => n.id));
             const { nodes: currentNodes } = useCanvasStore.getState();
-            if (JSON.stringify(currentNodes) !== JSON.stringify(freshNodes)) {
+            const nodesChanged = currentNodes.length !== freshNodes.length || 
+                               currentNodes.some((cn, i) => cn.id !== freshNodes[i]?.id || 
+                               cn.position.x !== freshNodes[i]?.position.x || 
+                               cn.position.y !== freshNodes[i]?.position.y);
+            
+            if (nodesChanged) {
               loadCanvas(freshNodes, useCanvasStore.getState().edges);
             }
           }),
           cachedLoadCanvasEdges(workspaceId, (freshEdges) => {
             serverEdgeIds.current = new Set(freshEdges.map(e => e.id));
             const { edges: currentEdges } = useCanvasStore.getState();
-            if (JSON.stringify(currentEdges) !== JSON.stringify(freshEdges)) {
+            const edgesChanged = currentEdges.length !== freshEdges.length || 
+                               currentEdges.some((ce, i) => ce.id !== freshEdges[i]?.id);
+            
+            if (edgesChanged) {
               loadCanvas(useCanvasStore.getState().nodes, freshEdges);
             }
           }),
@@ -129,7 +137,11 @@ const WorkspacePage = () => {
       if (!loadComplete.current) return;
       if (state.workspaceId !== workspaceId) return;
       // Also ensure we aren't comparing nodes from a previous workspace that haven't been cleared yet
-      if (prev.workspaceId !== workspaceId) return;
+      // This is critical to avoid cross-workspace data contamination or saving old state into new workspace
+      if (prev.workspaceId !== workspaceId) {
+        console.warn('[sync] Workspace ID mismatch in prev state, skipping this update');
+        return;
+      }
 
       // Save new nodes
       const newNodes = state.nodes.filter(n => !prev.nodes.find(pn => pn.id === n.id));
@@ -190,7 +202,9 @@ const WorkspacePage = () => {
           }, 500));
         }
 
-        if (JSON.stringify(prev_n.data) !== JSON.stringify(n.data)) {
+        // Simple structural check for data
+        const dataChanged = n.data !== prev_n.data;
+        if (dataChanged) {
           const existing = dataTimers.get(n.id);
           if (existing) clearTimeout(existing);
           dataTimers.set(n.id, setTimeout(() => {
@@ -219,7 +233,8 @@ const WorkspacePage = () => {
       state.edges.forEach(e => {
         const prev_e = prev.edges.find(pe => pe.id === e.id);
         if (!prev_e) return;
-        if (JSON.stringify(prev_e.data) !== JSON.stringify(e.data) || prev_e.label !== e.label) {
+        const edgeChanged = e.data !== prev_e.data || e.label !== prev_e.label;
+        if (edgeChanged) {
           const existing = edgeTimers.get(e.id);
           if (existing) clearTimeout(existing);
           edgeTimers.set(e.id, setTimeout(() => {
@@ -259,10 +274,11 @@ const WorkspacePage = () => {
 
         const promises: Promise<void>[] = [];
 
-        // Save new/changed nodes
+        // Resync logic should use referential checks or shallow props
         nodes.forEach(n => {
           const prevNode = prev.nodes.find(pn => pn.id === n.id);
-          if (!prevNode || JSON.stringify(prevNode) !== JSON.stringify(n)) {
+          // Only save if missing or data/position/style changed (shallow property check is usually enough here)
+          if (!prevNode || n.data !== prevNode.data || n.position !== prevNode.position || n.style !== prevNode.style) {
             promises.push(saveNode(workspaceId, n));
           }
         });
@@ -273,7 +289,7 @@ const WorkspacePage = () => {
         // Save new/changed edges
         edges.forEach(e => {
           const prevEdge = prev.edges.find(pe => pe.id === e.id);
-          if (!prevEdge || JSON.stringify(prevEdge) !== JSON.stringify(e)) {
+          if (!prevEdge || e.data !== prevEdge.data || e.label !== prevEdge.label) {
             promises.push(saveEdge(workspaceId, e));
           }
         });

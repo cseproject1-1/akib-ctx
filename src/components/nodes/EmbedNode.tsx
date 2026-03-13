@@ -3,6 +3,7 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { Globe, ExternalLink, X, Expand, Loader2 } from 'lucide-react';
 import { WORKER_URL } from '@/lib/firebase/client';
+import { EmbedNodeData } from '@/types/canvas';
 
 interface UrlMetadata {
   title: string | null;
@@ -84,9 +85,9 @@ export const EmbedNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setExpandedNode = useCanvasStore((s) => s.setExpandedNode);
   const canvasMode = useCanvasStore((s) => s.canvasMode);
-  const d = data as { url?: string; title?: string; locked?: boolean };
-  const [inputUrl, setInputUrl] = useState(d.url || '');
-  const [editing, setEditing] = useState(!d.url);
+  const nodeData = data as unknown as EmbedNodeData;
+  const [inputUrl, setInputUrl] = useState(nodeData.url || '');
+  const [editing, setEditing] = useState(!nodeData.url);
   const [iframeFailed, setIframeFailed] = useState(false);
   const [metadata, setMetadata] = useState<UrlMetadata | null>(null);
   const [loadingMeta, setLoadingMeta] = useState(false);
@@ -97,12 +98,12 @@ export const EmbedNode = memo(({ id, data, selected }: NodeProps) => {
     let url = inputUrl.trim();
     if (!url) return;
     if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-    updateNodeData(id, { url, title: d.title || url });
+    updateNodeData(id, { url, title: nodeData.title || url });
     setEditing(false);
     setIframeFailed(false);
     setMetadata(null);
     iframeLoadedRef.current = false;
-  }, [id, inputUrl, d.title, updateNodeData]);
+  }, [id, inputUrl, nodeData.title, updateNodeData]);
 
   const handleClear = useCallback(() => {
     updateNodeData(id, { url: '', title: '' });
@@ -121,9 +122,9 @@ export const EmbedNode = memo(({ id, data, selected }: NodeProps) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url })
       });
-      const result = await response.json() as any;
+      const result = await response.json() as UrlMetadata;
       if (result) {
-        setMetadata(result as UrlMetadata);
+        setMetadata(result);
       } else {
         // Minimal fallback
         try {
@@ -155,7 +156,7 @@ export const EmbedNode = memo(({ id, data, selected }: NodeProps) => {
 
   // Timer to detect iframe blocking for non-known-embeddable URLs
   useEffect(() => {
-    if (!d.url || editing || isKnownEmbeddable(d.url)) return;
+    if (!nodeData.url || editing || isKnownEmbeddable(nodeData.url)) return;
 
     iframeLoadedRef.current = false;
     setIframeFailed(false);
@@ -163,14 +164,14 @@ export const EmbedNode = memo(({ id, data, selected }: NodeProps) => {
     iframeTimerRef.current = setTimeout(() => {
       if (!iframeLoadedRef.current) {
         setIframeFailed(true);
-        fetchMetadata(d.url!);
+        fetchMetadata(nodeData.url!);
       }
     }, 4000);
 
     return () => {
       if (iframeTimerRef.current) clearTimeout(iframeTimerRef.current);
     };
-  }, [d.url, editing, fetchMetadata]);
+  }, [nodeData.url, editing, fetchMetadata]);
 
   const handleIframeLoad = useCallback(() => {
     iframeLoadedRef.current = true;
@@ -181,11 +182,11 @@ export const EmbedNode = memo(({ id, data, selected }: NodeProps) => {
   const handleIframeError = useCallback(() => {
     if (iframeTimerRef.current) clearTimeout(iframeTimerRef.current);
     setIframeFailed(true);
-    if (d.url) fetchMetadata(d.url);
-  }, [d.url, fetchMetadata]);
+    if (nodeData.url) fetchMetadata(nodeData.url);
+  }, [nodeData.url, fetchMetadata]);
 
-  const embedUrl = d.url ? getEmbedUrl(d.url) : null;
-  const finalIframeSrc = embedUrl || d.url;
+  const embedUrl = nodeData.url ? getEmbedUrl(nodeData.url) : null;
+  const finalIframeSrc = (embedUrl || nodeData.url) ?? '';
 
   return (
     <div
@@ -196,9 +197,9 @@ export const EmbedNode = memo(({ id, data, selected }: NodeProps) => {
       <div className="flex items-center gap-2 border-b-2 border-border px-3 py-2 cursor-grab active:cursor-grabbing">
         <Globe className="h-4 w-4 text-cyan" />
         <span className="flex-1 truncate text-xs font-bold uppercase tracking-wider text-foreground">
-          {d.url ? (d.title || 'Embed') : 'Embed URL'}
+          {nodeData.url ? (nodeData.title || 'Embed') : 'Embed URL'}
         </span>
-        {d.url && (
+        {nodeData.url && (
           <div className="flex items-center gap-1">
             <button
               onClick={(e) => { e.stopPropagation(); setExpandedNode(id); }}
@@ -208,7 +209,7 @@ export const EmbedNode = memo(({ id, data, selected }: NodeProps) => {
               <Expand className="h-3.5 w-3.5" />
             </button>
             <a
-              href={d.url}
+              href={nodeData.url}
               target="_blank"
               rel="noopener noreferrer"
               className="rounded p-0.5 text-muted-foreground transition-colors hover:text-primary"
@@ -216,7 +217,7 @@ export const EmbedNode = memo(({ id, data, selected }: NodeProps) => {
             >
               <ExternalLink className="h-3.5 w-3.5" />
             </a>
-            {!d.locked && canvasMode === 'edit' && (
+            {!nodeData.locked && canvasMode === 'edit' && (
               <button
                 onClick={handleClear}
                 className="rounded p-0.5 text-muted-foreground transition-colors hover:text-destructive"
@@ -230,7 +231,7 @@ export const EmbedNode = memo(({ id, data, selected }: NodeProps) => {
 
       {/* Content */}
       <div className="flex-1" onClick={(e) => e.stopPropagation()}>
-        {editing || !d.url ? (
+        {editing || !nodeData.url ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 p-4">
             <Globe className="h-8 w-8 text-muted-foreground" />
             <input
@@ -280,7 +281,7 @@ export const EmbedNode = memo(({ id, data, selected }: NodeProps) => {
                   <p className="text-xs text-muted-foreground line-clamp-3">{metadata.description}</p>
                 )}
                 <a
-                  href={d.url}
+                  href={nodeData.url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="mt-1 flex items-center justify-center gap-2 rounded-lg border-2 border-border bg-background px-4 py-2 text-xs font-bold uppercase tracking-wider text-foreground transition-colors hover:border-primary hover:text-primary"
@@ -297,7 +298,7 @@ export const EmbedNode = memo(({ id, data, selected }: NodeProps) => {
                 <Globe className="h-8 w-8 text-muted-foreground" />
                 <p className="text-xs text-muted-foreground">Could not embed this site</p>
                 <a
-                  href={d.url}
+                  href={nodeData.url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 rounded-lg border-2 border-border bg-background px-4 py-2 text-xs font-bold uppercase tracking-wider text-foreground transition-colors hover:border-primary hover:text-primary"
@@ -311,7 +312,7 @@ export const EmbedNode = memo(({ id, data, selected }: NodeProps) => {
         ) : (
           <iframe
             src={finalIframeSrc}
-            title={d.title || 'Embedded content'}
+            title={nodeData.title || 'Embedded content'}
             className="h-full w-full border-0"
             sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
             loading="lazy"

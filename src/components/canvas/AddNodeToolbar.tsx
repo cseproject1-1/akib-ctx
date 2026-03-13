@@ -1,5 +1,5 @@
 import { Panel } from '@xyflow/react';
-import { NotebookPen, StickyNote, HelpCircle, BookOpen, FileUp, ImagePlus, Square, Sparkles, Plus, GraduationCap, MessageSquarePlus, ListTodo, Type, Circle, Diamond, Triangle, Pen, Globe, Sigma, Video, Table2, Braces, Cable, Columns3, Bookmark, CalendarDays, Paperclip, Sheet } from 'lucide-react';
+import { NotebookPen, StickyNote, HelpCircle, BookOpen, FileUp, ImagePlus, Square, Sparkles, Plus, GraduationCap, MessageSquarePlus, ListTodo, Type, Circle, Diamond, Triangle, Pen, Globe, Sigma, Video, Table2, Braces, Cable, Columns3, Bookmark, CalendarDays, Paperclip, Sheet, Clock, LayoutDashboard } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -15,6 +15,8 @@ const categories: { label: string; items: { type: NodeType; label: string; icon:
       { type: 'summary', label: 'Summary', icon: StickyNote, color: 'text-yellow' },
       { type: 'lectureNotes', label: 'Lecture', icon: BookOpen, color: 'text-cyan' },
       { type: 'flashcard', label: 'Flashcard', icon: GraduationCap, color: 'text-pink' },
+      { type: 'termQuestion', label: 'Q&A', icon: HelpCircle, color: 'text-orange-500' },
+      { type: 'dailyLog', label: 'Daily Log', icon: Clock, color: 'text-indigo-400' },
     ]
   },
   {
@@ -24,6 +26,7 @@ const categories: { label: string; items: { type: NodeType; label: string; icon:
       { type: 'stickyNote', label: 'Sticky', icon: MessageSquarePlus, color: 'text-yellow' },
       { type: 'checklist', label: 'Checklist', icon: ListTodo, color: 'text-green' },
       { type: 'table', label: 'Table', icon: Table2, color: 'text-cyan' },
+      { type: 'calendar', label: 'Calendar', icon: CalendarDays, color: 'text-emerald-500' },
     ]
   },
   {
@@ -33,6 +36,8 @@ const categories: { label: string; items: { type: NodeType; label: string; icon:
       { type: 'pdf', label: 'PDF', icon: FileUp, color: 'text-red' },
       { type: 'video', label: 'Video', icon: Video, color: 'text-red' },
       { type: 'bookmark', label: 'Link', icon: Bookmark, color: 'text-blue-500' },
+      { type: 'embed', label: 'Embed', icon: Globe, color: 'text-slate-400' },
+      { type: 'fileAttachment', label: 'Attach', icon: Paperclip, color: 'text-slate-500' },
     ]
   },
   {
@@ -42,15 +47,16 @@ const categories: { label: string; items: { type: NodeType; label: string; icon:
       { type: 'codeSnippet', label: 'Code', icon: Braces, color: 'text-green' },
       { type: 'kanban', label: 'Kanban', icon: Columns3, color: 'text-primary' },
       { type: 'spreadsheet', label: 'Sheets', icon: Sheet, color: 'text-green-600' },
+      { type: 'databaseNode', label: 'Database', icon: LayoutDashboard, color: 'text-blue-400' },
     ]
   }
 ];
 
 const shapeItems = [
-  { shape: 'rect', label: 'Rectangle', icon: Square },
-  { shape: 'circle', label: 'Circle', icon: Circle },
-  { shape: 'diamond', label: 'Diamond', icon: Diamond },
-  { shape: 'triangle', label: 'Triangle', icon: Triangle },
+  { shape: 'rect' as const, label: 'Rectangle', icon: Square },
+  { shape: 'circle' as const, label: 'Circle', icon: Circle },
+  { shape: 'diamond' as const, label: 'Diamond', icon: Diamond },
+  { shape: 'triangle' as const, label: 'Triangle', icon: Triangle },
 ];
 
 const defaultDataForType = (type: NodeType): Record<string, unknown> => {
@@ -82,6 +88,8 @@ const defaultDataForType = (type: NodeType): Record<string, unknown> => {
     case 'calendar': return { title: 'Calendar', events: [] };
     case 'fileAttachment': return { title: 'File Attachment', files: [] };
     case 'spreadsheet': return { title: 'Spreadsheet', grid: Array.from({ length: 4 }, () => Array.from({ length: 4 }, () => ({ value: '' }))) };
+    case 'databaseNode': return { title: 'Database', columns: [{ id: 'name', name: 'Name', type: 'text' }, { id: 'status', name: 'Status', type: 'text' }], rows: [{ id: '1', name: 'Example Item', status: 'In Progress' }] };
+    case 'dailyLog': return { title: 'Daily Log', entries: [] };
   }
 };
 
@@ -110,6 +118,8 @@ const defaultSizeForType = (type: NodeType): { width: number; height?: number | 
     case 'calendar': return { width: 300, height: 'auto' };
     case 'fileAttachment': return { width: 280, height: 'auto' };
     case 'spreadsheet': return { width: 400, height: 'auto' };
+    case 'databaseNode': return { width: 600, height: 'auto' };
+    case 'dailyLog': return { width: 300, height: 'auto' };
   }
 };
 

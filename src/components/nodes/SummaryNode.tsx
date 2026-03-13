@@ -2,6 +2,7 @@ import { type NodeProps } from '@xyflow/react';
 import { BaseNode } from './BaseNode';
 import { StickyNote } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvasStore';
+import { SummaryNodeData } from '@/types/canvas';
 
 const colorMap: Record<string, { bg: string; border: string; bullet: string }> = {
   yellow: { bg: 'bg-yellow/10', border: 'border-yellow/30', bullet: 'bg-yellow' },
@@ -16,8 +17,8 @@ const colorMap: Record<string, { bg: string; border: string; bullet: string }> =
 export function SummaryNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
-  const nodeData = data as any;
-  const color = colorMap[nodeData.color || 'yellow'] || colorMap.yellow;
+  const nodeData = data as unknown as SummaryNodeData;
+  const colorNode = colorMap[nodeData.color || 'yellow'] || colorMap.yellow;
 
   const handleBulletChange = (index: number, value: string) => {
     const bullets = [...(nodeData.bullets || [''])];
@@ -54,14 +55,21 @@ export function SummaryNode({ id, data, selected }: NodeProps) {
       selected={selected}
       onTitleChange={(v) => updateNodeData(id, { title: v })}
       onMenuClick={(e) => setNodeContextMenu({ x: e.clientX, y: e.clientY, nodeId: id })}
-      tags={(data as any)?.tags}
-      color={(data as any).color}
-      className={color.bg}
+      tags={nodeData.tags}
+      collapsed={nodeData.collapsed}
+      onToggleCollapse={() => updateNodeData(id, { collapsed: !nodeData.collapsed })}
+      emoji={nodeData.emoji}
+      dueDate={nodeData.dueDate}
+      opacity={nodeData.opacity}
+      createdAt={nodeData.createdAt}
+      color={nodeData.color}
+      nodeType="summary"
+      className={colorNode.bg}
     >
       <div className="summary-bullets space-y-1.5 p-3">
-        {(nodeData.bullets || ['']).map((bullet: string, i: number) => (
+        {(nodeData.bullets || ['']).map((bullet, i) => (
           <div key={i} className="flex items-start gap-2">
-            <span className={`mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full ${color.bullet}`} />
+            <span className={`mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full ${colorNode.bullet}`} />
             <input
               className="flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
               value={bullet}
@@ -69,6 +77,7 @@ export function SummaryNode({ id, data, selected }: NodeProps) {
               onKeyDown={(e) => handleBulletKeyDown(i, e)}
               onClick={(e) => e.stopPropagation()}
               readOnly={!selected}
+              placeholder="Type a point…"
             />
           </div>
         ))}

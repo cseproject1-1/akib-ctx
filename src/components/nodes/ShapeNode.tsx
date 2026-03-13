@@ -1,6 +1,7 @@
 import { memo, useState, useCallback } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
+import { ShapeNodeData } from '@/types/canvas';
 
 const shapeColors: Record<string, string> = {
   default: 'hsl(0 0% 25%)',
@@ -48,7 +49,7 @@ function ShapeSVG({ shapeType, color, w, h }: { shapeType: string; color: string
 
 export const ShapeNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const d = data as { shapeType?: string; color?: string; label?: string; locked?: boolean };
+  const nodeData = data as unknown as ShapeNodeData;
   const [editing, setEditing] = useState(false);
   const w = 160;
   const h = 120;
@@ -60,12 +61,12 @@ export const ShapeNode = memo(({ id, data, selected }: NodeProps) => {
 
   return (
     <div className="relative" style={{ width: w, height: h }}>
-      <ShapeSVG shapeType={d.shapeType || 'rect'} color={d.color || 'default'} w={w} h={h} />
+      <ShapeSVG shapeType={nodeData.shapeType || 'rect'} color={nodeData.color || 'default'} w={w} h={h} />
       <div className="absolute inset-0 flex items-center justify-center">
         {editing ? (
           <input
             className="bg-transparent text-center text-sm font-bold text-foreground outline-none w-[80%]"
-            defaultValue={d.label || ''}
+            defaultValue={nodeData.label || ''}
             onBlur={handleLabelChange}
             onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
             autoFocus
@@ -73,9 +74,9 @@ export const ShapeNode = memo(({ id, data, selected }: NodeProps) => {
         ) : (
           <span
             className="text-sm font-bold text-foreground cursor-default"
-            onDoubleClick={() => !d.locked && setEditing(true)}
+            onDoubleClick={() => !nodeData.locked && setEditing(true)}
           >
-            {d.label || ''}
+            {nodeData.label || ''}
           </span>
         )}
       </div>

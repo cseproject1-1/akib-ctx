@@ -1,6 +1,7 @@
 import { type NodeProps } from '@xyflow/react';
-import { Square, ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react';
+import { ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvasStore';
+import { GroupNodeData } from '@/types/canvas';
 
 const groupColors: Record<string, { border: string; label: string; bg: string }> = {
   default: { border: 'border-border', label: 'text-muted-foreground', bg: 'bg-muted/5' },
@@ -17,7 +18,7 @@ export function GroupNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const toggleGroupCollapse = useCanvasStore((s) => s.toggleGroupCollapse);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
-  const nodeData = data as any;
+  const nodeData = data as unknown as GroupNodeData;
   const isCollapsed = nodeData.collapsed;
   const colorKey = nodeData.color || 'default';
   const colors = groupColors[colorKey] || groupColors.default;
@@ -29,7 +30,7 @@ export function GroupNode({ id, data, selected }: NodeProps) {
       } ${colors.border} ${colors.bg} ${
         selected ? 'ring-2 ring-primary ring-offset-2' : ''
       }`}
-      style={{ minWidth: isCollapsed ? 200 : 200, minHeight: isCollapsed ? 48 : 150 }}
+      style={{ minWidth: 200, minHeight: isCollapsed ? 48 : 150 }}
       onContextMenu={(e) => {
         e.preventDefault();
         e.stopPropagation();

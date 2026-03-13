@@ -5,6 +5,7 @@ import { BaseNode } from './BaseNode';
 import { HybridEditor } from '@/components/editor/HybridEditor';
 import { useCanvasStore } from '@/store/canvasStore';
 import type { JSONContent } from '@tiptap/react';
+import { LectureNotesNodeData } from '@/types/canvas';
 
 function countWords(content: any): { words: number; chars: number } {
   if (!content) return { words: 0, chars: 0 };
@@ -27,7 +28,7 @@ function extractText(content: any): string {
 export const LectureNotesNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
-  const nodeData = data as { title: string; content?: JSONContent | null; viewMode?: boolean; collapsed?: boolean; emoji?: string; dueDate?: string; opacity?: number; createdAt?: string; tags?: string[]; progress?: number };
+  const nodeData = data as unknown as LectureNotesNodeData;
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const backlinks = useCanvasStore((s) => s.backlinks[id] || []);
   const allNodes = useCanvasStore((s) => s.nodes);
@@ -60,9 +61,10 @@ export const LectureNotesNode = memo(({ id, data, selected }: NodeProps) => {
       opacity={nodeData.opacity}
       createdAt={nodeData.createdAt}
       footerStats={footerStats}
-      color={(data as any).color}
+      color={nodeData.color}
       progress={nodeData.progress}
       headerExtra={null}
+      nodeType="lectureNotes"
     >
       <HybridEditor
         initialContent={nodeData.content}

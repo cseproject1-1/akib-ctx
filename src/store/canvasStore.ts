@@ -51,6 +51,8 @@ interface CanvasState {
   isBlockEditorMode: boolean;
   mobileMode: boolean;
   backlinks: Record<string, string[]>; // targetId -> sourceIds[]
+  _contentBacklinks: Record<string, string[]>;
+  _syncAllBacklinks: () => void;
 
 
   // History
@@ -158,6 +160,22 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   past: [],
   future: [],
   backlinks: {},
+  _contentBacklinks: {},
+  _syncAllBacklinks: () => {
+    const { _contentBacklinks, edges } = get();
+    const newBacklinks: Record<string, string[]> = { ..._contentBacklinks };
+    
+    edges.forEach(edge => {
+      const sourceId = edge.source;
+      const targetId = edge.target;
+      if (!newBacklinks[targetId]) newBacklinks[targetId] = [];
+      if (!newBacklinks[targetId].includes(sourceId)) {
+        newBacklinks[targetId].push(sourceId);
+      }
+    });
+
+    set({ backlinks: newBacklinks });
+  },
 
 
   importNodes: (newNodes) => {
@@ -166,23 +184,24 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   updateBacklinks: (sourceId, targetIds) => {
-    const newBacklinks = { ...get().backlinks };
+    const newContentBacklinks = { ...get()._contentBacklinks };
     
-    // Remove old backlinks from this source
-    Object.keys(newBacklinks).forEach(targetId => {
-      newBacklinks[targetId] = newBacklinks[targetId].filter(id => id !== sourceId);
-      if (newBacklinks[targetId].length === 0) delete newBacklinks[targetId];
+    // Remove old content-based backlinks from this source
+    Object.keys(newContentBacklinks).forEach(targetId => {
+      newContentBacklinks[targetId] = (newContentBacklinks[targetId] || []).filter(id => id !== sourceId);
+      if (newContentBacklinks[targetId].length === 0) delete newContentBacklinks[targetId];
     });
 
-    // Add new backlinks
+    // Add new content-based backlinks
     targetIds.forEach(targetId => {
-      if (!newBacklinks[targetId]) newBacklinks[targetId] = [];
-      if (!newBacklinks[targetId].includes(sourceId)) {
-        newBacklinks[targetId].push(sourceId);
+      if (!newContentBacklinks[targetId]) newContentBacklinks[targetId] = [];
+      if (!newContentBacklinks[targetId].includes(sourceId)) {
+        newContentBacklinks[targetId].push(sourceId);
       }
     });
 
-    set({ backlinks: newBacklinks });
+    set({ _contentBacklinks: newContentBacklinks });
+    get()._syncAllBacklinks();
   },
 
 
@@ -198,32 +217,35 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       .map((c) => (c as { id: string }).id);
 
     if (removedIds.length > 0) {
-      const newBacklinks = { ...get().backlinks };
+      const newContentBacklinks = { ...get()._contentBacklinks };
       removedIds.forEach(id => {
-        delete newBacklinks[id];
-        Object.keys(newBacklinks).forEach(targetId => {
-          newBacklinks[targetId] = newBacklinks[targetId].filter(sourceId => sourceId !== id);
-          if (newBacklinks[targetId].length === 0) delete newBacklinks[targetId];
+        delete newContentBacklinks[id];
+        Object.keys(newContentBacklinks).forEach(targetId => {
+          newContentBacklinks[targetId] = (newContentBacklinks[targetId] || []).filter(sourceId => sourceId !== id);
+          if (newContentBacklinks[targetId].length === 0) delete newContentBacklinks[targetId];
         });
       });
-      set({ backlinks: newBacklinks });
+      set({ _contentBacklinks: newContentBacklinks });
     }
 
     set({ nodes: applyNodeChanges(changes, nodes) });
+    if (removedIds.length > 0) get()._syncAllBacklinks();
   },
 
   onEdgesChange: (changes) => {
     set({ edges: applyEdgeChanges(changes, get().edges) });
+    const hasRemoval = changes.some(c => c.type === 'remove');
+    if (hasRemoval) get()._syncAllBacklinks();
   },
 
   onConnect: (connection) => {
     get().pushSnapshot('Connect Nodes');
-    set({
-      edges: addEdge(
-        { ...connection, id: crypto.randomUUID(), type: 'custom', animated: false },
-        get().edges
-      ),
-    });
+    const newEdges = addEdge(
+      { ...connection, id: crypto.randomUUID(), type: 'custom', animated: false },
+      get().edges
+    );
+    set({ edges: newEdges });
+    get()._syncAllBacklinks();
   },
 
   setAISynthesisOpen: (open) => set({ isAISynthesisOpen: open }),
@@ -240,18 +262,19 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   deleteNode: (id) => {
     get().pushSnapshot('Remove Node');
-    const newBacklinks = { ...get().backlinks };
-    delete newBacklinks[id];
-    Object.keys(newBacklinks).forEach(targetId => {
-      newBacklinks[targetId] = newBacklinks[targetId].filter(sourceId => sourceId !== id);
-      if (newBacklinks[targetId].length === 0) delete newBacklinks[targetId];
+    const newContentBacklinks = { ...get()._contentBacklinks };
+    delete newContentBacklinks[id];
+    Object.keys(newContentBacklinks).forEach(targetId => {
+      newContentBacklinks[targetId] = (newContentBacklinks[targetId] || []).filter(sourceId => sourceId !== id);
+      if (newContentBacklinks[targetId].length === 0) delete newContentBacklinks[targetId];
     });
 
     set({
       nodes: get().nodes.filter((n) => n.id !== id),
       edges: get().edges.filter((e) => e.source !== id && e.target !== id),
-      backlinks: newBacklinks,
+      _contentBacklinks: newContentBacklinks,
     });
+    get()._syncAllBacklinks();
   },
 
   duplicateNode: (id) => {
@@ -487,24 +510,28 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   deleteSelected: () => {
     const selected = get().nodes.filter((n) => n.selected);
-    if (selected.length === 0) return;
+    const selectedEdges = get().edges.filter((e) => e.selected);
+    if (selected.length === 0 && selectedEdges.length === 0) return;
+    
     get().pushSnapshot('Delete Selected');
     const ids = new Set(selected.map((n) => n.id));
+    const edgeIds = new Set(selectedEdges.map((e) => e.id));
 
-    const newBacklinks = { ...get().backlinks };
+    const newContentBacklinks = { ...get()._contentBacklinks };
     ids.forEach(id => {
-      delete newBacklinks[id];
-      Object.keys(newBacklinks).forEach(targetId => {
-        newBacklinks[targetId] = newBacklinks[targetId].filter(sourceId => sourceId !== id);
-        if (newBacklinks[targetId].length === 0) delete newBacklinks[targetId];
+      delete newContentBacklinks[id];
+      Object.keys(newContentBacklinks).forEach(targetId => {
+        newContentBacklinks[targetId] = (newContentBacklinks[targetId] || []).filter(sourceId => sourceId !== id);
+        if (newContentBacklinks[targetId].length === 0) delete newContentBacklinks[targetId];
       });
     });
 
     set({
       nodes: get().nodes.filter((n) => !ids.has(n.id)),
-      edges: get().edges.filter((e) => !ids.has(e.source) && !ids.has(e.target)),
-      backlinks: newBacklinks,
+      edges: get().edges.filter((e) => !edgeIds.has(e.id) && !ids.has(e.source) && !ids.has(e.target)),
+      _contentBacklinks: newContentBacklinks,
     });
+    get()._syncAllBacklinks();
   },
 
   duplicateEdge: (id) => {

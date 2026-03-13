@@ -6,6 +6,7 @@ import { useRef, useState } from 'react';
 import { uploadCanvasFile } from '@/lib/r2/storage';
 import { PDFViewerModal } from '@/components/canvas/PDFViewerModal';
 import { toast } from 'sonner';
+import { PDFNodeData } from '@/types/canvas';
 
 const ACCEPTED_TYPES = '.pdf,.doc,.docx,.ppt,.pptx';
 
@@ -27,7 +28,7 @@ export function PDFNode({ id, data, selected }: NodeProps) {
   const workspaceId = useCanvasStore((s) => s.workspaceId);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
-  const nodeData = data as any;
+  const nodeData = data as unknown as PDFNodeData;
 
   const handleUpload = async (file: File) => {
     if (!workspaceId) return;
@@ -66,8 +67,8 @@ export function PDFNode({ id, data, selected }: NodeProps) {
         icon={getIcon(nodeData.fileType)}
         selected={selected}
         onMenuClick={(e) => setNodeContextMenu({ x: e.clientX, y: e.clientY, nodeId: id })}
-        tags={(data as any)?.tags}
-        color={(data as any).color}
+        tags={nodeData.tags}
+        color={nodeData.color}
         headerExtra={
           hasFile ? (
             <button
@@ -103,7 +104,7 @@ export function PDFNode({ id, data, selected }: NodeProps) {
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               {getIcon(nodeData.fileType)}
               <span className="truncate">{nodeData.fileName}</span>
-              <span>({(nodeData.fileSize / 1024).toFixed(0)} KB)</span>
+              <span>({((nodeData.fileSize || 0) / 1024).toFixed(0)} KB)</span>
             </div>
           ) : (
             <button
@@ -120,9 +121,9 @@ export function PDFNode({ id, data, selected }: NodeProps) {
       {viewerOpen && nodeData.storageUrl && (
         <PDFViewerModal
           url={nodeData.storageUrl}
-          fileName={nodeData.fileName}
-          fileSize={nodeData.fileSize}
-          fileType={nodeData.fileType}
+          fileName={nodeData.fileName || 'document.pdf'}
+          fileSize={nodeData.fileSize || 0}
+          fileType={nodeData.fileType as any}
           onClose={() => setViewerOpen(false)}
         />
       )}

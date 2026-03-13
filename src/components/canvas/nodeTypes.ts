@@ -22,6 +22,8 @@ import { BookmarkNode } from '@/components/nodes/BookmarkNode';
 import { CalendarNode } from '@/components/nodes/CalendarNode';
 import { FileAttachmentNode } from '@/components/nodes/FileAttachmentNode';
 import { SpreadsheetNode } from '@/components/nodes/SpreadsheetNode';
+import { DatabaseNode } from '@/components/nodes/DatabaseNode';
+import { DailyLogNode } from '@/components/nodes/DailyLogNode';
 
 export const nodeTypes: NodeTypes = {
   aiNote: AINoteNode,
@@ -47,4 +49,6 @@ export const nodeTypes: NodeTypes = {
   calendar: CalendarNode,
   fileAttachment: FileAttachmentNode,
   spreadsheet: SpreadsheetNode,
+  databaseNode: DatabaseNode,
+  dailyLog: DailyLogNode,
 };

@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { BaseNode } from './BaseNode';
 import { Sheet, Plus, Trash2, Download, Upload, Eraser } from 'lucide-react';
 import { useState, useCallback, useRef } from 'react';
+import { SpreadsheetNodeData } from '@/types/canvas';
 
 interface Cell {
   value: string;
@@ -67,9 +68,9 @@ function makeGrid(rows: number, cols: number): Grid {
 export function SpreadsheetNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
-  const nodeData = data as any;
+  const nodeData = data as unknown as SpreadsheetNodeData;
 
-  const grid: Grid = nodeData.grid || makeGrid(DEFAULT_ROWS, DEFAULT_COLS);
+  const grid: Grid = (nodeData.grid as unknown as Grid) || makeGrid(DEFAULT_ROWS, DEFAULT_COLS);
   const rows = grid.length;
   const cols = grid[0]?.length || DEFAULT_COLS;
 
@@ -78,7 +79,7 @@ export function SpreadsheetNode({ id, data, selected }: NodeProps) {
   const [editVal, setEditVal] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const setGrid = useCallback((g: Grid) => updateNodeData(id, { grid: g }), [id, updateNodeData]);
+  const setGrid = useCallback((g: Grid) => updateNodeData(id, { grid: g as any }), [id, updateNodeData]);
 
   const startEdit = (r: number, c: number) => {
     setEditing({ r, c });

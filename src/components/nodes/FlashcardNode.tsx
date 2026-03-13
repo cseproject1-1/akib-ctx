@@ -1,7 +1,8 @@
-import { memo, useState, useCallback } from 'react';
+import { memo, useState, useCallback, useMemo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { RotateCcw, ChevronLeft, ChevronRight, Shuffle, Expand } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvasStore';
+import { FlashcardNodeData } from '@/types/canvas';
 
 interface Flashcard {
   question: string;
@@ -11,8 +12,8 @@ interface Flashcard {
 export const FlashcardNode = memo(({ id, data, selected }: NodeProps) => {
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
   const setExpandedNode = useCanvasStore((s) => s.setExpandedNode);
-  const nodeData = data as { flashcards: Flashcard[]; sourceTitle?: string; tags?: string[]; opacity?: number };
-  const cards = nodeData.flashcards || [];
+  const nodeData = data as unknown as FlashcardNodeData;
+  const cards = useMemo(() => (nodeData.flashcards as unknown as Flashcard[]) || [], [nodeData.flashcards]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [shuffledOrder, setShuffledOrder] = useState<number[] | null>(null);

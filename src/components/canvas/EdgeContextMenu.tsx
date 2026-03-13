@@ -35,14 +35,20 @@ export function EdgeContextMenu() {
     setEdgeContextMenu(null);
   };
 
+  const onEdgesChange = useCanvasStore((s) => s.onEdgesChange);
+
   const deleteEdge = (id: string) => {
-    useCanvasStore.setState(s => ({ edges: s.edges.filter(e => e.id !== id) }));
+    onEdgesChange([{ type: 'remove', id }]);
   };
 
   const handleSetLabel = () => {
-    const label = prompt('Enter edge label:', edge?.label || '');
+    const label = prompt('Enter edge label:', typeof edge?.label === 'string' ? edge.label : '');
     if (label !== null) {
-      // Update top-level label in standard React Flow way via store
+      onEdgesChange([{ 
+        type: 'select', 
+        id: edgeId, 
+        selected: true 
+      }]);
       useCanvasStore.setState(s => ({
         edges: s.edges.map(e => e.id === edgeId ? { ...e, label: label || undefined } : e)
       }));

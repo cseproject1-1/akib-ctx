@@ -21,7 +21,9 @@ export type NodeType =
   | 'bookmark'
   | 'calendar'
   | 'fileAttachment'
-  | 'spreadsheet';
+  | 'spreadsheet'
+  | 'databaseNode'
+  | 'dailyLog';
 
 /** Shared optional fields available on all node data */
 export interface SharedNodeFields {
@@ -34,18 +36,21 @@ export interface SharedNodeFields {
   opacity?: number; // 25-100, default 100
   createdAt?: string; // ISO datetime string
   blockVersion?: 1 | 2;
+  color?: string; // Standard color string
   _v1Backup?: any; // Backup of Tiptap content before migration
 }
 
 export interface AINoteNodeData extends SharedNodeFields {
   title?: string;
-  content?: unknown;
+  content?: any;
+  pasteContent?: string;
+  pasteFormat?: 'markdown' | 'html';
+  progress?: number;
 }
 
 export interface SummaryNodeData extends SharedNodeFields {
   title: string;
   bullets: string[];
-  color?: string;
 }
 
 export interface TermQuestionNodeData extends SharedNodeFields {
@@ -55,8 +60,9 @@ export interface TermQuestionNodeData extends SharedNodeFields {
 
 export interface LectureNotesNodeData extends SharedNodeFields {
   title: string;
-  content?: unknown;
+  content?: any;
   viewMode?: boolean;
+  progress?: number;
 }
 
 export interface PDFNodeData extends SharedNodeFields {
@@ -79,7 +85,6 @@ export interface ImageNodeData extends SharedNodeFields {
 
 export interface GroupNodeData extends SharedNodeFields {
   label: string;
-  color?: string;
 }
 
 export interface FlashcardNodeData extends SharedNodeFields {
@@ -89,7 +94,6 @@ export interface FlashcardNodeData extends SharedNodeFields {
 
 export interface StickyNoteNodeData extends SharedNodeFields {
   text: string;
-  color?: string;
   fontSize?: 'S' | 'M' | 'L';
 }
 
@@ -105,14 +109,15 @@ export interface TextNodeData extends SharedNodeFields {
 
 export interface ShapeNodeData extends SharedNodeFields {
   shapeType: 'rect' | 'circle' | 'diamond' | 'triangle';
-  color?: string;
   label?: string;
 }
 
 export interface DrawingNodeData extends SharedNodeFields {
-  paths: { d: string; color: string; width: number }[];
+  paths: { d: string; color: string; width: number; opacity?: number }[];
   width?: number;
   height?: number;
+  originalWidth?: number;
+  originalHeight?: number;
 }
 
 export interface EmbedNodeData extends SharedNodeFields {
@@ -128,6 +133,23 @@ export interface MathNodeData extends SharedNodeFields {
 export interface KanbanNodeData extends SharedNodeFields {
   title?: string;
   columns?: { id: string; title: string; color: string; cards: { id: string; text: string }[] }[];
+}
+
+export interface CodeSnippetNodeData extends SharedNodeFields {
+  title?: string;
+  code?: string;
+  language?: string;
+}
+
+export interface VideoNodeData extends SharedNodeFields {
+  url?: string;
+  title?: string;
+}
+
+export interface TableNodeData extends SharedNodeFields {
+  title?: string;
+  headers?: string[];
+  rows?: { value: string }[][];
 }
 
 export interface BookmarkNodeData extends SharedNodeFields {
@@ -154,6 +176,18 @@ export interface SpreadsheetNodeData extends SharedNodeFields {
   grid?: { value: string }[][];
 }
 
+export interface DatabaseNodeData extends SharedNodeFields {
+  title?: string;
+  columns: { id: string; name: string; type: 'text' | 'number' | 'date' | 'select'; options?: string[] }[];
+  rows: Record<string, any>[];
+  views?: { id: string; type: 'table' | 'gallery' | 'kanban'; config: any }[];
+}
+
+export interface DailyLogNodeData extends SharedNodeFields {
+  title?: string;
+  entries: { id: string; timestamp: string; text: string; done?: boolean }[];
+}
+
 export type CanvasNodeData =
   | AINoteNodeData
   | SummaryNodeData
@@ -172,9 +206,14 @@ export type CanvasNodeData =
   | MathNodeData
   | KanbanNodeData
   | BookmarkNodeData
+  | CodeSnippetNodeData
   | CalendarNodeData
   | FileAttachmentNodeData
-  | SpreadsheetNodeData;
+  | SpreadsheetNodeData
+  | DatabaseNodeData
+  | DailyLogNodeData
+  | VideoNodeData
+  | TableNodeData;
 
 export interface Workspace {
   id: string;

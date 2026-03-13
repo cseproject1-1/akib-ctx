@@ -6,6 +6,7 @@ import { useRef, useState } from 'react';
 import { uploadCanvasFile } from '@/lib/r2/storage';
 import { ImageLightboxModal } from '@/components/canvas/ImageLightboxModal';
 import { toast } from 'sonner';
+import { ImageNodeData } from '@/types/canvas';
 
 export function ImageNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
@@ -14,7 +15,7 @@ export function ImageNode({ id, data, selected }: NodeProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [showResize, setShowResize] = useState(false);
-  const nodeData = data as any;
+  const nodeData = data as unknown as ImageNodeData;
   const reactFlow = useReactFlow();
 
   const handleUpload = async (file: File) => {
@@ -66,8 +67,8 @@ export function ImageNode({ id, data, selected }: NodeProps) {
         selected={selected}
         onTitleChange={(v) => updateNodeData(id, { altText: v })}
         onMenuClick={(e) => setNodeContextMenu({ x: e.clientX, y: e.clientY, nodeId: id })}
-        tags={(data as any)?.tags}
-        color={(data as any).color}
+        tags={nodeData.tags}
+        color={nodeData.color}
         headerExtra={
           hasImage ? (
             <button

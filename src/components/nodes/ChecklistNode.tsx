@@ -1,30 +1,25 @@
-import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { BaseNode } from './BaseNode';
 import { CheckSquare, Plus, X, GripVertical } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { useCallback, useState } from 'react';
 import { cn } from '@/lib/utils';
-
-interface CheckItem {
-  id: string;
-  text: string;
-  done: boolean;
-}
+import { ChecklistNodeData } from '@/types/canvas';
 
 export function ChecklistNode({ id, data, selected }: NodeProps) {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
-  const title = (data as any).title || 'Checklist';
-  const items: CheckItem[] = (data as any).items || [];
-  const nodeData = data as any;
+  const nodeData = data as unknown as ChecklistNodeData;
+  const title = nodeData.title || 'Checklist';
+  const items = nodeData.items || [];
   const [dragIdx, setDragIdx] = useState<number | null>(null);
 
   const doneCount = items.filter((i) => i.done).length;
   const progress = items.length > 0 ? (doneCount / items.length) * 100 : 0;
 
   const updateItems = useCallback(
-    (newItems: CheckItem[]) => updateNodeData(id, { items: newItems }),
+    (newItems: NonNullable<ChecklistNodeData['items']>) => updateNodeData(id, { items: newItems }),
     [id, updateNodeData]
   );
 

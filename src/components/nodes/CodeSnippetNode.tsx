@@ -1,11 +1,12 @@
 import { memo, useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { type NodeProps } from '@xyflow/react';
 import { Code2, Copy, Check, Expand, ChevronDown } from 'lucide-react';
 import { BaseNode } from './BaseNode';
 import { useCanvasStore } from '@/store/canvasStore';
 import { toast } from 'sonner';
 import { createLowlight, all } from 'lowlight';
 import { toHtml } from 'hast-util-to-html';
+import { CodeSnippetNodeData } from '@/types/canvas';
 
 const lowlight = createLowlight(all);
 
@@ -18,14 +19,14 @@ export const CodeSnippetNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setExpandedNode = useCanvasStore((s) => s.setExpandedNode);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
-  const d = data as { title?: string; code?: string; language?: string };
-  const [editing, setEditing] = useState(!d.code);
+  const nodeData = data as unknown as CodeSnippetNodeData;
+  const [editing, setEditing] = useState(!nodeData.code);
   const [copied, setCopied] = useState(false);
   const [showLangPicker, setShowLangPicker] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const langPickerRef = useRef<HTMLDivElement>(null);
 
-  const language = d.language || 'plaintext';
+  const language = nodeData.language || 'plaintext';
 
   useEffect(() => {
     if (editing && textareaRef.current) {
@@ -46,13 +47,13 @@ export const CodeSnippetNode = memo(({ id, data, selected }: NodeProps) => {
   }, [showLangPicker]);
 
   const handleCopy = useCallback(() => {
-    if (d.code) {
-      navigator.clipboard.writeText(d.code);
+    if (nodeData.code) {
+      navigator.clipboard.writeText(nodeData.code);
       setCopied(true);
       toast.success('Code copied');
       setTimeout(() => setCopied(false), 2000);
     }
-  }, [d.code]);
+  }, [nodeData.code]);
 
   const handleBlur = useCallback((e: React.FocusEvent<HTMLTextAreaElement>) => {
     updateNodeData(id, { code: e.target.value });
@@ -62,14 +63,14 @@ export const CodeSnippetNode = memo(({ id, data, selected }: NodeProps) => {
   return (
     <BaseNode
       id={id}
-      title={d.title || 'Code Snippet'}
+      title={nodeData.title || 'Code Snippet'}
       icon={<Code2 className="h-4 w-4" />}
       selected={selected}
       onTitleChange={(title) => updateNodeData(id, { title })}
       bodyClassName="p-0 overflow-auto flex flex-col"
-      tags={(data as any)?.tags}
+      tags={nodeData.tags}
       onMenuClick={(e) => setNodeContextMenu({ x: e.clientX, y: e.clientY, nodeId: id })}
-      color={(data as any).color}
+      color={nodeData.color}
       headerExtra={
         <div className="flex items-center gap-0.5">
           <div className="relative" ref={langPickerRef}>
@@ -115,7 +116,7 @@ export const CodeSnippetNode = memo(({ id, data, selected }: NodeProps) => {
         {editing ? (
           <textarea
             ref={textareaRef}
-            defaultValue={d.code || ''}
+            defaultValue={nodeData.code || ''}
             onBlur={handleBlur}
             onKeyDown={(e) => {
               e.stopPropagation();
@@ -133,12 +134,12 @@ export const CodeSnippetNode = memo(({ id, data, selected }: NodeProps) => {
             spellCheck={false}
           />
         ) : (
-          <HighlightedCode code={d.code || '// Double-click to edit'} language={language} onDoubleClick={() => setEditing(true)} />
+          <HighlightedCode code={nodeData.code || '// Double-click to edit'} language={language} onDoubleClick={() => setEditing(true)} />
         )}
         {/* Line count */}
-        {d.code && (
+        {nodeData.code && (
           <div className="border-t border-border bg-card px-3 py-1 text-[10px] font-mono text-muted-foreground flex items-center justify-between">
-            <span>{d.code.split('\n').length} lines</span>
+            <span>{nodeData.code.split('\n').length} lines</span>
             <span>{language}</span>
           </div>
         )}
