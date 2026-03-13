@@ -312,8 +312,8 @@ export const CustomEdge = memo(({
     if (style === 'none') return null;
     if (style === 'arrow') {
       return (
-        <marker id={markerId} markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
-          <path d="M2,2 L10,6 L2,10" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        <marker id={markerId} markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+          <path d="M 0 0 L 10 5 L 0 10 Z" fill={color} />
         </marker>
       );
     }

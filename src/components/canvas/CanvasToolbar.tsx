@@ -1,5 +1,5 @@
 import { useReactFlow, Panel, useStore, useNodes, useEdges } from '@xyflow/react';
-import { ZoomIn, ZoomOut, Maximize, Undo2, Redo2, ArrowLeft, Save, CheckCircle, AlertCircle, FileDown, Paintbrush, Share2, Eye, MousePointerClick, Presentation, Crosshair, LayoutDashboard, Grid3X3, Lock, Unlock, Trash2, Magnet, Cable, FileText, FileJson, Clock, GitBranch, CloudOff, Sparkles, Upload, Network, Orbit, LayoutGrid, Search, Map as MapIcon, BookmarkPlus, X, History, Pen, Edit2, Maximize2, Minimize2, Keyboard, Zap, ZapOff } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, Undo2, Redo2, ArrowLeft, Save, CheckCircle, AlertCircle, FileDown, Paintbrush, Share2, Eye, EyeOff, MousePointerClick, Presentation, Crosshair, LayoutDashboard, Grid3X3, Lock, Unlock, Trash2, Magnet, Cable, FileText, FileJson, Clock, GitBranch, CloudOff, Sparkles, Upload, Network, Orbit, LayoutGrid, Search, Map as MapIcon, BookmarkPlus, X, History, Pen, Edit2, Maximize2, Minimize2, Keyboard, Zap, ZapOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { getTreeLayout, getCircularLayout } from '@/lib/canvas/layoutUtils';
@@ -46,6 +46,8 @@ export function CanvasToolbar() {
   const toggleCanvasMode = useCanvasStore((s) => s.toggleCanvasMode);
   const focusMode = useCanvasStore((s) => s.focusMode);
   const toggleFocusMode = useCanvasStore((s) => s.toggleFocusMode);
+  const zenMode = useCanvasStore((s) => s.zenMode);
+  const toggleZenMode = useCanvasStore((s) => s.toggleZenMode);
   const setNodes = useCanvasStore((s) => s.setNodes);
   const snapEnabled = useCanvasStore((s) => s.snapEnabled);
   const toggleSnap = useCanvasStore((s) => s.toggleSnap);
@@ -457,6 +459,9 @@ export function CanvasToolbar() {
           </ToolbarBtn>
           <ToolbarBtn onClick={toggleFocusMode} tip="Focus mode (F)" className={cn(focusMode ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'hover:bg-primary/10')}>
             <Crosshair className="h-4 w-4" />
+          </ToolbarBtn>
+          <ToolbarBtn onClick={toggleZenMode} tip="Zen Mode (Z) - Hide all tools" className={cn(zenMode ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'hover:bg-primary/10')}>
+            <EyeOff className="h-4 w-4" />
           </ToolbarBtn>
           <Divider />
           <ToolbarBtn onClick={toggleSnap} tip={`Snap to grid: ${snapEnabled ? 'ON' : 'OFF'} (S)`} className={cn(snapEnabled ? 'text-primary bg-primary/5 border border-primary/20' : 'hover:bg-primary/10')}>

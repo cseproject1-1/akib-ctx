@@ -255,15 +255,54 @@ export function NodeExpandModal() {
     setIsFullscreen(false); 
   }, [setExpandedNode]);
 
+  const edges = useCanvasStore((s) => s.edges);
   const activeIdx = useMemo(() => nodes.findIndex(n => n.id === expandedNode), [nodes, expandedNode]);
-  const handlePrev = () => {
-    const prev = nodes[activeIdx - 1];
-    if (prev) setExpandedNode(prev.id);
-  };
-  const handleNext = () => {
-    const next = nodes[activeIdx + 1];
-    if (next) setExpandedNode(next.id);
-  };
+
+  const handlePrev = useCallback(() => {
+    // Find edges where this node is the target (incoming edges)
+    const incomingEdges = edges.filter(e => e.target === expandedNode);
+    if (incomingEdges.length > 0) {
+      // Get all source nodes
+      const sourceNodes = nodes.filter(n => incomingEdges.some(e => e.source === n.id));
+      
+      // Sort source nodes by position: bottom-to-top, then right-to-left (reverse of reading)
+      sourceNodes.sort((a, b) => {
+        if (Math.abs(a.position.y - b.position.y) > 20) {
+          return b.position.y - a.position.y;
+        }
+        return b.position.x - a.position.x;
+      });
+      
+      setExpandedNode(sourceNodes[0].id);
+    } else {
+      // Fallback to array order
+      const prev = nodes[activeIdx - 1];
+      if (prev) setExpandedNode(prev.id);
+    }
+  }, [expandedNode, edges, nodes, activeIdx, setExpandedNode]);
+
+  const handleNext = useCallback(() => {
+    // Find edges where this node is the source (outgoing edges)
+    const outgoingEdges = edges.filter(e => e.source === expandedNode);
+    if (outgoingEdges.length > 0) {
+      // Get all target nodes
+      const targetNodes = nodes.filter(n => outgoingEdges.some(e => e.target === n.id));
+      
+      // Sort target nodes by position: top-to-bottom, then left-to-right
+      targetNodes.sort((a, b) => {
+        if (Math.abs(a.position.y - b.position.y) > 20) {
+          return a.position.y - b.position.y;
+        }
+        return a.position.x - b.position.x;
+      });
+      
+      setExpandedNode(targetNodes[0].id);
+    } else {
+      // Fallback to array order
+      const next = nodes[activeIdx + 1];
+      if (next) setExpandedNode(next.id);
+    }
+  }, [expandedNode, edges, nodes, activeIdx, setExpandedNode]);
 
   const handleShare = () => {
     if (navigator.share) {
@@ -283,10 +322,20 @@ export function NodeExpandModal() {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') handleClose();
       if (e.key === 'F11' || (e.ctrlKey && e.shiftKey && e.key === 'f')) { e.preventDefault(); setIsFullscreen(f => !f); }
+      
+      // Arrow key navigation (ignore if typing in an input/textarea)
+      const activeEl = document.activeElement;
+      const isTyping = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || (activeEl as HTMLElement).isContentEditable);
+      
+      if (!isTyping) {
+        if (e.key === 'ArrowLeft') { e.preventDefault(); handlePrev(); }
+        if (e.key === 'ArrowRight') { e.preventDefault(); handleNext(); }
+        if (e.key === 'f' || e.key === 'F') { e.preventDefault(); setIsFullscreen(f => !f); }
+      }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [handleClose]);
+  }, [handleClose, handlePrev, handleNext]);
 
   if (!node || !expandedNode) return null;
 

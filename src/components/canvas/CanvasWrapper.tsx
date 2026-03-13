@@ -16,7 +16,7 @@ import {
 } from '@xyflow/react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Sparkles, MousePointerClick, Search } from 'lucide-react';
+import { Upload, Sparkles, MousePointerClick, Search, Maximize2, Eye } from 'lucide-react';
 import { debounce } from '@/lib/utils/debounce';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { uploadCanvasFile } from '@/lib/r2/storage';
@@ -155,6 +155,9 @@ export function CanvasWrapper() {
   const workspaceId = useCanvasStore((s) => s.workspaceId);
   const canvasMode = useCanvasStore((s) => s.canvasMode);
   const focusMode = useCanvasStore((s) => s.focusMode);
+  const toggleFocusMode = useCanvasStore((s) => s.toggleFocusMode);
+  const zenMode = useCanvasStore((s) => s.zenMode);
+  const toggleZenMode = useCanvasStore((s) => s.toggleZenMode);
   const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
   const snapEnabled = useCanvasStore((s) => s.snapEnabled);
@@ -241,7 +244,8 @@ export function CanvasWrapper() {
   const isMobile = useIsMobile();
   const [mobileBannerDismissed, setMobileBannerDismissed] = useState(false);
   const [dragOver, setDragOver] = useState(false);
-  const [drawingMode, setDrawingMode] = useState(false);
+  const drawingMode = useCanvasStore((s) => s.drawingMode);
+  const setDrawingMode = useCanvasStore((s) => s.setDrawingMode);
   const [drawColor, setDrawColor] = useState('hsl(52, 100%, 50%)'); // kept for future use
   const [drawWidth, setDrawWidth] = useState(3); // kept for future use
   const [guides, setGuides] = useState<{ type: 'v' | 'h'; pos: number; start: number; end: number }[]>([]);
@@ -539,6 +543,9 @@ export function CanvasWrapper() {
           style: { width: 380, height: 500 },
         });
       }
+      if (isHotkeyMatch(e, hotkeys.toggleZenMode)) { e.preventDefault(); toggleZenMode(); }
+      if (isHotkeyMatch(e, hotkeys.toggleFocusMode)) { e.preventDefault(); toggleFocusMode(); }
+      if (isHotkeyMatch(e, hotkeys.toggleDrawingMode)) { e.preventDefault(); setDrawingMode(!drawingMode); }
 
       // Delete selected nodes/edges
       if (e.key === 'Delete' || (e.key === 'Backspace' && !mod)) {
@@ -578,7 +585,7 @@ export function CanvasWrapper() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undo, redo, copySelectedNodes, pasteNodes, selectAllNodes, toggleMinimap, setContextMenu, setNodeContextMenu, drawingMode, setDrawingMode, handleClipboardPaste, hotkeys, addNode, deleteSelected]);
+  }, [undo, redo, copySelectedNodes, pasteNodes, selectAllNodes, toggleMinimap, setContextMenu, setNodeContextMenu, drawingMode, setDrawingMode, handleClipboardPaste, hotkeys, addNode, deleteSelected, toggleZenMode, toggleFocusMode]);
 
   const handleContextMenu = useCallback(
     (event: React.MouseEvent) => {
@@ -938,7 +945,7 @@ export function CanvasWrapper() {
           />
         )}
         <AlignmentGuidesLayer guides={guides} />
-        {showMinimap && (
+        {showMinimap && !zenMode && (
           <MiniMap
             pannable
             zoomable
@@ -946,35 +953,57 @@ export function CanvasWrapper() {
             maskColor="hsl(var(--background)/0.5)"
           />
         )}
-        <HistoryPanel />
-        <WorkspaceTabs />
-        <NodeSearchPanel />
-        <CanvasToolbar />
-        <AddNodeToolbar />
+        
+        {!zenMode && (
+          <>
+            <HistoryPanel />
+            <WorkspaceTabs />
+            <NodeSearchPanel />
+            <CanvasToolbar />
+            <AddNodeToolbar />
+          </>
+        )}
+
+        {zenMode && (
+          <motion.button
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={toggleZenMode}
+            className="fixed bottom-6 right-6 z-[60] flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary shadow-xl backdrop-blur-md border border-primary/20 hover:bg-primary/20 transition-all duration-300 group"
+          >
+            <Eye className="h-6 w-6 group-hover:scale-110 transition-transform" />
+            <div className="absolute right-14 whitespace-nowrap rounded-lg bg-black/80 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-white opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+              Exit Zen Mode
+            </div>
+          </motion.button>
+        )}
+
         <EdgeContextMenu />
         <svg style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0 }}>
           <defs>
             <marker
               id="arrow"
-              viewBox="0 0 12 12"
-              refX="11"
-              refY="6"
-              markerWidth={8}
-              markerHeight={8}
+              viewBox="0 0 10 10"
+              refX="9"
+              refY="5"
+              markerWidth={6}
+              markerHeight={6}
               orient="auto-start-reverse"
             >
-              <path d="M 2 2 L 11 6 L 2 10 L 4.5 6 Z" fill="hsl(0, 0%, 40%)" />
+              <path d="M 0 0 L 10 5 L 0 10 Z" fill="hsl(0, 0%, 40%)" />
             </marker>
             <marker
               id="arrow-selected"
-              viewBox="0 0 12 12"
-              refX="11"
-              refY="6"
-              markerWidth={8}
-              markerHeight={8}
+              viewBox="0 0 10 10"
+              refX="9"
+              refY="5"
+              markerWidth={6}
+              markerHeight={6}
               orient="auto-start-reverse"
             >
-              <path d="M 2 2 L 11 6 L 2 10 L 4.5 6 Z" fill="hsl(52, 100%, 50%)" />
+              <path d="M 0 0 L 10 5 L 0 10 Z" fill="hsl(52, 100%, 50%)" />
             </marker>
           </defs>
         </svg>

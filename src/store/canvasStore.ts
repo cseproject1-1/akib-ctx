@@ -59,6 +59,7 @@ interface CanvasState {
   past: HistorySnapshot[];
   future: HistorySnapshot[];
   drawingMode: boolean;
+  zenMode: boolean;
 
   // Actions
   setWorkspaceId: (id: string | null) => void;
@@ -75,6 +76,8 @@ interface CanvasState {
   updateNodeStyle: (id: string, style: Record<string, unknown>) => void;
   deleteEdge: (id: string) => void;
   setDrawingMode: (val: boolean) => void;
+  setZenMode: (val: boolean) => void;
+  toggleZenMode: () => void;
   setContextMenu: (menu: CanvasState['contextMenu']) => void;
   setNodeContextMenu: (menu: CanvasState['nodeContextMenu']) => void;
   setEdgeContextMenu: (menu: CanvasState['edgeContextMenu']) => void;
@@ -164,6 +167,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   past: [],
   future: [],
   drawingMode: false,
+  zenMode: false,
   backlinks: {},
   _contentBacklinks: {},
   _syncAllBacklinks: () => {
@@ -586,6 +590,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   setDrawingMode: (val) => set({ drawingMode: val }),
+  setZenMode: (val) => set({ zenMode: val }),
+  toggleZenMode: () => set((state) => ({ zenMode: !state.zenMode })),
 
   pushSnapshot: (label = 'Action') => {
     const { nodes, edges, past } = get();

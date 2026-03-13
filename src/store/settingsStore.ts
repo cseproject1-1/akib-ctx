@@ -24,6 +24,9 @@ const DEFAULT_HOTKEYS: Record<string, string> = {
   search: 'mod+p',
   toggleSidebar: 'mod+b',
   newNote: 'n',
+  toggleZenMode: 'z',
+  toggleFocusMode: 'f',
+  toggleDrawingMode: 'd',
 };
 
 export const useSettingsStore = create<SettingsState>()(
