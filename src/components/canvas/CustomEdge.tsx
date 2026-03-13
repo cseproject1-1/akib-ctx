@@ -167,8 +167,9 @@ export const CustomEdge = memo(({
     prev.ty = targetY;
 
     // Mass factor: longer edges feel heavier
+    // Mass factor: longer edges feel heavier (pre-calculate mass to save cycles)
     const edgeLen = Math.sqrt((targetX - sourceX) ** 2 + (targetY - sourceY) ** 2);
-    const mass = Math.max(0.4, Math.min(1.0, 200 / (edgeLen + 100)));
+    const mass = Math.max(0.4, Math.min(1.0, 300 / (edgeLen + 150)));
 
     // Apply velocity impulse to spring offsets (perpendicular-ish sway)
     off.cx1 += (vel.sy * INFLUENCE - vel.sx * INFLUENCE * 0.3) * mass;
@@ -207,17 +208,17 @@ export const CustomEdge = memo(({
     minFrames.current = Math.max(0, minFrames.current - 1);
     
     // Check if the change since last frame is practically zero to sleep early
+    // Check if we can sleep the simulation
     const mag = Math.abs(off.cx1) + Math.abs(off.cy1) + Math.abs(off.cx2) + Math.abs(off.cy2);
     const velMag = Math.abs(vel.sx) + Math.abs(vel.sy) + Math.abs(vel.tx) + Math.abs(vel.ty);
     
-    // If movement has settled and velocity is zero, stop the loop explicitly
-    if (mag < 0.5 && velMag < 0.1 && minFrames.current === 0) {
-      // Snap exactly to base positions so we aren't microscopically offset
+    if (mag < 0.1 && velMag < 0.05 && minFrames.current === 0) {
       off.cx1 = 0; off.cy1 = 0; off.cx2 = 0; off.cy2 = 0;
+      setPhysicsPath(''); // Reset to base path
       return; 
     }
 
-    if ((mag > 0.05 || minFrames.current > 0 || velMag > 0.05) && isMounted.current) {
+    if (isMounted.current) {
       rafId.current = requestAnimationFrame(simulateSpring);
     }
   }, [sourceX, sourceY, targetX, targetY]);
@@ -291,7 +292,8 @@ export const CustomEdge = memo(({
     }
     pushSnapshot('Update Edge Label');
     const { edges, setEdges } = useCanvasStore.getState();
-    setEdges(edges.map((e) => e.id === id ? { ...e, label: trimmed || undefined } : e));
+    // Use an empty string if trimmed is empty to ensure Firestore updates the field
+    setEdges(edges.map((e) => e.id === id ? { ...e, label: trimmed } : e));
     setEditingLabel(false);
   };
 

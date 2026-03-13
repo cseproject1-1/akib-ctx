@@ -345,8 +345,32 @@ const WorkspacePage = () => {
 
   if (loading) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex h-screen w-screen flex-col bg-canvas p-4 overflow-hidden relative">
+        {/* Top bar skeletons */}
+        <div className="flex justify-between items-start pointer-events-none z-10">
+          <div className="flex items-center gap-3 glass-morphism rounded-2xl p-2 animate-pulse w-48 h-12" />
+          <div className="flex items-center gap-3 glass-morphism rounded-2xl p-2 animate-pulse w-64 h-12" />
+        </div>
+
+        {/* Left toolbar skeleton */}
+        <div className="absolute left-4 top-1/2 -translate-y-1/2 flex flex-col gap-3 glass-morphism rounded-2xl p-2 animate-pulse w-14 h-[400px]" />
+
+        {/* Bottom toolbar skeleton */}
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-4 glass-morphism rounded-2xl p-3 animate-pulse w-96 h-14" />
+
+        {/* Ghost nodes */}
+        <div className="fixed inset-0 pointer-events-none">
+          <div className="absolute top-[20%] left-[30%] w-64 h-40 bg-muted/10 rounded-3xl animate-pulse blur-[1px]" />
+          <div className="absolute top-[40%] left-[60%] w-72 h-48 bg-muted/5 rounded-3xl animate-pulse blur-[2px]" />
+          <div className="absolute top-[60%] left-[25%] w-56 h-36 bg-muted/10 rounded-3xl animate-pulse blur-[1px]" />
+        </div>
+        
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="h-8 w-8 animate-spin text-primary/30" />
+            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground/20 animate-pulse">Initializing Workspace</span>
+          </div>
+        </div>
       </div>
     );
   }

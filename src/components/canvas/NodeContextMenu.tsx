@@ -230,8 +230,8 @@ export function NodeContextMenu() {
             exit={{ opacity: 0, scale: 0.95, y: -10 }}
             className="absolute z-[100] min-w-[240px] max-h-[85vh] overflow-y-auto scrollbar-none rounded-[2rem] glass-morphism-strong p-2 pro-shadow border border-white/5"
             style={{
-              left: Math.min(x + window.scrollX, window.innerWidth + window.scrollX - 260),
-              top: Math.min(y + window.scrollY, window.innerHeight + window.scrollY - 500),
+              left: x + 260 > window.innerWidth ? x - 260 : x,
+              top: Math.min(y, window.innerHeight - 500),
             }}
           >
             <div className="px-4 py-3 border-b border-white/5 mb-1.5 flex items-center justify-between bg-white/5 rounded-t-[1.8rem]">
@@ -299,10 +299,13 @@ export function NodeContextMenu() {
                   <AnimatePresence>
                     {showEmojis && (
                       <motion.div
-                        initial={{ opacity: 0, x: -10, scale: 0.9 }}
+                        initial={{ opacity: 0, x: x + 400 > window.innerWidth ? 10 : -10, scale: 0.9 }}
                         animate={{ opacity: 1, x: 0, scale: 1 }}
-                        exit={{ opacity: 0, x: -10, scale: 0.9 }}
-                        className="absolute left-[calc(100%+12px)] top-0 grid grid-cols-5 gap-1.5 rounded-[1.5rem] glass-morphism-strong p-3 pro-shadow border border-white/10 min-w-[210px] z-[110]"
+                        exit={{ opacity: 0, x: x + 400 > window.innerWidth ? 10 : -10, scale: 0.9 }}
+                        className={cn(
+                          "absolute top-0 grid grid-cols-5 gap-1.5 rounded-[1.5rem] glass-morphism-strong p-3 pro-shadow border border-white/10 min-w-[210px] z-[110]",
+                          x + 400 > window.innerWidth ? "right-[calc(100%+12px)]" : "left-[calc(100%+12px)]"
+                        )}
                       >
                         {EMOJI_PRESETS.map((em) => (
                           <button
@@ -341,10 +344,13 @@ export function NodeContextMenu() {
                   <AnimatePresence>
                     {showOpacity && (
                       <motion.div 
-                        initial={{ opacity: 0, x: -10, scale: 0.9 }}
+                        initial={{ opacity: 0, x: x + 400 > window.innerWidth ? 10 : -10, scale: 0.9 }}
                         animate={{ opacity: 1, x: 0, scale: 1 }}
-                        exit={{ opacity: 0, x: -10, scale: 0.9 }}
-                        className="absolute left-[calc(100%+12px)] top-0 flex flex-col gap-3 rounded-[1.5rem] glass-morphism-strong p-4 pro-shadow border border-white/10 min-w-[200px] z-[110]"
+                        exit={{ opacity: 0, x: x + 400 > window.innerWidth ? 10 : -10, scale: 0.9 }}
+                        className={cn(
+                          "absolute top-0 flex flex-col gap-3 rounded-[1.5rem] glass-morphism-strong p-4 pro-shadow border border-white/10 min-w-[200px] z-[110]",
+                          x + 400 > window.innerWidth ? "right-[calc(100%+12px)]" : "left-[calc(100%+12px)]"
+                        )}
                       >
                         <p className="text-[9px] font-black text-foreground/40 uppercase tracking-[2px]">Adjust Opacity</p>
                         <div className="flex items-center gap-3">
@@ -372,10 +378,13 @@ export function NodeContextMenu() {
                     <AnimatePresence>
                       {showColors && (
                         <motion.div 
-                          initial={{ opacity: 0, x: -10, scale: 0.9 }}
+                          initial={{ opacity: 0, x: x + 400 > window.innerWidth ? 10 : -10, scale: 0.9 }}
                           animate={{ opacity: 1, x: 0, scale: 1 }}
-                          exit={{ opacity: 0, x: -10, scale: 0.9 }}
-                          className="absolute left-[calc(100%+12px)] top-0 grid grid-cols-4 gap-2 rounded-[1.5rem] glass-morphism-strong p-3 pro-shadow border border-white/10 z-[110]"
+                          exit={{ opacity: 0, x: x + 400 > window.innerWidth ? 10 : -10, scale: 0.9 }}
+                          className={cn(
+                            "absolute top-0 grid grid-cols-4 gap-2 rounded-[1.5rem] glass-morphism-strong p-3 pro-shadow border border-white/10 z-[110]",
+                            x + 400 > window.innerWidth ? "right-[calc(100%+12px)]" : "left-[calc(100%+12px)]"
+                          )}
                         >
                           {presetColors.map((c) => (
                             <button
@@ -400,10 +409,13 @@ export function NodeContextMenu() {
                   <AnimatePresence>
                     {showTags && (
                       <motion.div 
-                        initial={{ opacity: 0, x: -10, scale: 0.9 }}
+                        initial={{ opacity: 0, x: x + 400 > window.innerWidth ? 10 : -10, scale: 0.9 }}
                         animate={{ opacity: 1, x: 0, scale: 1 }}
-                        exit={{ opacity: 0, x: -10, scale: 0.9 }}
-                        className="absolute left-[calc(100%+12px)] top-0 flex flex-col gap-1.5 rounded-[1.5rem] glass-morphism-strong p-3 pro-shadow border border-white/10 min-w-[160px] z-[110]"
+                        exit={{ opacity: 0, x: x + 400 > window.innerWidth ? 10 : -10, scale: 0.9 }}
+                        className={cn(
+                          "absolute top-0 flex flex-col gap-1.5 rounded-[1.5rem] glass-morphism-strong p-3 pro-shadow border border-white/10 min-w-[160px] z-[110]",
+                          x + 400 > window.innerWidth ? "right-[calc(100%+12px)]" : "left-[calc(100%+12px)]"
+                        )}
                       >
                         {TAG_PRESETS.map((tag) => (
                           <button

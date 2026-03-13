@@ -107,14 +107,26 @@ function computeBestHandles(sourceNode: Node | undefined, targetNode: Node | und
   let sourceHandle: string;
   let targetHandle: string;
 
-  if (Math.abs(dx) > Math.abs(dy)) {
-    // Horizontal dominant
+  // Use a ratio threshold to prevent flickering when nodes are close on one axis
+  const ratio = Math.abs(dx) / (Math.abs(dy) || 1);
+  const horizontalDominant = ratio > 1.2;
+  const verticalDominant = ratio < 0.8;
+
+  if (horizontalDominant) {
     sourceHandle = dx > 0 ? HANDLE_IDS.SOURCE.RIGHT : HANDLE_IDS.SOURCE.LEFT;
     targetHandle = dx > 0 ? HANDLE_IDS.TARGET.LEFT : HANDLE_IDS.TARGET.RIGHT;
-  } else {
-    // Vertical dominant
+  } else if (verticalDominant) {
     sourceHandle = dy > 0 ? HANDLE_IDS.SOURCE.BOTTOM : HANDLE_IDS.SOURCE.TOP;
     targetHandle = dy > 0 ? HANDLE_IDS.TARGET.TOP : HANDLE_IDS.TARGET.BOTTOM;
+  } else {
+    // Diagonally positioned, check which side is closer to the edge
+    if (Math.abs(dx) > Math.abs(dy)) {
+      sourceHandle = dx > 0 ? HANDLE_IDS.SOURCE.RIGHT : HANDLE_IDS.SOURCE.LEFT;
+      targetHandle = dx > 0 ? HANDLE_IDS.TARGET.LEFT : HANDLE_IDS.TARGET.RIGHT;
+    } else {
+      sourceHandle = dy > 0 ? HANDLE_IDS.SOURCE.BOTTOM : HANDLE_IDS.SOURCE.TOP;
+      targetHandle = dy > 0 ? HANDLE_IDS.TARGET.TOP : HANDLE_IDS.TARGET.BOTTOM;
+    }
   }
 
   return { sourceHandle, targetHandle };
@@ -318,10 +330,11 @@ export function CanvasWrapper() {
         // Render window check: skip DOM rendering for nodes outside viewport + buffer
         const isOutOfViewport = (nx + nw < vLeft || nx > vRight || ny + nh < vTop || ny > vBottom);
         
-        // Explicitly skip virtualization for heavy media or static assets that 
-        // are expensive to reload or lose state (like iframes and video players).
+        // Explicitly skip virtualization for heavy media or complex components that 
+        // are expensive to reload or maintain internal state.
         const skipVirtualization = [
-          'video', 'image', 'audio', 'embed', 'pdf', 'fileAttachment', 'spreadsheet'
+          'video', 'image', 'audio', 'embed', 'pdf', 'fileAttachment', 
+          'spreadsheet', 'focusTimer', 'dailyLog', 'kanban'
         ].includes(n.type || '');
         const shouldRender = skipVirtualization || !isOutOfViewport;
 
@@ -887,7 +900,7 @@ export function CanvasWrapper() {
         snapToGrid={snapEnabled}
         snapGrid={[12, 12]}
         minZoom={0.1}
-        maxZoom={4}
+        maxZoom={2}
         deleteKeyCode={['Delete', 'Backspace']}
         onSelectionChange={handleSelectionChange}
         selectionOnDrag={!isViewMode && !connectMode}
@@ -936,10 +949,7 @@ export function CanvasWrapper() {
         <HistoryPanel />
         <WorkspaceTabs />
         <NodeSearchPanel />
-        <CanvasToolbar
-          drawingMode={drawingMode}
-          onToggleDrawing={() => setDrawingMode(!drawingMode)}
-        />
+        <CanvasToolbar />
         <AddNodeToolbar />
         <EdgeContextMenu />
         <svg style={{ position: 'absolute', top: 0, left: 0, width: 0, height: 0 }}>

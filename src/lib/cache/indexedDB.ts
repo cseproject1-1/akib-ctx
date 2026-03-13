@@ -49,14 +49,36 @@ export async function cacheSet<T>(store: StoreName, key: string, data: T): Promi
   try {
     const db = await getDB();
     const entry: CachedEntry<T> = { data, cachedAt: Date.now() };
-    return new Promise((resolve) => {
+    
+    return await new Promise((resolve, reject) => {
       const tx = db.transaction(store, 'readwrite');
-      tx.objectStore(store).put(entry, key);
+      const req = tx.objectStore(store).put(entry, key);
+      
       tx.oncomplete = () => resolve();
-      tx.onerror = () => resolve();
+      tx.onerror = () => {
+        const error = tx.error || req.error;
+        if (error?.name === 'QuotaExceededError') {
+          reject(error);
+        } else {
+          resolve(); // Ignore other errors
+        }
+      };
     });
-  } catch {
-    // silently fail
+  } catch (err: any) {
+    if (err?.name === 'QuotaExceededError') {
+      console.warn('[DB] Quota exceeded, purging old caches...');
+      await purgeOldCaches();
+      // Optional: No retry for now to keep it safe, most apps just wait for next update
+    }
+  }
+}
+
+async function purgeOldCaches() {
+  // Clear non-critical caches to make room
+  // We MUST keep 'pending-ops' as it contains unsynced user work!
+  const storesToClear: StoreName[] = ['canvas-nodes', 'canvas-edges', 'workspaces', 'node-counts'];
+  for (const store of storesToClear) {
+    await cacheClear(store);
   }
 }
 

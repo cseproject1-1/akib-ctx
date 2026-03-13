@@ -363,20 +363,24 @@ export function CanvasToolbar() {
             saveStatus === 'saved' ? 'text-primary' : saveStatus === 'error' ? 'text-destructive' : 'text-muted-foreground/40'
           )} title={lastSavedAt ? `Last saved ${lastSavedLabel}` : undefined}>
             {saveStatus === 'saving' && <><Save className="h-3.5 w-3.5 animate-pulse text-primary" />{!isMobile && <span className="pt-0.5">Saving…</span>}</>}
-            {saveStatus === 'saved' && <><CheckCircle className="h-3.5 w-3.5 text-primary animate-scale-in" />{!isMobile && <span className="animate-fade-in pt-0.5">{lastSavedLabel || 'Saved'}</span>}</>}
+            {saveStatus === 'saved' && <><CheckCircle className="h-3.5 w-3.5 text-primary animate-scale-in" />{!isMobile && <span className="animate-fade-in pt-0.5">{lastSavedLabel || 'Synced'}</span>}</>}
             {saveStatus === 'error' && <><AlertCircle className="h-3.5 w-3.5 text-destructive animate-bounce-in" />{!isMobile && <span className="pt-0.5">Error</span>}</>}
             {saveStatus === 'idle' && <><Save className="h-3.5 w-3.5" /></>}
           </div>
-          {pendingCount > 0 && (
-            <TipBtn
-              tip={`${pendingCount} unsynced change${pendingCount > 1 ? 's' : ''} — click to retry`}
-              onClick={() => { replayPendingOps(); toast.info('Retrying sync…'); }}
-              className="flex items-center gap-2 rounded-xl bg-destructive/10 border border-destructive/20 px-3 py-2 text-[10px] font-black uppercase tracking-widest text-destructive transition-all hover:bg-destructive/15 active:scale-95 animate-pulse"
-            >
-              <CloudOff className="h-3.5 w-3.5" />
-              <span>{pendingCount}</span>
-            </TipBtn>
-          )}
+
+          <TipBtn
+            tip={pendingCount > 0 ? `${pendingCount} unsynced change${pendingCount > 1 ? 's' : ''} — click to sync now` : "All changes synced to cloud"}
+            onClick={() => { replayPendingOps(); toast.info('Forcing sync…'); }}
+            className={cn(
+              "flex items-center gap-2 rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-widest transition-all",
+              pendingCount > 0 
+                ? "bg-destructive/10 border border-destructive/20 text-destructive animate-pulse hover:bg-destructive/15" 
+                : "glass-effect text-muted-foreground/30 hover:text-primary hover:bg-primary/5 hover:border-primary/20"
+            )}
+          >
+            {pendingCount > 0 ? <CloudOff className="h-3.5 w-3.5" /> : <CheckCircle className="h-3.5 w-3.5" />}
+            {pendingCount > 0 && <span>{pendingCount}</span>}
+          </TipBtn>
           <div className="h-4 w-px bg-white/5 mx-0.5" />
           <TipBtn tip="Share workspace" onClick={() => setShareOpen(true)} className="pro-btn flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-[10px] font-black uppercase tracking-[0.15em] text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:brightness-110 active:scale-95">
             <Share2 className="h-3.5 w-3.5 fill-primary-foreground/20" />
@@ -428,11 +432,11 @@ export function CanvasToolbar() {
             <History className="h-4 w-4" />
           </ToolbarBtn>
           <Divider />
-          <ToolbarBtn onClick={() => zoomOut()} tip="Zoom out (⌘−)">
+          <ToolbarBtn onClick={() => zoomOut()} disabled={zoom <= 0.15} tip="Zoom out (⌘−)">
             <ZoomOut className="h-4 w-4" />
           </ToolbarBtn>
           <span className="w-12 text-center text-[10px] font-black text-primary/80 tabular-nums flex-shrink-0 tracking-widest">{zoomPercent}%</span>
-          <ToolbarBtn onClick={() => zoomIn()} tip="Zoom in (⌘+)">
+          <ToolbarBtn onClick={() => zoomIn()} disabled={zoom >= 2} tip="Zoom in (⌘+)">
             <ZoomIn className="h-4 w-4" />
           </ToolbarBtn>
           <ToolbarBtn onClick={() => fitView({ duration: 300 })} tip="Fit view (⌘⇧H)">

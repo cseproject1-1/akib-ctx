@@ -107,8 +107,8 @@ export function CanvasContextMenu() {
             exit={{ opacity: 0, scale: 0.95, y: -10 }}
             className="absolute z-50 min-w-[260px] max-h-[85vh] overflow-y-auto scrollbar-none rounded-[2rem] glass-morphism-strong p-2 pro-shadow border border-white/5"
             style={{ 
-              left: Math.min(contextMenu.x + window.scrollX, window.innerWidth + window.scrollX - 280), 
-              top: Math.min(contextMenu.y + window.scrollY, window.innerHeight + window.scrollY - 500) 
+              left: contextMenu.x + 280 > window.innerWidth ? contextMenu.x - 280 : contextMenu.x, 
+              top: Math.min(contextMenu.y, window.innerHeight - 500) 
             }}
           >
             <div className="px-4 py-3 border-b border-white/5 mb-1.5 flex items-center justify-between bg-white/5 rounded-t-[1.8rem]">

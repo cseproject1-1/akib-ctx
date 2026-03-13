@@ -9,10 +9,16 @@ import { AINoteNodeData } from '@/types/canvas';
 
 function countWords(content: JSONContent | null | string): { words: number; chars: number } {
   if (!content) return { words: 0, chars: 0 };
-  const text = extractText(content);
-  const chars = text.length;
-  const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-  return { words, chars };
+  try {
+    const text = extractText(content);
+    if (!text) return { words: 0, chars: 0 };
+    const chars = text.length;
+    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    return { words, chars };
+  } catch (err) {
+    console.error('Error counting words:', err);
+    return { words: 0, chars: 0 };
+  }
 }
 
 function extractText(content: any): string {
@@ -20,7 +26,7 @@ function extractText(content: any): string {
   if (typeof content === 'string') return content;
   if (content.text) return content.text;
   if (content.content && Array.isArray(content.content)) {
-    return content.content.map(extractText).join(' ');
+    return content.content.map(extractText).filter(Boolean).join(' ');
   }
   return '';
 }

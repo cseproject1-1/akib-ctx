@@ -3,6 +3,7 @@ import { useCanvasStore } from '@/store/canvasStore';
 import { useEdges } from '@xyflow/react';
 import { Trash2, Type, Zap, ZapOff, ArrowRight, CornerDownRight, Minus, Layers, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 const EDGE_COLORS = [
   { value: 'hsl(0, 0%, 40%)', label: 'Gray' },
@@ -43,7 +44,8 @@ export function EdgeContextMenu() {
     deleteEdgeAction(id);
   };
 
-  const handleSetLabel = () => {
+  const handleSetLabel = (e: React.MouseEvent) => {
+    e.stopPropagation();
     const label = prompt('Enter edge label:', typeof edge?.label === 'string' ? edge.label : '');
     if (label !== null) {
       const trimmed = label.trim();
@@ -57,7 +59,8 @@ export function EdgeContextMenu() {
         return;
       }
       pushSnapshot('Update Edge Label');
-      setEdges(useCanvasStore.getState().edges.map(e => e.id === edgeId ? { ...e, label: trimmed } : e));
+      // Use updateEdgeData which handles the sync correctly
+      updateEdgeData(edgeId, { label: trimmed });
     }
     setEdgeContextMenu(null);
   };
@@ -80,7 +83,7 @@ export function EdgeContextMenu() {
           Edge Settings
         </div>
 
-        <CtxBtn onClick={handleSetLabel}>
+        <CtxBtn onClick={(e) => handleSetLabel(e)}>
           <Type className="h-4 w-4" /> {edge?.label ? 'Edit Label' : 'Add Label'}
         </CtxBtn>
 
@@ -138,12 +141,13 @@ export function EdgeContextMenu() {
   );
 }
 
-const CtxBtn = React.forwardRef<HTMLButtonElement, { children: React.ReactNode; onClick: () => void }>(
-  ({ children, onClick }, ref) => (
+const CtxBtn = React.forwardRef<HTMLButtonElement, { children: React.ReactNode; onClick: (e: React.MouseEvent) => void; disabled?: boolean; className?: string }>(
+  ({ children, onClick, disabled, className }, ref) => (
     <button
       ref={ref}
-      className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-bold text-foreground hover:bg-primary/10 hover:text-primary transition-all"
+      className={cn("flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-bold text-foreground hover:bg-primary/10 hover:text-primary transition-all disabled:opacity-50 disabled:cursor-not-allowed", className)}
       onClick={onClick}
+      disabled={disabled}
     >
       {children}
     </button>

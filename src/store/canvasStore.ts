@@ -168,11 +168,16 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   _contentBacklinks: {},
   _syncAllBacklinks: () => {
     const { _contentBacklinks, edges } = get();
-    const newBacklinks: Record<string, string[]> = { ..._contentBacklinks };
+    // Deep clone to prevent mutating the _contentBacklinks arrays
+    const newBacklinks: Record<string, string[]> = {};
+    Object.keys(_contentBacklinks).forEach(tid => {
+      newBacklinks[tid] = [...(_contentBacklinks[tid] || [])];
+    });
     
     edges.forEach(edge => {
       const sourceId = edge.source;
       const targetId = edge.target;
+      // Hardening: Only sync backlinks if both nodes technically exist (avoid ghost edges)
       if (!newBacklinks[targetId]) newBacklinks[targetId] = [];
       if (!newBacklinks[targetId].includes(sourceId)) {
         newBacklinks[targetId].push(sourceId);
@@ -244,6 +249,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   onConnect: (connection) => {
+    if (connection.source === connection.target) return;
     get().pushSnapshot('Connect Nodes');
     const newEdges = addEdge(
       { ...connection, id: crypto.randomUUID(), type: 'custom', animated: false },
@@ -304,9 +310,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   updateNodeData: (id, data) => {
-    // Filter out undefined values to prevent Firestore sync errors
+    // Filter out null and undefined values to prevent Firestore sync errors
     const sanitizedData = Object.fromEntries(
-      Object.entries(data).filter(([_, v]) => v !== undefined)
+      Object.entries(data).filter(([_, v]) => v !== undefined && v !== null)
     );
     set({
       nodes: get().nodes.map((n) => {
@@ -328,9 +334,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   updateNodeStyle: (id, style) => {
-    // Filter out undefined values to prevent Firestore sync errors
+    // Filter out null and undefined values to prevent Firestore sync errors
     const sanitizedStyle = Object.fromEntries(
-      Object.entries(style).filter(([_, v]) => v !== undefined)
+      Object.entries(style).filter(([_, v]) => v !== undefined && v !== null)
     );
     set({
       nodes: get().nodes.map((n) =>
@@ -343,15 +349,21 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   setNodeContextMenu: (menu) => set({ nodeContextMenu: menu }),
   setEdgeContextMenu: (menu) => set({ edgeContextMenu: menu }),
   updateEdgeData: (id, data) => {
-    // Filter out undefined values to prevent Firestore sync errors
-    const sanitizedData = Object.fromEntries(
-      Object.entries(data).filter(([_, v]) => v !== undefined)
-    );
-    set({
-      edges: get().edges.map((e) =>
-        e.id === id ? { ...e, data: { ...e.data, ...sanitizedData } } : e
-      ),
-    });
+    // Hardening: Trim label if present to prevent empty labels or accidental spaces
+    const processedData = { ...data };
+    const label = typeof data.label === 'string' ? data.label.trim() : undefined;
+    
+    set((state) => ({
+      edges: state.edges.map((e) => (
+        e.id === id 
+          ? { 
+              ...e, 
+              data: { ...e.data, ...processedData }, 
+              label: label !== undefined ? label : e.label 
+            } 
+          : e
+      )),
+    }));
   },
   setExpandedNode: (id) => set({ expandedNode: id }),
 
@@ -585,7 +597,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       timestamp: Date.now()
     };
     set({
-      past: [...past.slice(-49), snapshot],
+      past: [...past.slice(-99), snapshot],
       future: [],
     });
   },

@@ -12,7 +12,7 @@ export function ChecklistNode({ id, data, selected }: NodeProps) {
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
   const nodeData = data as unknown as ChecklistNodeData;
   const title = nodeData.title || 'Checklist';
-  const items = nodeData.items || [];
+  const items = Array.isArray(nodeData.items) ? nodeData.items : [];
   const [dragIdx, setDragIdx] = useState<number | null>(null);
 
   const doneCount = items.filter((i) => i.done).length;
