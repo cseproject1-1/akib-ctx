@@ -133,6 +133,7 @@ export function ChecklistNode({ id, data, selected }: NodeProps) {
 
         {/* Add button */}
         <button
+          onClick={(e) => { e.stopPropagation(); addItem(); }}
           disabled={!selected}
           className={cn(
             "mt-1 flex items-center gap-1.5 rounded px-1 py-1 text-xs font-semibold text-muted-foreground transition-colors",

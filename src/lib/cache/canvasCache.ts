@@ -470,6 +470,14 @@ export async function replayPendingOps(isRetry = false) {
   if (_replaying) return;
   _replaying = true;
 
+  // Safety timeout to reset _replaying if it gets stuck (e.g. extremely long wait)
+  const safetyTimeout = setTimeout(() => {
+    if (_replaying) {
+      console.warn('[sync] Replay safety timeout reached - resetting flag');
+      _replaying = false;
+    }
+  }, 30000); // 30s max per replay attempt
+
   try {
     const hasSession = await ensureSession();
     if (!hasSession) {
@@ -631,10 +639,10 @@ let _startupTimeout: any = null;
 function scheduleReplay(delay: number) {
   if (_syncTimeout) clearTimeout(_syncTimeout);
   _syncTimeout = setTimeout(async () => {
-    if (navigator.onLine) {
+    if (navigator.onLine && !_replaying) {
       await replayPendingOps();
     }
-    // Schedule next run with current delay
+    // Schedule next run with current delay, ensures periodic sync even if one attempt fails
     scheduleReplay(_retryDelay);
   }, delay);
 }

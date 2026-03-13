@@ -110,6 +110,12 @@ export const CustomEdge = memo(({
   const doubleLine = d.doubleLine ?? false;
 
   useEffect(() => {
+    if (!editingLabel) {
+      setLabelText((label as string) || '');
+    }
+  }, [label, editingLabel]);
+
+  useEffect(() => {
     if (editingLabel && inputRef.current) inputRef.current.focus();
   }, [editingLabel]);
 

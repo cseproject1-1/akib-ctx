@@ -60,7 +60,7 @@ export function CanvasToolbar() {
   const setVersionHistoryOpen = useCanvasStore((s) => s.setVersionHistoryOpen);
   const setWorkspaceMeta = useCanvasStore((s) => s.setWorkspaceMeta);
   const loadCanvas = useCanvasStore((s) => s.loadCanvas);
-  const importNodes = useCanvasStore((s) => s.importNodes);
+  const importNodesAction = useCanvasStore((s) => s.importNodes);
   const pushSnapshot = useCanvasStore((s) => s.pushSnapshot);
   const navigate = useNavigate();
   const [shareOpen, setShareOpen] = useState(false);
@@ -164,7 +164,6 @@ export function CanvasToolbar() {
     const gapX = 440;
     const gapY = 560;
     
-    // Map of nodes with new positions
     const layoutMap = new Map();
     nodesToLayout.forEach((n, index) => {
       layoutMap.set(n.id, {
@@ -190,15 +189,15 @@ export function CanvasToolbar() {
     if (nodesToLayout.length === 0) return;
     
     pushSnapshot('Tree Layout');
-    const newNodes = getTreeLayout(nodes, edges);
-    // Merge back original positions for locked nodes if layout tool doesn't handle them
-    const mergedNodes = newNodes.map(ln => {
-      const original = nodes.find(n => n.id === ln.id);
-      if (original?.data?.locked) return original;
-      return ln;
-    });
+    const newNodes = getTreeLayout(nodesToLayout, edges);
     
-    setNodes(mergedNodes);
+    const layoutMap = new Map(newNodes.map(n => [n.id, n.position]));
+    const resultNodes = nodes.map(n => ({
+      ...n,
+      position: n.data?.locked ? n.position : (layoutMap.get(n.id) || n.position)
+    }));
+    
+    setNodes(resultNodes);
     setTimeout(() => fitView({ duration: 400 }), 50);
     toast.success('Tree layout applied');
     setShowLayoutMenu(false);
@@ -209,15 +208,15 @@ export function CanvasToolbar() {
     if (nodesToLayout.length === 0) return;
     
     pushSnapshot('Circular Layout');
-    const newNodes = getCircularLayout(nodes);
-    // Merge back original positions for locked nodes
-    const mergedNodes = newNodes.map(ln => {
-      const original = nodes.find(n => n.id === ln.id);
-      if (original?.data?.locked) return original;
-      return ln;
-    });
+    const newNodes = getCircularLayout(nodesToLayout);
     
-    setNodes(mergedNodes);
+    const layoutMap = new Map(newNodes.map(n => [n.id, n.position]));
+    const resultNodes = nodes.map(n => ({
+      ...n,
+      position: n.data?.locked ? n.position : (layoutMap.get(n.id) || n.position)
+    }));
+    
+    setNodes(resultNodes);
     setTimeout(() => fitView({ duration: 400 }), 50);
     toast.success('Circular layout applied');
     setShowLayoutMenu(false);
@@ -238,22 +237,24 @@ export function CanvasToolbar() {
           const data = JSON.parse(content);
           
           if (Array.isArray(data)) {
-            // It might be just nodes
-            loadCanvas(data, []);
-            toast.success('Nodes imported successfully!');
+            loadCanvas([...nodes, ...data], edges);
+            toast.success(`Imported ${data.length} nodes successfully!`);
           } else if (data && typeof data === 'object') {
-            const importNodes = Array.isArray(data.nodes) ? data.nodes : [];
-            const importEdges = Array.isArray(data.edges) ? data.edges : [];
+            const importedNodes = Array.isArray(data.nodes) ? data.nodes : [];
+            const importedEdges = Array.isArray(data.edges) ? data.edges : [];
             
-            // Re-map IDs to prevent collisions if pasting into same workspace
+            // Re-map IDs to prevent collisions
             const idMap = new Map<string, string>();
-            const newNodes = importNodes.map(n => {
+            const remappedNodes = importedNodes.map(n => {
               const newId = crypto.randomUUID();
               idMap.set(n.id, newId);
               return { ...n, id: newId };
             });
-            const newEdges = importEdges
-              .filter(e => idMap.has(e.source) && idMap.has(e.target))
+
+            // Filter out edges that connect to non-existent nodes
+            const nodeIds = new Set(importedNodes.map(n => n.id));
+            const remappedEdges = importedEdges
+              .filter(e => nodeIds.has(e.source) && nodeIds.has(e.target))
               .map(e => ({
                 ...e,
                 id: crypto.randomUUID(),
@@ -261,10 +262,10 @@ export function CanvasToolbar() {
                 target: idMap.get(e.target)!,
               }));
             
-            loadCanvas([...nodes, ...newNodes], [...edges, ...newEdges]);
-            toast.success(`Imported ${newNodes.length} nodes and ${newEdges.length} edges.`);
+            loadCanvas([...nodes, ...remappedNodes], [...edges, ...remappedEdges]);
+            toast.success(`Imported ${remappedNodes.length} nodes and ${remappedEdges.length} edges.`);
           } else {
-            toast.error('Invalid JSON structure. Needs nodes/edges arrays.');
+            toast.error('Invalid JSON structure. Needs nodes/edges arrays or a nodes array.');
           }
         } catch (err) {
           toast.error('Failed to parse JSON file');
@@ -287,7 +288,7 @@ export function CanvasToolbar() {
       try {
         const node = await importFromMarkdown(file);
         if (node) {
-          importNodes([node]);
+          importNodesAction([node]);
           toast.success('Markdown imported successfully!');
         }
       } catch (err) {
@@ -308,7 +309,6 @@ export function CanvasToolbar() {
       try {
         const { nodes: newNodes, edges: newEdges } = await importFromZip(file);
         if (newNodes.length > 0) {
-          // Re-map IDs to prevent collisions
           const idMap = new Map<string, string>();
           const remappedNodes = newNodes.map(n => {
             const newId = crypto.randomUUID();
@@ -344,7 +344,6 @@ export function CanvasToolbar() {
 
   return (
     <TooltipProvider delayDuration={300}>
-      {/* Top-left: back + breadcrumb + workspace switcher + save */}
       <Panel position="top-left" className="!max-w-[calc(100vw-60px)]">
         <div className="flex flex-wrap items-center gap-2 animate-slide-down">
           <TipBtn tip="Back to Dashboard" onClick={() => { setShowExportMenu(false); navigate('/'); }} className="pro-btn rounded-xl glass-effect p-2.5 text-foreground/60 transition-all hover:text-primary hover:border-primary/20 hover:bg-primary/5">
@@ -417,7 +416,6 @@ export function CanvasToolbar() {
         />
       )}
 
-      {/* Bottom-center: zoom + undo/redo + tools */}
       <Panel position="bottom-center" className="mb-6 !max-w-[calc(100vw-24px)]">
         <div id="canvas-toolbar" className="flex items-center gap-1 rounded-2xl toolbar-glass p-2 overflow-x-auto overflow-y-hidden scrollbar-none animate-toolbar-appear">
           <ToolbarBtn onClick={() => undo()} disabled={past.length === 0} tip="Undo (⌘Z)">

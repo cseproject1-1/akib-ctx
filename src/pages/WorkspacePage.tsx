@@ -38,10 +38,18 @@ const WorkspacePage = () => {
   const serverNodeIds = useRef<Set<string>>(new Set());
   const serverEdgeIds = useRef<Set<string>>(new Set());
 
+  // Use refs to store active timeouts so they can be cleared consistently and safely
+  const dataTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const posTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const styleTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  const edgeTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+
   useEffect(() => {
     if (!workspaceId) return;
     loadComplete.current = false;
     setWorkspaceId(workspaceId);
+
+    let loadCompleteTimer: ReturnType<typeof setTimeout> | null = null;
 
     const load = async () => {
       try {
@@ -103,16 +111,20 @@ const WorkspacePage = () => {
 
         // Mark loading as complete — subscriber can now safely detect changes
         // Use a small delay to ensure all loadCanvas microtasks have settled
-        setTimeout(() => { loadComplete.current = true; }, 200);
+        loadCompleteTimer = setTimeout(() => { 
+          loadComplete.current = true; 
+          setLoading(false); // Ensure loading is off even if cache was initially missing
+        }, 200);
       } catch (err) {
         toast.error('Failed to load canvas');
         setLoading(false);
       }
     };
+
     load();
 
     return () => {
-      // CLEAR STATE ON UNMOUNT OR WORKSPACE SWITCH
+      if (loadCompleteTimer) clearTimeout(loadCompleteTimer);
       resetState();
     };
   }, [workspaceId, loadCanvas, setWorkspaceId, setWorkspaceMeta, resetState]);
@@ -120,10 +132,6 @@ const WorkspacePage = () => {
   // Subscribe to store changes and persist (using cached write-through wrappers)
   useEffect(() => {
     if (!workspaceId) return;
-    const dataTimers = new Map<string, ReturnType<typeof setTimeout>>();
-    const posTimers = new Map<string, ReturnType<typeof setTimeout>>();
-    const styleTimers = new Map<string, ReturnType<typeof setTimeout>>();
-    const edgeTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
     const { incSave, decSave } = useCanvasStore.getState();
 
@@ -136,8 +144,7 @@ const WorkspacePage = () => {
       if (state._skipSync) return;
       if (!loadComplete.current) return;
       if (state.workspaceId !== workspaceId) return;
-      // Also ensure we aren't comparing nodes from a previous workspace that haven't been cleared yet
-      // This is critical to avoid cross-workspace data contamination or saving old state into new workspace
+      
       if (prev.workspaceId && prev.workspaceId !== workspaceId) {
         console.warn('[sync] Workspace ID mismatch in prev state, skipping this update');
         return;
@@ -145,23 +152,19 @@ const WorkspacePage = () => {
 
       // Save new nodes
       const newNodes = state.nodes.filter(n => !prev.nodes.find(pn => pn.id === n.id));
-      if (newNodes.length > 0) console.log(`[sync] Detected ${newNodes.length} new nodes`);
       newNodes.forEach(n => {
         trackSave(saveNode(workspaceId, n));
       });
 
       // Save new edges
       const newEdges = state.edges.filter(e => !prev.edges.find(pe => pe.id === e.id));
-      if (newEdges.length > 0) console.log(`[sync] Detected ${newEdges.length} new edges`);
       newEdges.forEach(e => {
         trackSave(saveEdge(workspaceId, e));
       });
 
-      // Detect deleted nodes — update local cache immediately so deletes survive refresh
+      // Detect deleted nodes
       const deletedNodes = prev.nodes.filter(pn => !state.nodes.find(n => n.id === pn.id));
       if (deletedNodes.length > 0) {
-        console.log(`[sync] Detected ${deletedNodes.length} deleted nodes`);
-        // Eagerly update local cache with current state
         import('@/lib/cache/indexedDB').then(({ cacheSet }) => {
           cacheSet('canvas-nodes', workspaceId, state.nodes);
         });
@@ -170,13 +173,14 @@ const WorkspacePage = () => {
         trackSave(deleteCanvasNode(workspaceId, n.id));
         const storageKey = (n.data as any)?.storageKey;
         if (storageKey) deleteCanvasFile(storageKey).catch(() => { });
-        // Clean up pending timeouts to avoid auto-saving a deleted node
-        if (dataTimers.has(n.id)) { clearTimeout(dataTimers.get(n.id)); dataTimers.delete(n.id); }
-        if (posTimers.has(n.id)) { clearTimeout(posTimers.get(n.id)); posTimers.delete(n.id); }
-        if (styleTimers.has(n.id)) { clearTimeout(styleTimers.get(n.id)); styleTimers.delete(n.id); }
+        
+        // Clean up pending timeouts
+        if (dataTimers.current.has(n.id)) { clearTimeout(dataTimers.current.get(n.id)); dataTimers.current.delete(n.id); }
+        if (posTimers.current.has(n.id)) { clearTimeout(posTimers.current.get(n.id)); posTimers.current.delete(n.id); }
+        if (styleTimers.current.has(n.id)) { clearTimeout(styleTimers.current.get(n.id)); styleTimers.current.delete(n.id); }
       });
 
-      // Detect deleted edges — update local cache immediately
+      // Detect deleted edges
       const deletedEdges = prev.edges.filter(pe => !state.edges.find(e => e.id === pe.id));
       if (deletedEdges.length > 0) {
         import('@/lib/cache/indexedDB').then(({ cacheSet }) => {
@@ -185,7 +189,7 @@ const WorkspacePage = () => {
       }
       deletedEdges.forEach(e => {
         trackSave(deleteCanvasEdge(workspaceId, e.id));
-        if (edgeTimers.has(e.id)) { clearTimeout(edgeTimers.get(e.id)); edgeTimers.delete(e.id); }
+        if (edgeTimers.current.has(e.id)) { clearTimeout(edgeTimers.current.get(e.id)); edgeTimers.current.delete(e.id); }
       });
 
       // Position, data, and style updates for existing nodes
@@ -194,22 +198,21 @@ const WorkspacePage = () => {
         if (!prev_n) return;
 
         if (prev_n.position.x !== n.position.x || prev_n.position.y !== n.position.y) {
-          const existing = posTimers.get(n.id);
+          const existing = posTimers.current.get(n.id);
           if (existing) clearTimeout(existing);
-          posTimers.set(n.id, setTimeout(() => {
+          posTimers.current.set(n.id, setTimeout(() => {
             trackSave(updateNodePosition(workspaceId, n.id, n.position.x, n.position.y));
-            posTimers.delete(n.id);
+            posTimers.current.delete(n.id);
           }, 500));
         }
 
-        // Simple structural check for data
         const dataChanged = n.data !== prev_n.data;
         if (dataChanged) {
-          const existing = dataTimers.get(n.id);
+          const existing = dataTimers.current.get(n.id);
           if (existing) clearTimeout(existing);
-          dataTimers.set(n.id, setTimeout(() => {
+          dataTimers.current.set(n.id, setTimeout(() => {
             trackSave(updateNodeDataInDb(workspaceId, n.id, n.data as Record<string, unknown>));
-            dataTimers.delete(n.id);
+            dataTimers.current.delete(n.id);
           }, 800));
         }
 
@@ -220,11 +223,11 @@ const WorkspacePage = () => {
         const curH = (n.style?.height as number) || 200;
         const curZ = (n.style?.zIndex as number) || 0;
         if (prevW !== curW || prevH !== curH || prevZ !== curZ) {
-          const existing = styleTimers.get(n.id);
+          const existing = styleTimers.current.get(n.id);
           if (existing) clearTimeout(existing);
-          styleTimers.set(n.id, setTimeout(() => {
+          styleTimers.current.set(n.id, setTimeout(() => {
             trackSave(updateNodeStyle(workspaceId, n.id, curW, curH, curZ));
-            styleTimers.delete(n.id);
+            styleTimers.current.delete(n.id);
           }, 500));
         }
       });
@@ -235,11 +238,11 @@ const WorkspacePage = () => {
         if (!prev_e) return;
         const edgeChanged = e.data !== prev_e.data || e.label !== prev_e.label;
         if (edgeChanged) {
-          const existing = edgeTimers.get(e.id);
+          const existing = edgeTimers.current.get(e.id);
           if (existing) clearTimeout(existing);
-          edgeTimers.set(e.id, setTimeout(() => {
+          edgeTimers.current.set(e.id, setTimeout(() => {
             trackSave(updateEdgeDataInDb(workspaceId, e.id, (e.data as Record<string, unknown>) || {}, e.label as string | undefined));
-            edgeTimers.delete(e.id);
+            edgeTimers.current.delete(e.id);
           }, 800));
         }
       });
@@ -247,10 +250,15 @@ const WorkspacePage = () => {
 
     return () => {
       unsub();
-      dataTimers.forEach(t => clearTimeout(t));
-      posTimers.forEach(t => clearTimeout(t));
-      styleTimers.forEach(t => clearTimeout(t));
-      edgeTimers.forEach(t => clearTimeout(t));
+      // Ensure all timers are cleared on unmount
+      dataTimers.current.forEach(clearTimeout);
+      posTimers.current.forEach(clearTimeout);
+      styleTimers.current.forEach(clearTimeout);
+      edgeTimers.current.forEach(clearTimeout);
+      dataTimers.current.clear();
+      posTimers.current.clear();
+      styleTimers.current.clear();
+      edgeTimers.current.clear();
     };
   }, [workspaceId]);
 
@@ -266,34 +274,26 @@ const WorkspacePage = () => {
         const { nodes, edges, incSave, decSave, clearResyncNeeded } = useCanvasStore.getState();
         clearResyncNeeded();
 
-        // Compute diff against prev snapshot instead of saving everything
-        const prevNodeIds = new Set(prev.nodes.map(n => n.id));
         const currNodeIds = new Set(nodes.map(n => n.id));
-        const prevEdgeIds = new Set(prev.edges.map(e => e.id));
         const currEdgeIds = new Set(edges.map(e => e.id));
 
         const promises: Promise<void>[] = [];
 
-        // Resync logic should use referential checks or shallow props
         nodes.forEach(n => {
           const prevNode = prev.nodes.find(pn => pn.id === n.id);
-          // Only save if missing or data/position/style changed (shallow property check is usually enough here)
           if (!prevNode || n.data !== prevNode.data || n.position !== prevNode.position || n.style !== prevNode.style) {
             promises.push(saveNode(workspaceId, n));
           }
         });
-        // Delete removed nodes
         prev.nodes.forEach(pn => {
           if (!currNodeIds.has(pn.id)) promises.push(deleteCanvasNode(workspaceId, pn.id));
         });
-        // Save new/changed edges
         edges.forEach(e => {
           const prevEdge = prev.edges.find(pe => pe.id === e.id);
           if (!prevEdge || e.data !== prevEdge.data || e.label !== prevEdge.label) {
             promises.push(saveEdge(workspaceId, e));
           }
         });
-        // Delete removed edges
         prev.edges.forEach(pe => {
           if (!currEdgeIds.has(pe.id)) promises.push(deleteCanvasEdge(workspaceId, pe.id));
         });
@@ -309,13 +309,14 @@ const WorkspacePage = () => {
         }
       }
     });
-    return unsub;
+    return () => {
+      unsub();
+    };
   }, [workspaceId]);
 
   // ─── Auto-snapshot every 5 minutes ───
   useEffect(() => {
     if (!workspaceId) return;
-    // Track changes
     const unsub = useCanvasStore.subscribe((state, prev) => {
       if (state.nodes !== prev.nodes || state.edges !== prev.edges) {
         changesSinceSnapshot.current++;
@@ -334,7 +335,7 @@ const WorkspacePage = () => {
       } catch (err) {
         console.error('Auto-save snapshot failed:', err);
       }
-    }, 5 * 60 * 1000); // 5 minutes
+    }, 5 * 60 * 1000);
 
     return () => {
       unsub();
