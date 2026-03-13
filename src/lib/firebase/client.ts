@@ -15,7 +15,9 @@ const firebaseConfig = {
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
-export const db = initializeFirestore(app, { experimentalForceLongPolling: true });
+export const db = initializeFirestore(app, {
+    ignoreUndefinedProperties: true
+}, '(default)');
 export const functions = getFunctions(app);
 
 // Cloudflare Worker URL for AI and Metadata

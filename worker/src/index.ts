@@ -92,6 +92,10 @@ app.post('/api/scrape', async (c) => {
     const { title, url, content } = await c.req.json();
     const GEMINI_API_KEY = c.env.GEMINI_API_KEY;
 
+    if (!content) {
+        return c.json({ title: title || 'Error', summary: 'No content provided to summarize.' });
+    }
+
     if (!GEMINI_API_KEY) {
         return c.json({ title, summary: content.substring(0, 1000) + '...' });
     }

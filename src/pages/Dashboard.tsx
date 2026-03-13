@@ -150,13 +150,13 @@ const Dashboard = () => {
 
   const loadWorkspaces = useCallback(async () => {
     try {
-      const { cached, fresh } = await cachedGetWorkspaces((freshData) => {
+      const { cached, fresh } = await cachedGetWorkspaces(async (freshData) => {
         setWorkspaces(freshData);
         // Refresh node counts incrementally
-        freshData.forEach(async (ws) => {
+        await Promise.all(freshData.map(async (ws) => {
           const count = await cachedGetNodeCount(ws.id);
           setNodeCounts((prev) => ({ ...prev, [ws.id]: count }));
-        });
+        }));
       });
 
       // Instant render from cache
@@ -164,20 +164,20 @@ const Dashboard = () => {
         setWorkspaces(cached);
         setLoading(false);
         // Load cached node counts incrementally
-        cached.forEach(async (ws) => {
+        await Promise.all(cached.map(async (ws) => {
           const count = await cachedGetNodeCount(ws.id);
           setNodeCounts((prev) => ({ ...prev, [ws.id]: count }));
-        });
+        }));
       }
 
       // Wait for fresh if no cache
       if (!cached) {
         const data = await fresh;
         setWorkspaces(data);
-        data.forEach(async (ws) => {
+        await Promise.all(data.map(async (ws) => {
           const count = await cachedGetNodeCount(ws.id);
           setNodeCounts((prev) => ({ ...prev, [ws.id]: count }));
-        });
+        }));
       }
     } catch (err) {
       toast.error('Failed to load workspaces');

@@ -152,12 +152,31 @@ export function CanvasWrapper() {
   const [localNodes, setLocalNodes] = useState<Node[]>(nodes);
   const [isZoomedOut, setIsZoomedOut] = useState(false);
   const isDraggingRef = useRef(false);
+  const prevNodes = useRef<Node[]>(nodes);
 
   useEffect(() => {
     if (!isDraggingRef.current) {
-      // JSON.stringify is a simple way to check for deep equality in this context
-      // to avoid triggering updates if the store didn't actually change content
-      setLocalNodes(prev => JSON.stringify(prev) === JSON.stringify(nodes) ? prev : nodes);
+      // More efficient check to avoid triggering updates if the store didn't actually change content
+      if (nodes.length !== prevNodes.current.length) {
+        setLocalNodes(nodes);
+        prevNodes.current = nodes;
+        return;
+      }
+
+      const hasChanged = nodes.some((node, i) => {
+        const prev = prevNodes.current[i];
+        // Basic shallow comparison for common properties that would indicate a change
+        return node.id !== prev.id || 
+               node.position.x !== prev.position.x || 
+               node.position.y !== prev.position.y ||
+               node.data !== prev.data || // Data object reference change
+               node.type !== prev.type;
+      });
+
+      if (hasChanged) {
+        setLocalNodes(nodes);
+        prevNodes.current = nodes;
+      }
     }
   }, [nodes]);
 
@@ -300,9 +319,9 @@ export function CanvasWrapper() {
           ...n,
           hidden: !shouldRender,
           data: { ...n.data, shouldRender },
-          draggable: isViewMode ? false : !(n.data as { locked?: boolean })?.locked,
-          connectable: isViewMode ? false : !(n.data as { locked?: boolean })?.locked,
-          selectable: isViewMode ? false : true,
+          draggable: !n.data?.locked,
+          selectable: !n.data?.locked,
+          connectable: !n.data?.locked,
           style: {
             ...n.style,
             opacity: focusMode && focusedNodeId && focusedNodeId !== n.id ? 0.15 : 1,

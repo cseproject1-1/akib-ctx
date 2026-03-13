@@ -144,27 +144,27 @@ export async function deleteCanvasFile(path: string) {
 }
 
 export async function deleteWorkspaceFiles(workspaceId: string) {
+  try {
     const bucket = import.meta.env.VITE_R2_BUCKET_NAME || 'ctxnote';
-    let isTruncated = true;
-    let continuationToken: string | undefined = undefined;
+    const listCommand = new ListObjectsV2Command({
+      Bucket: bucket,
+      Prefix: `workspaces/${workspaceId}/`,
+    });
 
-    while (isTruncated) {
-        const listCommand = new ListObjectsV2Command({
-            Bucket: bucket,
-            ContinuationToken: continuationToken,
-        });
+    const listResponse = await r2.send(listCommand);
+    const objects = listResponse.Contents || [];
 
-        const response = await r2.send(listCommand);
+    if (objects.length === 0) return;
 
-        const deletePromises = (response.Contents || [])
-            .filter(item => item.Key && item.Key.includes(`/${workspaceId}/`))
-            .map(item => r2.send(new DeleteObjectCommand({ Bucket: bucket, Key: item.Key })));
-
-        await Promise.all(deletePromises);
-
-        isTruncated = response.IsTruncated || false;
-        continuationToken = response.NextContinuationToken;
+    for (const obj of objects) {
+      if (obj.Key) {
+        await deleteCanvasFile(obj.Key);
+      }
     }
+  } catch (err) {
+    console.error('Error deleting workspace files:', err);
+    throw err;
+  }
 }
 
 export async function deleteUserFiles(userId: string) {

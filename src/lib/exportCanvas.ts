@@ -1,13 +1,25 @@
 import type { Node, Edge } from '@xyflow/react';
 import JSZip from 'jszip';
 
-function extractTiptapText(content: any, depth = 0): string {
+interface TiptapNode {
+  type?: string;
+  text?: string;
+  content?: TiptapNode[];
+  [key: string]: unknown;
+}
+
+function extractTiptapText(content: TiptapNode | TiptapNode[] | string | undefined, depth = 0): string {
   if (depth > 50) return '';
   if (!content) return '';
   if (typeof content === 'string') return content;
+  
+  if (Array.isArray(content)) {
+    return content.map((c) => extractTiptapText(c, depth + 1)).join('');
+  }
+
   if (content.text) return content.text;
-  if (content.content && Array.isArray(content.content)) {
-    return content.content.map((c: any) => extractTiptapText(c, depth + 1)).join('');
+  if (content.content) {
+    return extractTiptapText(content.content, depth + 1);
   }
   return '';
 }
@@ -215,10 +227,10 @@ export async function exportToZip(nodes: Node[], edges: Edge[], workspaceName?: 
       type: n.type,
       position: n.position,
       data: {
-        title: (n.data as any).title || (n.data as any).label || '',
-        tags: (n.data as any).tags || [],
-        color: (n.data as any).color || '',
-        emoji: (n.data as any).emoji || ''
+        title: n.data?.title || n.data?.label || '',
+        tags: n.data?.tags || [],
+        color: n.data?.color || '',
+        emoji: n.data?.emoji || ''
       }
     })),
     edges: edges.map(e => ({

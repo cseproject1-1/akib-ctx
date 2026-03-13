@@ -144,34 +144,44 @@ async function applyPendingOpsToEdges(edges: Edge[], workspaceId: string): Promi
  * e.g. don't try to update a node that has a pending delete operation.
  */
 async function validateAndFilterOps(ops: PendingOp[]): Promise<PendingOp[]> {
-  const deletedNodeIds = new Set<string>();
-  const deletedEdgeIds = new Set<string>();
+  const deletedNodeIds = new Map<string, Set<string>>(); // workspaceId -> Set<nodeId>
+  const deletedEdgeIds = new Map<string, Set<string>>(); // workspaceId -> Set<edgeId>
   
   // First pass: identify all deletions
   for (const op of ops) {
-    if (op.type === 'deleteNode') deletedNodeIds.add(op.args[1] as string);
-    if (op.type === 'deleteEdge') deletedEdgeIds.add(op.args[1] as string);
+    if (op.type === 'deleteNode') {
+      const [wsId, nodeId] = op.args as [string, string];
+      if (!deletedNodeIds.has(wsId)) deletedNodeIds.set(wsId, new Set());
+      deletedNodeIds.get(wsId)!.add(nodeId);
+    }
+    if (op.type === 'deleteEdge') {
+      const [wsId, edgeId] = op.args as [string, string];
+      if (!deletedEdgeIds.has(wsId)) deletedEdgeIds.set(wsId, new Set());
+      deletedEdgeIds.get(wsId)!.add(edgeId);
+    }
   }
 
   // Second pass: filter out ops on deleted items
   return ops.filter(op => {
     const args = op.args;
+    const wsId = args[0] as string;
+    
     switch (op.type) {
       case 'saveNode':
       case 'updatePosition':
       case 'updateData':
       case 'updateStyle': {
         const nodeId = (op.type === 'saveNode' ? (args[1] as Node).id : args[1]) as string;
-        return !deletedNodeIds.has(nodeId);
+        return !deletedNodeIds.get(wsId)?.has(nodeId);
       }
       case 'saveEdge':
       case 'updateEdgeData': {
         const edge = op.type === 'saveEdge' ? (args[1] as Edge) : null;
         const edgeId = edge ? edge.id : (args[1] as string);
-        if (deletedEdgeIds.has(edgeId)) return false;
+        if (deletedEdgeIds.get(wsId)?.has(edgeId)) return false;
         
         // If node is deleted, edge is orphaned
-        if (edge && (deletedNodeIds.has(edge.source) || deletedNodeIds.has(edge.target))) return false;
+        if (edge && (deletedNodeIds.get(wsId)?.has(edge.source) || deletedNodeIds.get(wsId)?.has(edge.target))) return false;
         return true;
       }
       default:
@@ -383,12 +393,11 @@ export async function saveEdge(workspaceId: string, edge: Edge) {
 }
 
 export async function deleteCanvasNode(workspaceId: string, nodeId: string) {
-  // Update all workspace caches to remove this node immediately
-  try {
-    const db = await import('./indexedDB').then(m => m.cacheGet<Node[]>('canvas-nodes', ''));
-    // We can't easily know the workspaceId here, so we rely on the caller's cache update
-  } catch (err) {
-    console.error('Error deleting canvas node:', err);
+  // Update local cache immediately so deletes survive refresh
+  const entry = await cacheGet<Node[]>('canvas-nodes', workspaceId);
+  if (entry) {
+    const nodes = entry.data.filter((n) => n.id !== nodeId);
+    await cacheSet('canvas-nodes', workspaceId, nodes);
   }
   try {
     await withRetry(() => serverDeleteNode(workspaceId, nodeId));

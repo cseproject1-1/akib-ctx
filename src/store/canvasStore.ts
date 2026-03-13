@@ -195,7 +195,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const nodes = get().nodes;
     const removedIds = changes
       .filter((c) => c.type === 'remove')
-      .map((c) => (c as any).id);
+      .map((c) => (c as { id: string }).id);
 
     if (removedIds.length > 0) {
       const newBacklinks = { ...get().backlinks };
