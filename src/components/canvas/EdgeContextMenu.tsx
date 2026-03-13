@@ -47,12 +47,17 @@ export function EdgeContextMenu() {
     const label = prompt('Enter edge label:', typeof edge?.label === 'string' ? edge.label : '');
     if (label !== null) {
       const trimmed = label.trim();
+      if (!trimmed) {
+        toast.error('Edge label cannot be empty');
+        setEdgeContextMenu(null);
+        return;
+      }
       if (trimmed === (edge?.label || '')) {
         setEdgeContextMenu(null);
         return;
       }
       pushSnapshot('Update Edge Label');
-      setEdges(useCanvasStore.getState().edges.map(e => e.id === edgeId ? { ...e, label: trimmed || undefined } : e));
+      setEdges(useCanvasStore.getState().edges.map(e => e.id === edgeId ? { ...e, label: trimmed } : e));
     }
     setEdgeContextMenu(null);
   };
@@ -65,8 +70,11 @@ export function EdgeContextMenu() {
         onContextMenu={(e) => { e.preventDefault(); setEdgeContextMenu(null); }}
       />
       <div
-        className="fixed z-50 min-w-[200px] rounded-xl border-2 border-border bg-card p-2 shadow-[var(--brutal-shadow)] animate-brutal-pop overflow-hidden"
-        style={{ left: Math.min(x, window.innerWidth - 220), top: Math.min(y, window.innerHeight - 350) }}
+        className="absolute z-50 min-w-[200px] rounded-xl border-2 border-border bg-card p-2 shadow-[var(--brutal-shadow)] animate-brutal-pop overflow-hidden"
+        style={{ 
+          left: Math.min(x + window.scrollX, window.innerWidth + window.scrollX - 220), 
+          top: Math.min(y + window.scrollY, window.innerHeight + window.scrollY - 350) 
+        }}
       >
         <div className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b-2 border-border mb-2 bg-muted/30 -mx-2 -mt-2">
           Edge Settings

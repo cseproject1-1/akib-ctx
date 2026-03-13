@@ -222,7 +222,11 @@ export const CustomEdge = memo(({
     minFrames.current = 8; // Ensure at least 8 frames of animation
     cancelAnimationFrame(rafId.current);
     rafId.current = requestAnimationFrame(simulateSpring);
-    return () => cancelAnimationFrame(rafId.current);
+    return () => {
+      cancelAnimationFrame(rafId.current);
+      // Reset offsets on unmount to prevent artifacts if component is reused
+      springOffset.current = { cx1: 0, cy1: 0, cx2: 0, cy2: 0 };
+    };
   }, [sourceX, sourceY, targetX, targetY, pathType, simulateSpring]);
 
   // Initialize physics path on mount / pathType change

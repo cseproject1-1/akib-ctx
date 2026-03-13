@@ -228,10 +228,10 @@ export function NodeContextMenu() {
             initial={{ opacity: 0, scale: 0.95, y: -10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -10 }}
-            className="fixed z-[100] min-w-[240px] max-h-[85vh] overflow-y-auto scrollbar-none rounded-[2rem] glass-morphism-strong p-2 pro-shadow border border-white/5"
+            className="absolute z-[100] min-w-[240px] max-h-[85vh] overflow-y-auto scrollbar-none rounded-[2rem] glass-morphism-strong p-2 pro-shadow border border-white/5"
             style={{
-              left: Math.min(x, window.innerWidth - 260),
-              top: Math.min(y, window.innerHeight - 500),
+              left: Math.min(x + window.scrollX, window.innerWidth + window.scrollX - 260),
+              top: Math.min(y + window.scrollY, window.innerHeight + window.scrollY - 500),
             }}
           >
             <div className="px-4 py-3 border-b border-white/5 mb-1.5 flex items-center justify-between bg-white/5 rounded-t-[1.8rem]">

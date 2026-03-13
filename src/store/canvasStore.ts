@@ -285,8 +285,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const node = get().nodes.find((n) => n.id === id);
     if (!node) return;
     get().pushSnapshot('Duplicate Node');
-    // Deep clone data to avoid shared references
-    const clonedData = JSON.parse(JSON.stringify(node.data || {}));
+    // Use structuredClone for high-fidelity deep cloning (preserves undefined, dates, etc.)
+    const clonedData = structuredClone(node.data || {});
     // Reset pinned state on duplicate
     delete clonedData.pinned;
     const newNode: Node = {
@@ -426,11 +426,15 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   loadCanvas: (nodes, edges) => {
     if (skipSyncTimeout) clearTimeout(skipSyncTimeout);
     set({ nodes, edges, past: [], future: [], _skipSync: true });
-    // Use setTimeout instead of queueMicrotask for safer timing
-    skipSyncTimeout = setTimeout(() => {
-      set({ _skipSync: false });
-      skipSyncTimeout = null;
-    }, 150); // Slightly longer delay to be safe
+    
+    // Save current timeout id to prevent race conditions if called rapidly
+    const currentTimeout = setTimeout(() => {
+      if (skipSyncTimeout === currentTimeout) {
+        set({ _skipSync: false });
+        skipSyncTimeout = null;
+      }
+    }, 150);
+    skipSyncTimeout = currentTimeout;
   },
 
   toggleMinimap: () => set({ showMinimap: !get().showMinimap }),
@@ -571,10 +575,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   pushSnapshot: (label = 'Action') => {
     const { nodes, edges, past } = get();
-    // Deep clone data to prevent reference leakage across history states
+    // Use structuredClone for efficient and robust deep cloning of node/edge data
     const snapshot: HistorySnapshot = { 
-      nodes: nodes.map(n => ({ ...n, data: JSON.parse(JSON.stringify(n.data || {})) })), 
-      edges: edges.map(e => ({ ...e, data: JSON.parse(JSON.stringify(e.data || {})) })),
+      nodes: nodes.map(n => ({ ...n, data: structuredClone(n.data || {}) })), 
+      edges: edges.map(e => ({ ...e, data: structuredClone(e.data || {}) })),
       label,
       timestamp: Date.now()
     };
@@ -589,8 +593,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     if (past.length === 0) return;
     const prev = past[past.length - 1];
     const currentSnapshot: HistorySnapshot = { 
-      nodes: nodes.map(n => ({ ...n, data: JSON.parse(JSON.stringify(n.data || {})) })), 
-      edges: edges.map(e => ({ ...e, data: JSON.parse(JSON.stringify(e.data || {})) })),
+      nodes: nodes.map(n => ({ ...n, data: structuredClone(n.data || {}) })), 
+      edges: edges.map(e => ({ ...e, data: structuredClone(e.data || {}) })),
       label: 'Undo Action',
       timestamp: Date.now()
     };
@@ -610,8 +614,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     if (future.length === 0) return;
     const next = future[0];
     const currentSnapshot: HistorySnapshot = { 
-      nodes: nodes.map(n => ({ ...n, data: JSON.parse(JSON.stringify(n.data || {})) })), 
-      edges: edges.map(e => ({ ...e, data: JSON.parse(JSON.stringify(e.data || {})) })),
+      nodes: nodes.map(n => ({ ...n, data: structuredClone(n.data || {}) })), 
+      edges: edges.map(e => ({ ...e, data: structuredClone(e.data || {}) })),
       label: 'Redo Action',
       timestamp: Date.now()
     };

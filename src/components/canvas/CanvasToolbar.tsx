@@ -164,17 +164,19 @@ export function CanvasToolbar() {
     const gapX = 440;
     const gapY = 560;
     
+    // Map of nodes with new positions
+    const layoutMap = new Map();
+    nodesToLayout.forEach((n, index) => {
+      layoutMap.set(n.id, {
+        x: (index % cols) * gapX,
+        y: Math.floor(index / cols) * gapY,
+      });
+    });
+
     const newNodes = nodes.map((n) => {
-      const index = nodesToLayout.indexOf(n);
-      if (index === -1) return n;
-      
-      return {
-        ...n,
-        position: {
-          x: (index % cols) * gapX,
-          y: Math.floor(index / cols) * gapY,
-        },
-      };
+      const pos = layoutMap.get(n.id);
+      if (!pos) return n;
+      return { ...n, position: pos };
     });
     
     setNodes(newNodes);
