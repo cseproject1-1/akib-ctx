@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Node } from '@xyflow/react';
+import { Virtuoso } from 'react-virtuoso';
 
 const ICON_MAP: Record<string, any> = {
   aiNote: FileText,
@@ -97,25 +98,7 @@ export function MobileListView() {
           </button>
         </div>
 
-        {/* Workspace Summary Card */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary/20 via-primary/5 to-transparent border border-primary/20 p-4">
-          <div className="relative z-10">
-            <h3 className="text-sm font-bold text-primary mb-1">Workspace Overview</h3>
-            <div className="flex items-center gap-4">
-              <div className="flex flex-col">
-                <span className="text-xl font-black text-foreground">{nodes.length}</span>
-                <span className="text-[9px] uppercase tracking-widest font-bold text-muted-foreground">Total Nodes</span>
-              </div>
-              <div className="h-8 w-[1px] bg-primary/20" />
-              <div className="flex flex-col">
-                <span className="text-xl font-black text-foreground">~{Math.ceil(nodes.length * 1.5)}m</span>
-                <span className="text-[9px] uppercase tracking-widest font-bold text-muted-foreground">Read Time</span>
-              </div>
-            </div>
-          </div>
-          {/* Decorative Background Icon */}
-          <Book className="absolute -right-4 -bottom-4 h-24 w-24 text-primary/10 -rotate-12" />
-        </div>
+
 
         {/* Search Bar */}
         <div className="relative group">
@@ -166,60 +149,55 @@ export function MobileListView() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto space-y-3 pb-32 custom-scrollbar pr-1">
-        <AnimatePresence mode="popLayout">
-          {filteredNodes.length === 0 ? (
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex flex-col items-center justify-center h-64 text-muted-foreground italic gap-2"
-            >
-              <div className="h-12 w-12 rounded-full bg-accent/30 flex items-center justify-center">
-                <X className="h-6 w-6 opacity-20" />
-              </div>
-              <p className="text-sm">No matches found</p>
-            </motion.div>
-          ) : (
-            filteredNodes.map((node: Node, idx: number) => {
+      <div className="flex-1 min-h-0 pr-1">
+        {filteredNodes.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-64 text-muted-foreground italic gap-2">
+            <div className="h-12 w-12 rounded-full bg-accent/30 flex items-center justify-center">
+              <X className="h-6 w-6 opacity-20" />
+            </div>
+            <p className="text-sm">No matches found</p>
+          </div>
+        ) : (
+          <Virtuoso
+            data={filteredNodes}
+            className="custom-scrollbar"
+            itemContent={(idx, node: Node) => {
               const Icon = ICON_MAP[node.type || 'text'] || FileText;
               const title = (node.data as any).title || (node.data as any).text || 'Untitled Item';
               const preview = extractContentPreview(node);
               
               return (
-                <motion.button
-                  key={node.id}
-                  layout
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.03 }}
-                  onClick={() => setExpandedNode(node.id)}
-                  className="w-full flex flex-col p-4 rounded-2xl border-2 border-border bg-card hover:border-primary/50 transition-all text-left group active:shadow-inner"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-3 overflow-hidden">
-                      <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 group-hover:bg-primary group-hover:text-primary-foreground transition-colors shadow-sm">
-                        <Icon className="h-5 w-5" />
+                <div className="pb-3">
+                  <button
+                    onClick={() => setExpandedNode(node.id)}
+                    className="w-full flex flex-col p-4 rounded-2xl border-2 border-border bg-card hover:border-primary/50 transition-all text-left group active:shadow-inner"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 group-hover:bg-primary group-hover:text-primary-foreground transition-colors shadow-sm">
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        <div className="flex flex-col overflow-hidden">
+                          <h3 className="font-bold text-[13px] text-foreground truncate">{title}</h3>
+                          <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest leading-none">
+                            {node.type?.replace(/([A-Z])/g, ' $1')}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex flex-col overflow-hidden">
-                        <h3 className="font-bold text-[13px] text-foreground truncate">{title}</h3>
-                        <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest leading-none">
-                          {node.type?.replace(/([A-Z])/g, ' $1')}
-                        </span>
-                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors group-hover:translate-x-1 duration-300" />
                     </div>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors group-hover:translate-x-1 duration-300" />
-                  </div>
-                  
-                  {preview && (
-                    <p className="text-[11px] text-muted-foreground/80 line-clamp-2 leading-relaxed ml-[52px] italic border-l-2 border-border pl-3 mt-1">
-                      {preview}
-                    </p>
-                  )}
-                </motion.button>
+                    
+                    {preview && (
+                      <p className="text-[11px] text-muted-foreground/80 line-clamp-2 leading-relaxed ml-[52px] italic border-l-2 border-border pl-3 mt-1">
+                        {preview}
+                      </p>
+                    )}
+                  </button>
+                </div>
               );
-            })
-          )}
-        </AnimatePresence>
+            }}
+          />
+        )}
       </div>
       
       <div className="p-4 bg-primary/5 rounded-xl border border-primary/20 text-[10px] text-primary/70 font-bold uppercase tracking-widest text-center mb-16">

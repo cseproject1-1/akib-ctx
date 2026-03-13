@@ -320,6 +320,8 @@ export function NodeExpandModal() {
 
   const getTitle = () => nodeData.title || nodeData.year || 'Untitled';
 
+  const isShareView = typeof window !== 'undefined' && window.location.pathname.startsWith('/view/');
+
   const renderContent = () => {
     switch (nodeType) {
       case 'aiNote':
@@ -334,7 +336,8 @@ export function NodeExpandModal() {
             pasteFormat={nodeData.pasteFormat}
             editable={!isViewMode}
             title={getTitle()}
-            forceBlockNote={true}
+            forceTiptap={isShareView}
+            forceBlockNote={!isShareView}
           />
         );
 
