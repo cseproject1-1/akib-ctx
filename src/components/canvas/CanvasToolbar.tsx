@@ -27,13 +27,10 @@ import { HistoryPanel, openHistory } from './HistoryPanel';
 import { PresenceList } from './PresenceList';
 import { ShortcutsDialog } from './ShortcutsDialog';
 
-interface CanvasToolbarProps {
-  drawingMode?: boolean;
-  onToggleDrawing?: () => void;
-}
-
-export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarProps) {
+export function CanvasToolbar() {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
+  const drawingMode = useCanvasStore((s) => s.drawingMode);
+  const setDrawingMode = useCanvasStore((s) => s.setDrawingMode);
   const undo = useCanvasStore((s) => s.undo);
   const redo = useCanvasStore((s) => s.redo);
   const past = useCanvasStore((s) => s.past);
@@ -158,18 +155,28 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
   const handleExportJson = () => { exportToJSON(nodes, workspaceName); toast.success('Exported to JSON'); setShowExportMenu(false); };
 
   const handleGridLayout = () => {
-    if (nodes.length === 0) return;
-    pushSnapshot();
-    const cols = Math.ceil(Math.sqrt(nodes.length));
+    const nodesToLayout = nodes.filter(n => !n.data?.locked);
+    if (nodesToLayout.length === 0) return;
+    
+    pushSnapshot('Grid Layout');
+    
+    const cols = Math.ceil(Math.sqrt(nodesToLayout.length));
     const gapX = 440;
     const gapY = 560;
-    const newNodes = nodes.map((n, i) => ({
-      ...n,
-      position: {
-        x: (i % cols) * gapX,
-        y: Math.floor(i / cols) * gapY,
-      },
-    }));
+    
+    const newNodes = nodes.map((n) => {
+      const index = nodesToLayout.indexOf(n);
+      if (index === -1) return n;
+      
+      return {
+        ...n,
+        position: {
+          x: (index % cols) * gapX,
+          y: Math.floor(index / cols) * gapY,
+        },
+      };
+    });
+    
     setNodes(newNodes);
     setTimeout(() => fitView({ duration: 400 }), 50);
     toast.success('Grid layout applied');
@@ -177,20 +184,38 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
   };
 
   const handleTreeLayout = () => {
-    if (nodes.length === 0) return;
-    pushSnapshot();
+    const nodesToLayout = nodes.filter(n => !n.data?.locked);
+    if (nodesToLayout.length === 0) return;
+    
+    pushSnapshot('Tree Layout');
     const newNodes = getTreeLayout(nodes, edges);
-    setNodes(newNodes);
+    // Merge back original positions for locked nodes if layout tool doesn't handle them
+    const mergedNodes = newNodes.map(ln => {
+      const original = nodes.find(n => n.id === ln.id);
+      if (original?.data?.locked) return original;
+      return ln;
+    });
+    
+    setNodes(mergedNodes);
     setTimeout(() => fitView({ duration: 400 }), 50);
     toast.success('Tree layout applied');
     setShowLayoutMenu(false);
   };
 
   const handleCircularLayout = () => {
-    if (nodes.length === 0) return;
-    pushSnapshot();
+    const nodesToLayout = nodes.filter(n => !n.data?.locked);
+    if (nodesToLayout.length === 0) return;
+    
+    pushSnapshot('Circular Layout');
     const newNodes = getCircularLayout(nodes);
-    setNodes(newNodes);
+    // Merge back original positions for locked nodes
+    const mergedNodes = newNodes.map(ln => {
+      const original = nodes.find(n => n.id === ln.id);
+      if (original?.data?.locked) return original;
+      return ln;
+    });
+    
+    setNodes(mergedNodes);
     setTimeout(() => fitView({ duration: 400 }), 50);
     toast.success('Circular layout applied');
     setShowLayoutMenu(false);
@@ -225,12 +250,14 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
               idMap.set(n.id, newId);
               return { ...n, id: newId };
             });
-            const newEdges = importEdges.map(e => ({
-              ...e,
-              id: crypto.randomUUID(),
-              source: idMap.get(e.source) || e.source,
-              target: idMap.get(e.target) || e.target,
-            }));
+            const newEdges = importEdges
+              .filter(e => idMap.has(e.source) && idMap.has(e.target))
+              .map(e => ({
+                ...e,
+                id: crypto.randomUUID(),
+                source: idMap.get(e.source)!,
+                target: idMap.get(e.target)!,
+              }));
             
             loadCanvas([...nodes, ...newNodes], [...edges, ...newEdges]);
             toast.success(`Imported ${newNodes.length} nodes and ${newEdges.length} edges.`);
@@ -415,7 +442,7 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
             {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </ToolbarBtn>
           <Divider />
-          <ToolbarBtn onClick={() => onToggleDrawing?.()} tip="Drawing mode (D)" className={cn(drawingMode ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'hover:bg-primary/10')}>
+          <ToolbarBtn onClick={() => setDrawingMode(!drawingMode)} tip="Drawing mode (D)" className={cn(drawingMode ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'hover:bg-primary/10')}>
             <Pen className="h-4 w-4" />
           </ToolbarBtn>
           <ToolbarBtn onClick={() => { const newMode = !connectMode; setConnectMode(newMode); if (newMode) toast.info('Connector mode: click the source node'); }} tip="Connector mode (C)" className={cn(connectMode ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'hover:bg-primary/10')}>
@@ -481,7 +508,7 @@ export function CanvasToolbar({ drawingMode, onToggleDrawing }: CanvasToolbarPro
             </AnimatePresence>
           </div>
           <Divider />
-          <ToolbarBtn onClick={() => openSearch()} tip="Search nodes (⌘K)" className="hover:bg-primary/10">
+          <ToolbarBtn onClick={() => openSearch()} tip="Search nodes (⌘K)" className="hover:bg-primary/10" onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'k') e.preventDefault(); }}>
             <Search className="h-4 w-4" />
           </ToolbarBtn>
           <ToolbarBtn onClick={() => setShowTemplates(true)} tip="Template Gallery (T)" className="text-primary hover:bg-primary/10">
@@ -617,7 +644,7 @@ function Divider() {
   return <div className="h-6 w-px bg-white/5 mx-1.5 flex-shrink-0" />;
 }
 
-function ToolbarBtn({ children, onClick, disabled, tip, className }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; tip: string; className?: string }) {
+function ToolbarBtn({ children, onClick, disabled, tip, className, onKeyDown }: { children: React.ReactNode; onClick: () => void; disabled?: boolean; tip: string; className?: string; onKeyDown?: (e: React.KeyboardEvent) => void }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -625,6 +652,7 @@ function ToolbarBtn({ children, onClick, disabled, tip, className }: { children:
           whileHover={{ scale: 1.05, y: -2 }}
           whileTap={{ scale: 0.95 }}
           onClick={onClick}
+          onKeyDown={onKeyDown}
           disabled={disabled}
           className={cn(
             "flex-shrink-0 flex items-center justify-center p-2.5 rounded-xl text-muted-foreground/60 transition-all duration-200 hover:text-primary disabled:opacity-20",

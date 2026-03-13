@@ -1,4 +1,4 @@
-import { Panel } from '@xyflow/react';
+import { Panel, useReactFlow } from '@xyflow/react';
 import { NotebookPen, StickyNote, HelpCircle, BookOpen, FileUp, ImagePlus, Square, Sparkles, Plus, GraduationCap, MessageSquarePlus, ListTodo, Type, Circle, Diamond, Triangle, Pen, Globe, Sigma, Video, Table2, Braces, Cable, Columns3, Bookmark, CalendarDays, Paperclip, Sheet, Clock, LayoutDashboard } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { useState } from 'react';
@@ -139,12 +139,27 @@ export function AddNodeToolbar() {
     }
   };
 
+  const { screenToFlowPosition } = useReactFlow();
+
   const handleAdd = (type: NodeType, extraData?: Record<string, unknown>) => {
     const size = defaultSizeForType(type);
+    
+    // Calculate center of screen
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
+    const position = screenToFlowPosition({ x: centerX, y: centerY });
+    
+    // Offset by half size to truly center (if possible)
+    const centerXOffset = size.width / 2;
+    const centerYOffset = typeof size.height === 'number' ? size.height / 2 : 100;
+
     const node = {
       id: crypto.randomUUID(),
       type,
-      position: { x: Math.random() * 200 - 100, y: Math.random() * 200 - 100 },
+      position: { 
+        x: position.x - centerXOffset, 
+        y: position.y - centerYOffset 
+      },
       data: { ...defaultDataForType(type), ...extraData, createdAt: new Date().toISOString() },
       style: { width: size.width, height: size.height },
     };

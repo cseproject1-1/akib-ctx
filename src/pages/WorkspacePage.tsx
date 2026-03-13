@@ -138,7 +138,7 @@ const WorkspacePage = () => {
       if (state.workspaceId !== workspaceId) return;
       // Also ensure we aren't comparing nodes from a previous workspace that haven't been cleared yet
       // This is critical to avoid cross-workspace data contamination or saving old state into new workspace
-      if (prev.workspaceId !== workspaceId) {
+      if (prev.workspaceId && prev.workspaceId !== workspaceId) {
         console.warn('[sync] Workspace ID mismatch in prev state, skipping this update');
         return;
       }

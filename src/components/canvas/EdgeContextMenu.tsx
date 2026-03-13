@@ -18,6 +18,9 @@ export function EdgeContextMenu() {
   const setEdgeContextMenu = useCanvasStore((s) => s.setEdgeContextMenu);
   const edges = useEdges();
   const updateEdgeData = useCanvasStore((s) => s.updateEdgeData);
+  const deleteEdgeAction = useCanvasStore((s) => s.deleteEdge);
+  const pushSnapshot = useCanvasStore((s) => s.pushSnapshot);
+  const setEdges = useCanvasStore((s) => s.setEdges);
 
   if (!edgeContextMenu) return null;
 
@@ -30,28 +33,26 @@ export function EdgeContextMenu() {
     setEdgeContextMenu(null);
   };
 
-  const setEdgeStyle = (style: any) => {
+  const setEdgeStyle = (style: any, label = 'Update Edge Style') => {
+    pushSnapshot(label);
     updateEdgeData(edgeId, style);
     setEdgeContextMenu(null);
   };
 
-  const onEdgesChange = useCanvasStore((s) => s.onEdgesChange);
-
   const deleteEdge = (id: string) => {
-    onEdgesChange([{ type: 'remove', id }]);
+    deleteEdgeAction(id);
   };
 
   const handleSetLabel = () => {
     const label = prompt('Enter edge label:', typeof edge?.label === 'string' ? edge.label : '');
     if (label !== null) {
-      onEdgesChange([{ 
-        type: 'select', 
-        id: edgeId, 
-        selected: true 
-      }]);
-      useCanvasStore.setState(s => ({
-        edges: s.edges.map(e => e.id === edgeId ? { ...e, label: label || undefined } : e)
-      }));
+      const trimmed = label.trim();
+      if (trimmed === (edge?.label || '')) {
+        setEdgeContextMenu(null);
+        return;
+      }
+      pushSnapshot('Update Edge Label');
+      setEdges(useCanvasStore.getState().edges.map(e => e.id === edgeId ? { ...e, label: trimmed || undefined } : e));
     }
     setEdgeContextMenu(null);
   };
@@ -80,7 +81,7 @@ export function EdgeContextMenu() {
         <div className="px-2 py-1 text-[9px] font-black text-muted-foreground uppercase opacity-50">Line Type</div>
         <div className="grid grid-cols-3 gap-1 px-1 mb-2">
           {['solid', 'dashed', 'dotted'].map((s) => (
-            <button key={s} onClick={() => setEdgeStyle({ lineStyle: s })}
+            <button key={s} onClick={() => setEdgeStyle({ lineStyle: s }, 'Change Edge Style')}
               className={`flex flex-col items-center gap-1 rounded-md border-2 py-1.5 transition-all ${data.lineStyle === s || (!data.lineStyle && s === 'solid') ? 'bg-primary/10 border-primary' : 'border-transparent hover:bg-muted'}`}>
               <span className="text-[8px] font-bold uppercase">{s}</span>
             </button>
@@ -90,7 +91,7 @@ export function EdgeContextMenu() {
         <div className="px-2 py-1 text-[9px] font-black text-muted-foreground uppercase opacity-50">Path Path</div>
         <div className="grid grid-cols-3 gap-1 px-1 mb-2">
           {['straight', 'step', 'bezier'].map((p) => (
-            <button key={p} onClick={() => setEdgeStyle({ pathType: p })}
+            <button key={p} onClick={() => setEdgeStyle({ pathType: p }, 'Change Edge Path')}
               className={`flex flex-col items-center gap-1 rounded-md border-2 py-1.5 transition-all ${data.pathType === p || (!data.pathType && p === 'bezier') ? 'bg-primary/10 border-primary' : 'border-transparent hover:bg-muted'}`}>
               <span className="text-[8px] font-bold uppercase">{p}</span>
             </button>
@@ -98,7 +99,7 @@ export function EdgeContextMenu() {
         </div>
 
         <div className="px-2 py-1 text-[9px] font-black text-muted-foreground uppercase opacity-50">Flow</div>
-        <CtxBtn onClick={() => setEdgeStyle({ animated: !data.animated })}>
+        <CtxBtn onClick={() => setEdgeStyle({ animated: !data.animated }, 'Toggle Edge Flow')}>
           {data.animated ? <ZapOff className="h-4 w-4" /> : <Zap className="h-4 w-4" />}
           {data.animated ? 'Stop Animation' : 'Start Flow'}
         </CtxBtn>
@@ -112,7 +113,7 @@ export function EdgeContextMenu() {
               key={c.value}
               className={`h-6 w-6 rounded-full border-2 transition-transform hover:scale-125 ${data.color === c.value ? 'ring-2 ring-primary border-card' : 'border-border'}`}
               style={{ backgroundColor: c.value }}
-              onClick={() => setEdgeStyle({ color: c.value })}
+              onClick={() => setEdgeStyle({ color: c.value }, 'Change Edge Color')}
               title={c.label}
             />
           ))}

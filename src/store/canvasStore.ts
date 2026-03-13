@@ -58,6 +58,7 @@ interface CanvasState {
   // History
   past: HistorySnapshot[];
   future: HistorySnapshot[];
+  drawingMode: boolean;
 
   // Actions
   setWorkspaceId: (id: string | null) => void;
@@ -72,6 +73,8 @@ interface CanvasState {
   duplicateNode: (id: string) => void;
   updateNodeData: (id: string, data: Record<string, unknown>) => void;
   updateNodeStyle: (id: string, style: Record<string, unknown>) => void;
+  deleteEdge: (id: string) => void;
+  setDrawingMode: (val: boolean) => void;
   setContextMenu: (menu: CanvasState['contextMenu']) => void;
   setNodeContextMenu: (menu: CanvasState['nodeContextMenu']) => void;
   setEdgeContextMenu: (menu: CanvasState['edgeContextMenu']) => void;
@@ -159,6 +162,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   mobileMode: false,
   past: [],
   future: [],
+  drawingMode: false,
   backlinks: {},
   _contentBacklinks: {},
   _syncAllBacklinks: () => {
@@ -389,12 +393,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const group = nodes.find(n => n.id === groupId);
     if (!group) return;
 
-    const isCollapsing = !(group.data as any).collapsed;
+    const isCollapsing = !group.data.collapsed;
     
     // Store original size when collapsing
     const originalStyle = isCollapsing 
-      ? { ...group.style, width: group.measured?.width || group.width, height: group.measured?.height || group.height }
-      : (group.data as any).originalStyle || group.style;
+      ? { ...group.style, width: group.measured?.width || (group as any).width, height: group.measured?.height || (group as any).height }
+      : group.data.originalStyle || group.style;
 
     set({
       nodes: nodes.map(n => {
@@ -554,6 +558,16 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       ),
     });
   },
+
+  deleteEdge: (id) => {
+    get().pushSnapshot('Remove Connection');
+    set({
+      edges: get().edges.filter((e) => e.id !== id),
+    });
+    get()._syncAllBacklinks();
+  },
+
+  setDrawingMode: (val) => set({ drawingMode: val }),
 
   pushSnapshot: (label = 'Action') => {
     const { nodes, edges, past } = get();

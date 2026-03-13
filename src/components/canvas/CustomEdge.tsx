@@ -83,7 +83,9 @@ export const CustomEdge = memo(({
   label,
   data,
 }: EdgeProps) => {
-  const deleteEdge = useCanvasStore((s) => s.onEdgesChange);
+  const deleteEdge = useCanvasStore((s) => s.deleteEdge);
+  const updateEdgeData = useCanvasStore((s) => s.updateEdgeData);
+  const pushSnapshot = useCanvasStore((s) => s.pushSnapshot);
   const [showStylePicker, setShowStylePicker] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [editingLabel, setEditingLabel] = useState(false);
@@ -110,6 +112,11 @@ export const CustomEdge = memo(({
   useEffect(() => {
     if (editingLabel && inputRef.current) inputRef.current.focus();
   }, [editingLabel]);
+
+  const isMounted = useRef(true);
+  useEffect(() => {
+    return () => { isMounted.current = false; };
+  }, []);
 
   // --- Spring physics for bezier control points ---
   const prevPos = useRef({ sx: sourceX, sy: sourceY, tx: targetX, ty: targetY });
@@ -204,7 +211,7 @@ export const CustomEdge = memo(({
       return; 
     }
 
-    if (mag > 0.05 || minFrames.current > 0 || velMag > 0.05) {
+    if ((mag > 0.05 || minFrames.current > 0 || velMag > 0.05) && isMounted.current) {
       rafId.current = requestAnimationFrame(simulateSpring);
     }
   }, [sourceX, sourceY, targetX, targetY]);
@@ -236,36 +243,45 @@ export const CustomEdge = memo(({
     if (pathRef.current) setPathLength(pathRef.current.getTotalLength());
   }, [edgePath]);
 
-  const handleDelete = (e: React.MouseEvent) => { e.stopPropagation(); deleteEdge([{ id, type: 'remove' }]); };
-
-  const updateEdgeData = (newData: Record<string, unknown>) => {
-    const { edges, setEdges } = useCanvasStore.getState();
-    setEdges(edges.map((e) => e.id === id ? { ...e, data: { ...e.data, ...newData } } : e));
+  const handleDelete = (e: React.MouseEvent) => { 
+    e.stopPropagation(); 
+    deleteEdge(id); 
   };
 
-  const handleStyleChange = (style: string) => { updateEdgeData({ lineStyle: style }); setShowStylePicker(false); };
-  const handleColorChange = (c: string) => { updateEdgeData({ color: c }); setShowColorPicker(false); };
-  const handleThicknessChange = (t: number) => { updateEdgeData({ thickness: t }); };
-  const handlePathTypeChange = (t: string) => { updateEdgeData({ pathType: t }); };
-  const handleToggleAnimated = () => { updateEdgeData({ animated: !isAnimated }); };
-  const handleMarkerEndChange = (m: string) => { updateEdgeData({ markerEndStyle: m }); };
-  const handleMarkerStartChange = (m: string) => { updateEdgeData({ markerStartStyle: m }); };
+  const updateEdgeDataWithSnapshot = (newData: Record<string, unknown>, label = 'Update Edge') => {
+    pushSnapshot(label);
+    updateEdgeData(id, newData);
+  };
+
+  const handleStyleChange = (style: string) => { updateEdgeDataWithSnapshot({ lineStyle: style }, 'Change Edge Style'); setShowStylePicker(false); };
+  const handleColorChange = (c: string) => { updateEdgeDataWithSnapshot({ color: c }, 'Change Edge Color'); setShowColorPicker(false); };
+  const handleThicknessChange = (t: number) => { updateEdgeDataWithSnapshot({ thickness: t }, 'Change Edge Weight'); };
+  const handlePathTypeChange = (t: string) => { updateEdgeDataWithSnapshot({ pathType: t }, 'Change Edge Path'); };
+  const handleToggleAnimated = () => { updateEdgeDataWithSnapshot({ animated: !isAnimated }, 'Toggle Edge Flow'); };
+  const handleMarkerEndChange = (m: string) => { updateEdgeDataWithSnapshot({ markerEndStyle: m }, 'Change Edge Marker'); };
+  const handleMarkerStartChange = (m: string) => { updateEdgeDataWithSnapshot({ markerStartStyle: m }, 'Change Edge Marker'); };
   const handleToggleBidirectional = () => {
     const next = !bidirectional;
-    updateEdgeData({ bidirectional: next, markerStartStyle: next ? markerEndStyle : 'none' });
+    updateEdgeDataWithSnapshot({ bidirectional: next, markerStartStyle: next ? markerEndStyle : 'none' }, 'Toggle Edge Direction');
   };
-  const handleOpacityChange = (o: number) => { updateEdgeData({ opacity: o }); };
-  const handleToggleGradient = () => { updateEdgeData({ gradientEnabled: !gradientEnabled }); };
-  const handleGradientEndColorChange = (c: string) => { updateEdgeData({ gradientEndColor: c }); };
-  const handleSpeedChange = (s: string) => { updateEdgeData({ animationSpeed: s }); };
-  const handleToggleGlow = () => { updateEdgeData({ glowEnabled: !glowEnabled }); };
-  const handleToggleDoubleLine = () => { updateEdgeData({ doubleLine: !doubleLine }); };
+  const handleOpacityChange = (o: number) => { updateEdgeDataWithSnapshot({ opacity: o }, 'Change Edge Opacity'); };
+  const handleToggleGradient = () => { updateEdgeDataWithSnapshot({ gradientEnabled: !gradientEnabled }, 'Toggle Edge Gradient'); };
+  const handleGradientEndColorChange = (c: string) => { updateEdgeDataWithSnapshot({ gradientEndColor: c }, 'Change Edge Gradient'); };
+  const handleSpeedChange = (s: string) => { updateEdgeDataWithSnapshot({ animationSpeed: s }, 'Change Edge Speed'); };
+  const handleToggleGlow = () => { updateEdgeDataWithSnapshot({ glowEnabled: !glowEnabled }, 'Toggle Edge Glow'); };
+  const handleToggleDoubleLine = () => { updateEdgeDataWithSnapshot({ doubleLine: !doubleLine }, 'Toggle Edge Double Line'); };
   const handleDuplicate = (e: React.MouseEvent) => { e.stopPropagation(); useCanvasStore.getState().duplicateEdge(id); };
   const handleReverse = (e: React.MouseEvent) => { e.stopPropagation(); useCanvasStore.getState().reverseEdge(id); };
 
   const handleLabelSave = () => {
+    const trimmed = labelText.trim();
+    if (trimmed === (label || '')) {
+      setEditingLabel(false);
+      return;
+    }
+    pushSnapshot('Update Edge Label');
     const { edges, setEdges } = useCanvasStore.getState();
-    setEdges(edges.map((e) => e.id === id ? { ...e, label: labelText || undefined } : e));
+    setEdges(edges.map((e) => e.id === id ? { ...e, label: trimmed || undefined } : e));
     setEditingLabel(false);
   };
 
