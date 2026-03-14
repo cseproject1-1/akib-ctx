@@ -106,29 +106,25 @@ const WorkspacePage = () => {
           if (ws) setWorkspaceMeta(ws.name, ws.color);
         }).catch(() => toast.error('Failed to load workspace metadata'));
 
-        // Wait for fresh data if no cache
-        if (!nodesResult.cached || !edgesResult.cached) {
+        // Background sync: wait for fresh data to ensure source of truth before replaying ops
+        try {
           const [nodes, edges] = await Promise.all([nodesResult.fresh, edgesResult.fresh]);
           serverNodeIds.current = new Set(nodes.map(n => n.id));
           serverEdgeIds.current = new Set(edges.map(e => e.id));
-          loadCanvas(nodes, edges);
-        } else {
-          // Even with cache, wait for fresh data to populate serverIds
-          Promise.all([nodesResult.fresh, edgesResult.fresh]).then(([nodes, edges]) => {
-            serverNodeIds.current = new Set(nodes.map(n => n.id));
-            serverEdgeIds.current = new Set(edges.map(e => e.id));
-          }).catch(() => toast.error('Failed to sync fresh canvas data'));
+          
+          // If we had no cache, we MUST load the fresh data now
+          if (!nodesResult.cached || !edgesResult.cached) {
+            loadCanvas(nodes, edges);
+          }
+        } catch (err) {
+          console.warn('[Workspace] Background update failed, continuing with cache', err);
+          if (!nodesResult.cached || !edgesResult.cached) throw err;
         }
 
         // Mark loading as complete — subscriber can now safely detect changes
-        // Use a small delay to ensure all loadCanvas microtasks have settled
-        loadCompleteTimer = setTimeout(async () => { 
-          loadComplete.current = true; 
-          setLoading(false); // Ensure loading is off even if cache was initially missing
-          
-          // Replay pending ops after workspace is fully loaded and subscriber is ready
-          await replayPendingOps();
-        }, 200);
+        loadComplete.current = true; 
+        setLoading(false);
+        await replayPendingOps();
       } catch (err) {
         toast.error('Failed to load canvas');
         setLoading(false);

@@ -269,9 +269,14 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   addNode: (node) => {
     get().pushSnapshot(`Add ${node.type} Node`);
     const cursor = get().lastCursorFlowPosition;
-    const positioned = cursor
+    
+    // If node has a non-zero position, or we don't have a cursor, trust the input position
+    const hasPosition = node.position.x !== 0 || node.position.y !== 0;
+    
+    const positioned = (!hasPosition && cursor)
       ? { ...node, position: { x: cursor.x - 150, y: cursor.y - 50 } }
       : node;
+
     set({ nodes: [...get().nodes, positioned] });
   },
 

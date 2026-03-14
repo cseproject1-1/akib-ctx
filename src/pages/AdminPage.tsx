@@ -34,21 +34,21 @@ function OverviewTab() {
   return (
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
+        <Card className="brutal-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Users</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent><div className="text-2xl font-bold">{stats?.totalUsers ?? 0}</div></CardContent>
         </Card>
-        <Card>
+        <Card className="brutal-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Workspaces</CardTitle>
             <LayoutGrid className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent><div className="text-2xl font-bold">{stats?.totalWorkspaces ?? 0}</div></CardContent>
         </Card>
-        <Card>
+        <Card className="brutal-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Nodes</CardTitle>
             <BarChart3 className="h-4 w-4 text-muted-foreground" />

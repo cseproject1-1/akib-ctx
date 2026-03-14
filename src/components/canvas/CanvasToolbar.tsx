@@ -238,13 +238,15 @@ export function CanvasToolbar() {
           const content = event.target?.result as string;
           const data = JSON.parse(content);
           
-          if (Array.isArray(data)) {
-            loadCanvas([...nodes, ...data], edges);
-            toast.success(`Imported ${data.length} nodes successfully!`);
-          } else if (data && typeof data === 'object') {
-            const importedNodes = Array.isArray(data.nodes) ? data.nodes : [];
-            const importedEdges = Array.isArray(data.edges) ? data.edges : [];
+          if (Array.isArray(data) || (data && typeof data === 'object')) {
+            const importedNodes = Array.isArray(data) ? data : (Array.isArray(data.nodes) ? data.nodes : []);
+            const importedEdges = data && typeof data === 'object' && Array.isArray(data.edges) ? data.edges : [];
             
+            if (importedNodes.length === 0) {
+              toast.error('No nodes found in JSON');
+              return;
+            }
+
             // Re-map IDs to prevent collisions
             const idMap = new Map<string, string>();
             const remappedNodes = importedNodes.map(n => {
@@ -253,7 +255,7 @@ export function CanvasToolbar() {
               return { ...n, id: newId };
             });
 
-            // Filter out edges that connect to non-existent nodes
+            // Filter and remap edges
             const nodeIds = new Set(importedNodes.map(n => n.id));
             const remappedEdges = importedEdges
               .filter(e => nodeIds.has(e.source) && nodeIds.has(e.target))
@@ -265,9 +267,9 @@ export function CanvasToolbar() {
               }));
             
             loadCanvas([...nodes, ...remappedNodes], [...edges, ...remappedEdges]);
-            toast.success(`Imported ${remappedNodes.length} nodes and ${remappedEdges.length} edges.`);
+            toast.success(`Imported ${remappedNodes.length} nodes ${remappedEdges.length > 0 ? `and ${remappedEdges.length} edges` : ''} successfully!`);
           } else {
-            toast.error('Invalid JSON structure. Needs nodes/edges arrays or a nodes array.');
+            toast.error('Invalid JSON structure.');
           }
         } catch (err) {
           toast.error('Failed to parse JSON file');

@@ -41,15 +41,15 @@
 
     /* Canvas tokens */
     --canvas-bg: 0 0% 0%;
-    --canvas-dot: 0 0% 12%;
+    --canvas-dot: 0 0% 25%;
     --canvas-node-bg: 0 0% 4%;
-    --canvas-node-border: 0 0% 30%;
+    --canvas-node-border: 0 0% 45%;
     --canvas-node-selected: 52 100% 50%;
 
     /* Neo-brut specific */
-    --brutal-shadow: 4px 4px 0px hsl(0 0% 25%);
-    --brutal-shadow-lg: 6px 6px 0px hsl(0 0% 20%);
-    --brutal-border: 2px solid hsl(0 0% 30%);
+    --brutal-shadow: 4px 4px 0px hsl(0 0% 35%);
+    --brutal-shadow-lg: 6px 6px 0px hsl(0 0% 30%);
+    --brutal-border: 2px solid hsl(0 0% 45%);
 
     /* Accent palette */
     --yellow: 52 100% 50%;
