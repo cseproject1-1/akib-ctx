@@ -206,7 +206,11 @@ export async function cachedLoadCanvasNodes(
       const nodes = await loadCanvasNodes(workspaceId);
       await cacheSet('canvas-nodes', workspaceId, nodes);
       const merged = await applyPendingOpsToNodes(nodes, workspaceId);
-      const isChanged = !cached || merged.length !== cached.length || merged.some((n, i) => n.id !== cached[i].id || (n as any).updated_at !== (cached[i] as any).updated_at);
+      
+      const isChanged = !cached || 
+        merged.length !== cached.length || 
+        JSON.stringify(merged) !== JSON.stringify(cached);
+
       if (onUpdate && isChanged) {
         onUpdate(merged);
       }
@@ -236,7 +240,11 @@ export async function cachedLoadCanvasEdges(
       const edges = await loadCanvasEdges(workspaceId);
       await cacheSet('canvas-edges', workspaceId, edges);
       const merged = await applyPendingOpsToEdges(edges, workspaceId);
-      const isChanged = !cached || merged.length !== cached.length || merged.some((e, i) => e.id !== cached[i].id || (e as any).updated_at !== (cached[i] as any).updated_at);
+      
+      const isChanged = !cached || 
+        merged.length !== cached.length || 
+        JSON.stringify(merged) !== JSON.stringify(cached);
+
       if (onUpdate && isChanged) {
         onUpdate(merged);
       }
@@ -476,7 +484,7 @@ export async function replayPendingOps(isRetry = false) {
       console.warn('[sync] Replay safety timeout reached - resetting flag');
       _replaying = false;
     }
-  }, 30000); // 30s max per replay attempt
+  }, 60000); // 60s max per replay attempt
 
   try {
     const hasSession = await ensureSession();
@@ -506,21 +514,8 @@ export async function replayPendingOps(isRetry = false) {
         continue;
       }
 
-      // Conflict Resolution: Check if cache is newer than this op
-      // (Simple LWW: if cache was updated AFTER the op was created, skip the op)
-      if (op.type.startsWith('save') || op.type.startsWith('update')) {
-        const storeName = op.type.includes('Node') || op.type.includes('Position') || op.type.includes('Style') || op.type.includes('Data') ? 'canvas-nodes' : 'canvas-edges';
-        if (storeName === 'canvas-nodes') {
-          const entry = await cacheGet<Node[]>(storeName, op.args[0] as string);
-          if (entry && entry.cachedAt > op.createdAt) {
-             // Cache is fresher, this op is likely redundant or conflicting
-             console.log('[sync] Skipping conflicting/stale op:', op.type);
-             await removePendingOp(op.id);
-             purged++;
-             continue;
-          }
-        }
-      }
+      // Conflict Resolution: Removed aggressive purging based on cache timestamp to prevent data loss.
+      // Replay should attempt all valid pending ops unless they are explicitly stale (>24h).
 
       try {
         switch (op.type) {
@@ -609,7 +604,10 @@ export async function replayPendingOps(isRetry = false) {
     if (purged > 0 || replayed > 0) {
       window.dispatchEvent(new Event('pending-ops-changed'));
     }
+  } catch (err) {
+    console.error('[sync] Replay failed with unexpected error:', err);
   } finally {
+    clearTimeout(safetyTimeout);
     _replaying = false;
   }
 }
@@ -686,4 +684,7 @@ export function stopSyncManager() {
     window.removeEventListener('online', _onlineHandler);
     _onlineHandler = null;
   }
+  // Clear any active replay
+  _replaying = false;
+  _retryDelay = 5000;
 }

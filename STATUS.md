@@ -60,3 +60,26 @@
 - Completed: Improved backend worker reliability with input sanitization in `/api/scrape`.
 - Completed: Fixed legacy test suite failures (import paths and code block assertions) to ensure 100% test pass rate.
 - Next: Final production verification and performance monitoring.
+
+## 2026-03-14 11:15 UTC
+- Completed: Fixed critical memory leak in `NodeExpandModal.tsx` by clearing debounce timeouts on unmount and node switch.
+- Completed: Corrected fallback logic in `DrawingNode.tsx` using nullish coalescing to handle `0` dimensions correctly.
+- Completed: Implemented automatic "healing" for legacy drawing nodes by initializing missing `originalWidth` and `originalHeight`.
+- Completed: Fixed missing resize persistence in `BaseNode.tsx` by implementing the `onResizeEnd` callback for the `NodeResizer`.
+- Completed: Hardened `NoteEditor.tsx` with ref-based mounted checks, debounced backlink updates, and proper `setTimeout` cleanup.
+- Completed: Improved global extension loading with `Promise.allSettled` and robust error handling.
+- Completed: Fixed potential memory leaks in `SlashCommandExtension.ts` and `SmartCodeExtension.ts`.
+- Completed: Resolved Mermaid ID conflicts by introducing a persistent `id` attribute.
+- Completed: Hardened workspace/sync logic in `canvasStore.ts` and `canvasCache.ts` to prevent race conditions.
+- Completed: Fixed potential data loss in node duplication by using `structuredClone`.
+- Completed: Optimized and debounced settings updates in `settingsStore.ts`.
+- Completed: Improved `WorkspacePage.tsx` loading sequence to ensure stable synchronization.
+- Next: Final system verification.
+
+## 2026-03-14 11:35 UTC
+- Completed: Fixed critical "Rule of Hooks" violation in `NodeExpandModal.tsx` that caused a blank screen/crash when expanding nodes.
+- Completed: Resolved data loss vulnerability in `canvasCache.ts` where offline changes were incorrectly purged during background cache refreshes.
+- Completed: Improved background synchronization bug in `WorkspacePage.tsx` where content/data updates from other devices were ignored if the node position hadn't changed.
+- Completed: Implemented full Real-time Push Synchronization using Firestore `onSnapshot` listeners, enabling instant multi-user and multi-tab collaboration.
+- Completed: Verified end-to-end saving and real-time synchronization functionality via multi-tab browser testing (instant structural and content updates confirmed).
+- Next: Final production-ready audit.

@@ -55,19 +55,40 @@ let globalAsyncExtensions: AnyExtension[] | null = null;
 let globalAsyncExtensionsPromise: Promise<AnyExtension[]> | null = null;
 
 function loadGlobalExtensions() {
-  if (globalAsyncExtensions) return Promise.resolve(globalAsyncExtensions);
-  if (!globalAsyncExtensionsPromise) {
-    globalAsyncExtensionsPromise = Promise.all([
-      extensionRegistry.loadMath(),
-      extensionRegistry.loadCode(),
-      extensionRegistry.loadCustomBlocks(),
-      extensionRegistry.loadMermaid(),
-      extensionRegistry.loadMacro(),
-    ]).then(([math, code, custom, mermaid, macro]) => {
-      globalAsyncExtensions = [math, code, ...(custom as any[]), mermaid, macro];
-      return globalAsyncExtensions;
-    });
-  }
+  if (globalAsyncExtensionsPromise) return globalAsyncExtensionsPromise;
+  
+  globalAsyncExtensionsPromise = (async () => {
+    try {
+      const results = await Promise.allSettled([
+        extensionRegistry.loadMath(),
+        extensionRegistry.loadCode(),
+        extensionRegistry.loadCustomBlocks(),
+        extensionRegistry.loadMermaid(),
+        extensionRegistry.loadMacro(),
+      ]);
+      
+      const loadedExtensions: AnyExtension[] = [];
+      results.forEach((res) => {
+        if (res.status === 'fulfilled') {
+          if (Array.isArray(res.value)) {
+            loadedExtensions.push(...res.value);
+          } else {
+            loadedExtensions.push(res.value);
+          }
+        }
+      });
+      
+      globalAsyncExtensions = loadedExtensions;
+      return loadedExtensions;
+    } catch (error) {
+      console.error('Failed to load global extensions:', error);
+      globalAsyncExtensions = [];
+      return [];
+    } finally {
+      globalAsyncExtensionsPromise = null;
+    }
+  })();
+  
   return globalAsyncExtensionsPromise;
 }
 
@@ -103,6 +124,13 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [isTypewriterMode, setIsTypewriterMode] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const backlinkTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const typewriterRef = useRef(isTypewriterMode);
+  const nodeIdRef = useRef(nodeId);
+
+  // Sync refs
+  useEffect(() => { typewriterRef.current = isTypewriterMode; }, [isTypewriterMode]);
+  useEffect(() => { nodeIdRef.current = nodeId; }, [nodeId]);
 
   const editor = useEditor({
     extensions: [
@@ -229,19 +257,22 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
       onChange?.(json);
       onProgressChange?.(calculateProgress(json));
 
-      // Sync backlinks
+      // Debounced Sync backlinks
       if (nodeId) {
-        const targetIds: string[] = [];
-        const traverse = (node: any) => {
-          if (node.type === 'wiki-link' && node.attrs?.nodeId) {
-            targetIds.push(node.attrs.nodeId);
-          }
-          if (node.content && Array.isArray(node.content)) {
-            node.content.forEach(traverse);
-          }
-        };
-        traverse(json);
-        useCanvasStore.getState().updateBacklinks(nodeId, [...new Set(targetIds)]);
+        if (backlinkTimeoutRef.current) clearTimeout(backlinkTimeoutRef.current);
+        backlinkTimeoutRef.current = setTimeout(() => {
+          const targetIds: string[] = [];
+          const traverse = (node: any) => {
+            if (node.type === 'wiki-link' && node.attrs?.nodeId) {
+              targetIds.push(node.attrs.nodeId);
+            }
+            if (node.content && Array.isArray(node.content)) {
+              node.content.forEach(traverse);
+            }
+          };
+          traverse(json);
+          useCanvasStore.getState().updateBacklinks(nodeId, [...new Set(targetIds)]);
+        }, 1000); // 1s debounce for heavy traversal
       }
     },
     onSelectionUpdate: ({ editor }) => {
@@ -260,12 +291,18 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
         setShowBubble(false);
       }
 
-      if (isTypewriterMode) {
-        // Use native DOM scroll for precise centering if available
+      if (typewriterRef.current) {
         editor.view.dom.scrollIntoView({ block: 'center', behavior: 'smooth' });
       }
     },
   });
+
+  // Cleanup backlink timeout
+  useEffect(() => {
+    return () => {
+      if (backlinkTimeoutRef.current) clearTimeout(backlinkTimeoutRef.current);
+    };
+  }, []);
 
   // Listen for popover requests from slash commands
   useEffect(() => {
@@ -287,9 +324,14 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
 
   // Track which pasteContent we've already applied
   const appliedPasteContent = useRef<string | null>(null);
+  const pasteTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Reset applied paste on node change
+  useEffect(() => {
+    appliedPasteContent.current = null;
+  }, [nodeId]);
 
   useEffect(() => {
-    // Apply pasteContent when it's new and different from what we've already applied
     if (editor && pasteContent && appliedPasteContent.current !== pasteContent) {
       appliedPasteContent.current = pasteContent;
       if (pasteFormat === 'html') {
@@ -298,11 +340,18 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
         const html = markdownToHtml(pasteContent);
         editor.commands.setContent(html);
       }
-      setTimeout(() => {
+      
+      if (pasteTimeoutRef.current) clearTimeout(pasteTimeoutRef.current);
+      pasteTimeoutRef.current = setTimeout(() => {
         onChange?.(editor.getJSON());
       }, 50);
     }
+    return () => {
+      if (pasteTimeoutRef.current) clearTimeout(pasteTimeoutRef.current);
+    };
   }, [editor, pasteContent, pasteFormat, onChange]);
+
+  const reparseTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
   useImperativeHandle(ref, () => ({
     reparseAsMarkdown: () => {
@@ -311,12 +360,20 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
       if (!plainText.trim()) return;
       const html = markdownToHtml(plainText);
       editor.commands.setContent(html);
-      setTimeout(() => {
+      
+      if (reparseTimeoutRef.current) clearTimeout(reparseTimeoutRef.current);
+      reparseTimeoutRef.current = setTimeout(() => {
         onChange?.(editor.getJSON());
       }, 50);
     },
     getEditor: () => editor,
   }), [editor, onChange]);
+
+  useEffect(() => {
+    return () => {
+      if (reparseTimeoutRef.current) clearTimeout(reparseTimeoutRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (editor && editable !== editor.isEditable) {

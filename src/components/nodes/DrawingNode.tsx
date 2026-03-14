@@ -1,4 +1,4 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useEffect } from 'react';
 import { Handle, Position, type NodeProps, NodeResizer } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { DrawingNodeData } from '@/types/canvas';
@@ -19,9 +19,19 @@ export const DrawingNode = memo(({ id, data, selected }: NodeProps) => {
   const h = nodeData.height || 300;
   
   // Original dimensions (for scaling paths)
-  const origW = nodeData.originalWidth || w;
-  const origH = nodeData.originalHeight || h;
+  const origW = nodeData.originalWidth ?? w;
+  const origH = nodeData.originalHeight ?? h;
   
+  // Initialize original dimensions if missing (healing legacy nodes)
+  useEffect(() => {
+    if (nodeData.originalWidth === undefined || nodeData.originalHeight === undefined) {
+      updateNodeData(id, {
+        originalWidth: nodeData.originalWidth ?? w,
+        originalHeight: nodeData.originalHeight ?? h,
+      });
+    }
+  }, [id, nodeData.originalWidth, nodeData.originalHeight, w, h, updateNodeData]);
+
   // Calculate scale factors
   const scaleX = w / origW;
   const scaleY = h / origH;

@@ -22,10 +22,12 @@ export const SmartCodeExtension = Extension.create({
             // Run advanced detection
             const detection = detectCode(pastedText);
 
-            // If it's a significant block of code (confidence > 0.8) and NOT already markdown
-            if (detection.isCode && detection.confidence > 0.7 && !pastedText.includes('```')) {
+            // If it's a significant block of code (confidence > 0.6) and NOT already markdown
+            if (detection.isCode && detection.confidence > 0.6 && !pastedText.includes('```')) {
+              if (!this.editor) return false;
+              
               // Ask user if they want to format as code (or just do it if very high confidence)
-              if (detection.confidence > 0.85) {
+              if (detection.confidence > 0.8) {
                 const formatted = `\`\`\`${detection.language}\n${pastedText}\n\`\`\``;
                 const { schema, tr } = view.state;
                 // Since Tiptap handles markdown via its own logic, we insert it as markdown content
@@ -39,7 +41,8 @@ export const SmartCodeExtension = Extension.create({
             }
 
             // If it's natural text with embedded code blocks
-            if (detection.confidence < 0.7 && pastedText.split('\n').length > 5 && !pastedText.includes('```')) {
+            if (detection.confidence < 0.6 && pastedText.split('\n').length > 5 && !pastedText.includes('```')) {
+              if (!this.editor) return false;
               const autoFormatted = autoFormatText(pastedText);
               if (autoFormatted !== pastedText) {
                 toast.info('Smart Code Detection: Automatically formatted code snippets in your paste.');

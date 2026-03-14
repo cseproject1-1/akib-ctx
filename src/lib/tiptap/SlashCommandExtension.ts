@@ -83,7 +83,10 @@ const SlashCommand = Extension.create({
             },
 
             onExit: () => {
-              popup?.[0]?.destroy();
+              if (popup) {
+                popup.forEach(instance => instance.destroy());
+                popup = null;
+              }
               component?.destroy();
             },
           };

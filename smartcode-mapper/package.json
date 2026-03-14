@@ -1,0 +1,97 @@
+{
+  "name": "smartcode-mapper",
+  "displayName": "SmartCode Mapper",
+  "description": "AI-optimized codebase indexer and function mapper",
+  "version": "0.0.1",
+  "publisher": "antigravity",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "smartcode.generateIndex",
+        "title": "SmartCode: Generate Codebase Index"
+      },
+      {
+        "command": "smartcode.updateIndex",
+        "title": "SmartCode: Update Index"
+      },
+      {
+        "command": "smartcode.showGraph",
+        "title": "SmartCode: Open Interactive Graph"
+      },
+      {
+        "command": "smartcode.copyAIContext",
+        "title": "SmartCode: Copy AI Context"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "smartcode-explorer",
+          "title": "SmartCode",
+          "icon": "$(map)"
+        }
+      ]
+    },
+    "views": {
+      "smartcode-explorer": [
+        {
+          "id": "smartcode-map-view",
+          "name": "Codebase Map",
+          "icon": "$(graph)"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "SmartCode Mapper",
+      "properties": {
+        "smartcode.languages": {
+          "type": "array",
+          "default": [
+            "typescript",
+            "javascript",
+            "python"
+          ],
+          "description": "Languages to include in indexing"
+        },
+        "smartcode.exclude": {
+          "type": "array",
+          "default": [
+            "**/node_modules/**",
+            "**/dist/**",
+            "**/*.test.*"
+          ],
+          "description": "File patterns to exclude from indexing"
+        },
+        "smartcode.indexOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically update index when a file is saved"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/node": "20.x",
+    "@types/vscode": "^1.80.0",
+    "@typescript-eslint/eslint-plugin": "^5.62.0",
+    "@typescript-eslint/parser": "^5.62.0",
+    "eslint": "^8.57.1",
+    "typescript": "^5.1.3"
+  }
+}

@@ -118,6 +118,7 @@ export function BaseNode({
   });
   const setExpandedNode = useCanvasStore((s) => s.setExpandedNode);
   const deleteNode = useCanvasStore((s) => s.deleteNode);
+  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const canvasMode = useCanvasStore((s) => s.canvasMode);
   const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
   const edgeCount = id ? edges.filter((e) => e.source === id || e.target === id).length : 0;
@@ -162,6 +163,14 @@ export function BaseNode({
           isVisible={selected}
           minWidth={120}
           minHeight={80}
+          onResizeEnd={(_event, params) => {
+            if (id) {
+              updateNodeData(id, {
+                width: Math.round(params.width),
+                height: Math.round(params.height),
+              });
+            }
+          }}
           lineClassName="!border-primary/50"
           handleClassName="!w-2.5 !h-2.5 !bg-primary !border-2 !border-background !rounded-sm"
         />

@@ -135,5 +135,18 @@
     "vite-plugin-pwa": "^1.2.0",
     "vitest": "^3.2.4",
     "wrangler": "^4.71.0"
-  }
+  },
+  "description": "**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID",
+  "main": "eslint.config.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/akibcse24/akib-ctx.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/akibcse24/akib-ctx/issues"
+  },
+  "homepage": "https://github.com/akibcse24/akib-ctx#readme"
 }

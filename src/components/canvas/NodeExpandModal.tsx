@@ -250,6 +250,13 @@ export function NodeExpandModal() {
 
   const node = nodes.find((n) => n.id === expandedNode);
 
+  // Compliance: Hooks must be called before early returns
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [expandedNode]);
+
   const handleClose = useCallback(() => { 
     setExpandedNode(null); 
     setIsFullscreen(false); 

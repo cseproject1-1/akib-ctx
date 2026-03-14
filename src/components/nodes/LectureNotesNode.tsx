@@ -1,4 +1,4 @@
-import { memo, useCallback, useRef, useMemo } from 'react';
+import { memo, useCallback, useRef, useMemo, useEffect } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import { BookOpen, Link2 } from 'lucide-react';
 import { BaseNode } from './BaseNode';
@@ -33,6 +33,12 @@ export const LectureNotesNode = memo(({ id, data, selected }: NodeProps) => {
   const backlinks = useCanvasStore((s) => s.backlinks[id] || []);
   const allNodes = useCanvasStore((s) => s.nodes);
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   const handleContentChange = useCallback((json: any, extraData?: any) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);

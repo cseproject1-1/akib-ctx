@@ -51,9 +51,10 @@ export const HybridEditor = forwardRef<any, HybridEditorProps>(function HybridEd
 
   // Decision logic:
   // If isBlockEditorMode is ON (from Share view), we favor BlockNote.
-  const useBlockNote = isBlockEditorMode 
-    ? true 
-    : enableHybridEditor && (forceBlockNote || (!forceTiptap && currentVersion === 2));
+  const useBlockNote = useMemo(() => {
+    if (isBlockEditorMode) return true;
+    return enableHybridEditor && (forceBlockNote || (!forceTiptap && currentVersion === 2));
+  }, [isBlockEditorMode, enableHybridEditor, forceBlockNote, forceTiptap, currentVersion]);
 
   // Rules of Hooks: Define all hooks UNCONDITIONALLY at the top level
   const ghostContent = useMemo(() => {

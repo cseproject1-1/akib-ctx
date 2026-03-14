@@ -17,7 +17,7 @@ import {
   replayPendingOps,
 } from '@/lib/cache/canvasCache';
 import { getWorkspaces } from '@/lib/firebase/workspaces';
-import { createSnapshot, pruneSnapshots } from '@/lib/firebase/canvasData';
+import { createSnapshot, pruneSnapshots, subscribeCanvasNodes, subscribeCanvasEdges } from '@/lib/firebase/canvasData';
 // Note: deleteCanvasFile is not migrated yet; we'll keep the import or comment it out if not needed now
 import { deleteCanvasFile } from '@/lib/r2/storage';
 import { auth } from '@/lib/firebase/client';
@@ -60,9 +60,15 @@ const WorkspacePage = () => {
             serverNodeIds.current = new Set(freshNodes.map(n => n.id));
             const { nodes: currentNodes } = useCanvasStore.getState();
             const nodesChanged = currentNodes.length !== freshNodes.length || 
-                               currentNodes.some((cn, i) => cn.id !== freshNodes[i]?.id || 
-                               cn.position.x !== freshNodes[i]?.position.x || 
-                               cn.position.y !== freshNodes[i]?.position.y);
+                               currentNodes.some((cn, i) => {
+                                 const fn = freshNodes[i];
+                                 if (!fn) return true;
+                                 return cn.id !== fn.id || 
+                                        cn.position.x !== fn.position.x || 
+                                        cn.position.y !== fn.position.y ||
+                                        JSON.stringify(cn.data) !== JSON.stringify(fn.data) ||
+                                        JSON.stringify(cn.style) !== JSON.stringify(fn.style);
+                               });
             
             if (nodesChanged) {
               loadCanvas(freshNodes, useCanvasStore.getState().edges);
@@ -72,7 +78,15 @@ const WorkspacePage = () => {
             serverEdgeIds.current = new Set(freshEdges.map(e => e.id));
             const { edges: currentEdges } = useCanvasStore.getState();
             const edgesChanged = currentEdges.length !== freshEdges.length || 
-                               currentEdges.some((ce, i) => ce.id !== freshEdges[i]?.id);
+                               currentEdges.some((ce, i) => {
+                                 const fe = freshEdges[i];
+                                 if (!fe) return true;
+                                 return ce.id !== fe.id || 
+                                        ce.source !== fe.source ||
+                                        ce.target !== fe.target ||
+                                        JSON.stringify(ce.data) !== JSON.stringify(fe.data) ||
+                                        ce.label !== fe.label;
+                               });
             
             if (edgesChanged) {
               loadCanvas(useCanvasStore.getState().nodes, freshEdges);
@@ -106,14 +120,14 @@ const WorkspacePage = () => {
           }).catch(() => toast.error('Failed to sync fresh canvas data'));
         }
 
-        // Replay pending ops after data is loaded to avoid race conditions
-        replayPendingOps();
-
         // Mark loading as complete — subscriber can now safely detect changes
         // Use a small delay to ensure all loadCanvas microtasks have settled
-        loadCompleteTimer = setTimeout(() => { 
+        loadCompleteTimer = setTimeout(async () => { 
           loadComplete.current = true; 
           setLoading(false); // Ensure loading is off even if cache was initially missing
+          
+          // Replay pending ops after workspace is fully loaded and subscriber is ready
+          await replayPendingOps();
         }, 200);
       } catch (err) {
         toast.error('Failed to load canvas');
@@ -128,6 +142,57 @@ const WorkspacePage = () => {
       resetState();
     };
   }, [workspaceId, loadCanvas, setWorkspaceId, setWorkspaceMeta, resetState]);
+
+  // ─── Real-time Sync ───
+  useEffect(() => {
+    if (!workspaceId) return;
+
+    let nodesUnsub: (() => void) | null = null;
+    let edgesUnsub: (() => void) | null = null;
+
+    // Start listeners
+    nodesUnsub = subscribeCanvasNodes(workspaceId, (freshNodes) => {
+      if (!loadComplete.current) return;
+      
+      const { nodes: currentNodes, loadCanvas, edges } = useCanvasStore.getState();
+      
+      // Deep compare to avoid unnecessary re-renders
+      const nodesChanged = currentNodes.length !== freshNodes.length || 
+                         JSON.stringify(currentNodes) !== JSON.stringify(freshNodes);
+      
+      if (nodesChanged) {
+        console.log('[sync] Applying real-time node updates');
+        loadCanvas(freshNodes, edges);
+        // Also update local cache
+        import('@/lib/cache/indexedDB').then(({ cacheSet }) => {
+          cacheSet('canvas-nodes', workspaceId, freshNodes);
+        });
+      }
+    });
+
+    edgesUnsub = subscribeCanvasEdges(workspaceId, (freshEdges) => {
+      if (!loadComplete.current) return;
+      
+      const { edges: currentEdges, loadCanvas, nodes } = useCanvasStore.getState();
+      
+      const edgesChanged = currentEdges.length !== freshEdges.length || 
+                         JSON.stringify(currentEdges) !== JSON.stringify(freshEdges);
+      
+      if (edgesChanged) {
+        console.log('[sync] Applying real-time edge updates');
+        loadCanvas(nodes, freshEdges);
+        // Also update local cache
+        import('@/lib/cache/indexedDB').then(({ cacheSet }) => {
+          cacheSet('canvas-edges', workspaceId, freshEdges);
+        });
+      }
+    });
+
+    return () => {
+      if (nodesUnsub) nodesUnsub();
+      if (edgesUnsub) edgesUnsub();
+    };
+  }, [workspaceId]);
 
   // Subscribe to store changes and persist (using cached write-through wrappers)
   useEffect(() => {
@@ -236,14 +301,21 @@ const WorkspacePage = () => {
       state.edges.forEach(e => {
         const prev_e = prev.edges.find(pe => pe.id === e.id);
         if (!prev_e) return;
-        const edgeChanged = e.data !== prev_e.data || e.label !== prev_e.label;
-        if (edgeChanged) {
+        
+        // Deep compare data to avoid redundant saves
+        const dataChanged = JSON.stringify(e.data) !== JSON.stringify(prev_e.data);
+        const labelChanged = e.label !== prev_e.label;
+        
+        if (dataChanged || labelChanged) {
           const existing = edgeTimers.current.get(e.id);
           if (existing) clearTimeout(existing);
           edgeTimers.current.set(e.id, setTimeout(() => {
-            trackSave(updateEdgeDataInDb(workspaceId, e.id, (e.data as Record<string, unknown>) || {}, e.label as string | undefined));
+            // Re-verify workspaceId before final commit
+            if (useCanvasStore.getState().workspaceId === workspaceId) {
+              trackSave(updateEdgeDataInDb(workspaceId, e.id, (e.data as Record<string, unknown>) || {}, e.label as string | undefined));
+            }
             edgeTimers.current.delete(e.id);
-          }, 800));
+          }, 1000)); // Consolidated slightly longer debounce for edges
         }
       });
     });

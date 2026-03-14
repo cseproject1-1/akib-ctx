@@ -1,4 +1,4 @@
-import { collection, doc, query, getDocs, setDoc, updateDoc, deleteDoc, orderBy } from 'firebase/firestore';
+import { collection, doc, query, getDocs, setDoc, updateDoc, deleteDoc, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from './client';
 import type { Node, Edge } from '@xyflow/react';
 
@@ -180,4 +180,50 @@ export async function pruneSnapshots(workspaceId: string, keepCount = 50) {
     const docsToDelete = snapshot.docs.slice(keepCount);
     const deletes = docsToDelete.map(d => deleteDoc(d.ref));
     await Promise.all(deletes);
+}
+
+// ─── Real-time Subscriptions ───
+
+export function subscribeCanvasNodes(workspaceId: string, onUpdate: (nodes: Node[]) => void) {
+    const q = query(collection(db, `workspaces/${workspaceId}/nodes`));
+    return onSnapshot(q, (snapshot) => {
+        // Skip updates that are pending local writes to avoid jitter
+        if (snapshot.metadata.hasPendingWrites) return;
+
+        const nodes = snapshot.docs.map((docSnap) => {
+            const row = docSnap.data();
+            return {
+                id: row.id,
+                type: row.type,
+                position: { x: row.position_x, y: row.position_y },
+                data: (row.data as Record<string, unknown>) || {},
+                style: { width: row.width, height: row.height, zIndex: row.z_index },
+            };
+        });
+        onUpdate(nodes);
+    }, (err) => {
+        console.error('[sync] Nodes subscription error:', err);
+    });
+}
+
+export function subscribeCanvasEdges(workspaceId: string, onUpdate: (edges: Edge[]) => void) {
+    const q = query(collection(db, `workspaces/${workspaceId}/edges`));
+    return onSnapshot(q, (snapshot) => {
+        if (snapshot.metadata.hasPendingWrites) return;
+
+        const edges = snapshot.docs.map((docSnap) => {
+            const row = docSnap.data();
+            return {
+                id: row.id,
+                source: row.source_node_id,
+                target: row.target_node_id,
+                type: 'custom',
+                label: row.label || undefined,
+                data: (row.style as Record<string, unknown>) || {},
+            };
+        });
+        onUpdate(edges);
+    }, (err) => {
+        console.error('[sync] Edges subscription error:', err);
+    });
 }

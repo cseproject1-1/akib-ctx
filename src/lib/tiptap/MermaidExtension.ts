@@ -43,6 +43,13 @@ export const MermaidExtension = Node.create<MermaidOptions>({
       previewMode: {
         default: true,
       },
+      id: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-id'),
+        renderHTML: (attributes) => ({
+          'data-id': attributes.id || `mermaid-${Math.random().toString(36).substr(2, 9)}`,
+        }),
+      },
     };
   },
 
@@ -81,6 +88,7 @@ export const MermaidExtension = Node.create<MermaidOptions>({
             attrs: {
               code: options?.code || 'graph TD\n  A[Start] --> B[End]',
               previewMode: true,
+              id: `mermaid-${Math.random().toString(36).substr(2, 9)}`,
             },
           });
         },

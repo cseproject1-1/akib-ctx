@@ -127,9 +127,7 @@ export const BlockNoteEditor = ({
       if (currentJson === lastEmittedContent.current) return;
       lastEmittedContent.current = currentJson;
       
-      queueMicrotask(() => {
-        onChange(editor.document);
-      });
+      onChange(editor.document);
     });
 
     return cleanup;

@@ -296,21 +296,20 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const node = get().nodes.find((n) => n.id === id);
     if (!node) return;
     get().pushSnapshot('Duplicate Node');
-    // Use structuredClone for high-fidelity deep cloning (preserves undefined, dates, etc.)
-    const clonedData = structuredClone(node.data || {});
-    // Reset pinned state on duplicate
-    delete clonedData.pinned;
+    
+    // Use structuredClone for high-fidelity deep cloning
+    const newNodeProps = structuredClone(node);
+    delete (newNodeProps as any).data.pinned;
+    
     const newNode: Node = {
-      ...node,
+      ...newNodeProps,
       id: crypto.randomUUID(),
-      type: node.type,
       position: { x: node.position.x + 30, y: node.position.y + 30 },
-      selected: false,
-      data: clonedData,
-      style: node.style ? { ...node.style } : undefined,
+      selected: true,
       measured: undefined,
     };
-    set({ nodes: [...get().nodes, newNode] });
+    
+    set({ nodes: [...get().nodes.map(n => ({ ...n, selected: false })), newNode] });
   },
 
   updateNodeData: (id, data) => {
@@ -441,18 +440,28 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   loadCanvas: (nodes, edges) => {
-    // Sequence-based timeout protection to prevent race conditions during rapid loads
     const currentLoadId = ++loadCounter;
-    if (skipSyncTimeout) clearTimeout(skipSyncTimeout);
+    if (skipSyncTimeout) {
+      clearTimeout(skipSyncTimeout);
+      skipSyncTimeout = null;
+    }
     
-    set({ nodes, edges, past: [], future: [], _skipSync: true, _resyncNeeded: false });
+    // Clear history when switching workspaces or initial load
+    set({ 
+      nodes: structuredClone(nodes), 
+      edges: structuredClone(edges), 
+      past: [], 
+      future: [], 
+      _skipSync: true, 
+      _resyncNeeded: false 
+    });
     
     skipSyncTimeout = setTimeout(() => {
       if (currentLoadId === loadCounter) {
         set({ _skipSync: false });
         skipSyncTimeout = null;
       }
-    }, 150);
+    }, 200); // Slightly increased buffer for stability
   },
 
   toggleMinimap: () => set({ showMinimap: !get().showMinimap }),
@@ -472,7 +481,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   copySelectedNodes: () => {
     const selected = get().nodes.filter((n) => n.selected);
     if (selected.length > 0) {
-      set({ clipboard: selected.map((n) => ({ ...n, data: { ...n.data } })) });
+      // High-fidelity clone for clipboard
+      set({ clipboard: structuredClone(selected) });
     }
   },
 
@@ -489,15 +499,18 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       const offset = cursor
         ? { x: cursor.x + (n.position.x - minX), y: cursor.y + (n.position.y - minY) }
         : { x: n.position.x + 40, y: n.position.y + 40 };
+      
       return {
-        ...n,
+        ...structuredClone(n),
         id: crypto.randomUUID(),
         position: offset,
-        selected: false,
-        data: { ...n.data },
+        selected: true,
       };
     });
-    set({ nodes: [...get().nodes, ...newNodes] });
+    
+    set({ 
+      nodes: [...get().nodes.map(n => ({ ...n, selected: false })), ...newNodes] 
+    });
   },
 
   selectAllNodes: () => {

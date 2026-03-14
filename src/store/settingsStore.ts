@@ -38,6 +38,7 @@ export const useSettingsStore = create<SettingsState>()(
       enableHybridEditor: true,
       isLoading: false,
       error: null,
+      _updateTimer: null as ReturnType<typeof setTimeout> | null,
 
       fetchSettings: async () => {
         set({ isLoading: true, error: null });
@@ -52,38 +53,63 @@ export const useSettingsStore = create<SettingsState>()(
       updateHotkey: async (key, value) => {
         const nextHotkeys = { ...get().hotkeys, [key]: value };
         set({ hotkeys: nextHotkeys });
-        try {
-          await updateUserSettings({ hotkeys: nextHotkeys });
-        } catch (err) {
-          set({ error: (err as Error).message });
-        }
+        
+        const { _updateTimer } = get() as any;
+        if (_updateTimer) clearTimeout(_updateTimer);
+        
+        const timer = setTimeout(async () => {
+          try {
+            await updateUserSettings({ hotkeys: nextHotkeys });
+          } catch (err) {
+            set({ error: (err as Error).message });
+          }
+        }, 1000);
+        set({ _updateTimer: timer } as any);
       },
 
       setTheme: async (theme) => {
         set({ theme });
-        try {
-          await updateUserSettings({ theme });
-        } catch (err) {
-          set({ error: (err as Error).message });
-        }
+        const { _updateTimer } = get() as any;
+        if (_updateTimer) clearTimeout(_updateTimer);
+        
+        const timer = setTimeout(async () => {
+          try {
+            await updateUserSettings({ theme });
+          } catch (err) {
+            set({ error: (err as Error).message });
+          }
+        }, 1000);
+        set({ _updateTimer: timer } as any);
       },
 
       setCanvasTheme: async (canvasTheme) => {
         set({ canvasTheme });
-        try {
-          await updateUserSettings({ canvasTheme });
-        } catch (err) {
-          set({ error: (err as Error).message });
-        }
+        const { _updateTimer } = get() as any;
+        if (_updateTimer) clearTimeout(_updateTimer);
+        
+        const timer = setTimeout(async () => {
+          try {
+            await updateUserSettings({ canvasTheme });
+          } catch (err) {
+            set({ error: (err as Error).message });
+          }
+        }, 1000);
+        set({ _updateTimer: timer } as any);
       },
       
       setHybridEditorEnabled: async (enableHybridEditor) => {
         set({ enableHybridEditor });
-        try {
-          await updateUserSettings({ enableHybridEditor });
-        } catch (err) {
-          set({ error: (err as Error).message });
-        }
+        const { _updateTimer } = get() as any;
+        if (_updateTimer) clearTimeout(_updateTimer);
+        
+        const timer = setTimeout(async () => {
+          try {
+            await updateUserSettings({ enableHybridEditor });
+          } catch (err) {
+            set({ error: (err as Error).message });
+          }
+        }, 1000);
+        set({ _updateTimer: timer } as any);
       },
     }),
     {

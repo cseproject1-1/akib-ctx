@@ -17,7 +17,7 @@ export function MermaidBlock(props: NodeViewProps) {
   const [isPreview, setIsPreview] = useState(props.node.attrs.previewMode ?? true);
   const [error, setError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const graphId = useRef(`mermaid-${Math.random().toString(36).substr(2, 9)}`);
+  const graphId = useRef(props.node.attrs.id || `mermaid-${Math.random().toString(36).substr(2, 9)}`);
 
 
   const renderDiagram = useCallback(async () => {
