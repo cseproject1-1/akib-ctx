@@ -34,6 +34,7 @@ interface CanvasState {
   _skipSync: boolean;
   _resyncNeeded: boolean;
   lastSavedAt: number | null;
+  exportProgress: number | null; // 0-100 or null
   clipboard: Node[];
   canvasMode: 'edit' | 'view';
   focusMode: boolean;
@@ -60,6 +61,7 @@ interface CanvasState {
   future: HistorySnapshot[];
   drawingMode: boolean;
   zenMode: boolean;
+  zoomOnScroll: boolean;
 
   // Actions
   setWorkspaceId: (id: string | null) => void;
@@ -86,7 +88,6 @@ interface CanvasState {
   bringToFront: (id: string) => void;
   bringNodesToFront: (ids: string[]) => void;
   sendToBack: (id: string) => void;
-  loadCanvas: (nodes: Node[], edges: Edge[]) => void;
   toggleMinimap: () => void;
   setSaveStatus: (s: CanvasState['saveStatus']) => void;
   incSave: () => void;
@@ -115,8 +116,10 @@ interface CanvasState {
   setOpenWorkspaces: (workspaces: { id: string; name: string; color: string }[]) => void;
   toggleBlockEditorMode: () => void;
   toggleMobileMode: () => void;
+  setExportProgress: (p: number | null) => void;
   importNodes: (nodes: Node[]) => void;
   updateBacklinks: (sourceId: string, targetIds: string[]) => void;
+  toggleZoomOnScroll: () => void;
 
 
 
@@ -127,6 +130,7 @@ interface CanvasState {
   clearResyncNeeded: () => void;
   setVersionHistoryOpen: (open: boolean) => void;
   resetState: () => void;
+  loadCanvas: (nodes: Node[], edges: Edge[], preserveHistory?: boolean) => void;
 }
 
 let skipSyncTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -164,10 +168,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   isAISynthesisOpen: false,
   isBlockEditorMode: false,
   mobileMode: false,
+  exportProgress: null,
   past: [],
   future: [],
   drawingMode: false,
   zenMode: false,
+  zoomOnScroll: true,
   backlinks: {},
   _contentBacklinks: {},
   _syncAllBacklinks: () => {
@@ -270,12 +276,18 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     get().pushSnapshot(`Add ${node.type} Node`);
     const cursor = get().lastCursorFlowPosition;
     
+    // Safety check for NaN in cursor position
+    const safeCursor = (cursor && !isNaN(cursor.x) && !isNaN(cursor.y)) ? cursor : null;
+    
     // If node has a non-zero position, or we don't have a cursor, trust the input position
     const hasPosition = node.position.x !== 0 || node.position.y !== 0;
+    const isSafePosition = !isNaN(node.position.x) && !isNaN(node.position.y);
     
-    const positioned = (!hasPosition && cursor)
-      ? { ...node, position: { x: cursor.x - 150, y: cursor.y - 50 } }
-      : node;
+    const finalPosition = (!hasPosition && safeCursor)
+      ? { x: safeCursor.x - 150, y: safeCursor.y - 50 }
+      : isSafePosition ? node.position : { x: 0, y: 0 };
+
+    const positioned = { ...node, position: finalPosition };
 
     set({ nodes: [...get().nodes, positioned] });
   },
@@ -306,10 +318,14 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const newNodeProps = structuredClone(node);
     delete (newNodeProps as any).data.pinned;
     
+    // Guard against NaN in original position
+    const posX = isNaN(node.position.x) ? 0 : node.position.x;
+    const posY = isNaN(node.position.y) ? 0 : node.position.y;
+
     const newNode: Node = {
       ...newNodeProps,
       id: crypto.randomUUID(),
-      position: { x: node.position.x + 30, y: node.position.y + 30 },
+      position: { x: posX + 30, y: posY + 30 },
       selected: true,
       measured: undefined,
     };
@@ -391,11 +407,17 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       const maxZ = Math.max(...state.nodes.map((n) => (n.style?.zIndex as number) || 0), 0);
       const idSet = new Set(ids);
       return {
-        nodes: state.nodes.map((n, i) =>
-          idSet.has(n.id) ? { ...n, style: { ...n.style, zIndex: maxZ + 1 + i } } : n
-        ),
+        _skipSync: true, // Avoid triggering a loop when just adjusting order for UI
+        nodes: state.nodes.map((n) => {
+          if (idSet.has(n.id)) {
+            return { ...n, style: { ...n.style, zIndex: maxZ + 1 } };
+          }
+          return n;
+        }),
       };
     });
+    // Toggle sync back after a tick
+    setTimeout(() => set({ _skipSync: false }), 50);
   },
 
   sendToBack: (id) => {
@@ -444,19 +466,28 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     });
   },
 
-  loadCanvas: (nodes, edges) => {
+  loadCanvas: (nodes, edges, preserveHistory = false) => {
     const currentLoadId = ++loadCounter;
     if (skipSyncTimeout) {
       clearTimeout(skipSyncTimeout);
       skipSyncTimeout = null;
     }
     
-    // Clear history when switching workspaces or initial load
+    // Sanitize incoming nodes to prevent NaN from corrupting the canvas
+    const safeNodes = (nodes || []).map(n => ({
+      ...n,
+      position: {
+        x: isNaN(n.position?.x) ? 0 : n.position.x,
+        y: isNaN(n.position?.y) ? 0 : n.position.y
+      }
+    }));
+
+    // Clear history ONLY if preserveHistory is false
     set({ 
-      nodes: structuredClone(nodes), 
-      edges: structuredClone(edges), 
-      past: [], 
-      future: [], 
+      nodes: structuredClone(safeNodes), 
+      edges: structuredClone(edges || []), 
+      past: preserveHistory ? get().past : [], 
+      future: preserveHistory ? get().future : [], 
       _skipSync: true, 
       _resyncNeeded: false 
     });
@@ -466,7 +497,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         set({ _skipSync: false });
         skipSyncTimeout = null;
       }
-    }, 200); // Slightly increased buffer for stability
+    }, 200);
   },
 
   toggleMinimap: () => set({ showMinimap: !get().showMinimap }),
@@ -496,13 +527,18 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     if (clipboard.length === 0) return;
     get().pushSnapshot('Paste Nodes');
 
-    // Calculate center of clipboard nodes
-    const minX = Math.min(...clipboard.map(n => n.position.x));
-    const minY = Math.min(...clipboard.map(n => n.position.y));
+    // Filter clipboard for safe nodes and calculate center
+    const safeClipboard = clipboard.filter(n => !isNaN(n.position.x) && !isNaN(n.position.y));
+    if (safeClipboard.length === 0) return;
 
-    const newNodes = clipboard.map((n) => {
-      const offset = cursor
-        ? { x: cursor.x + (n.position.x - minX), y: cursor.y + (n.position.y - minY) }
+    const minX = Math.min(...safeClipboard.map(n => n.position.x));
+    const minY = Math.min(...safeClipboard.map(n => n.position.y));
+
+    const safeCursor = (cursor && !isNaN(cursor.x) && !isNaN(cursor.y)) ? cursor : null;
+
+    const newNodes = safeClipboard.map((n) => {
+      const offset = safeCursor
+        ? { x: safeCursor.x + (n.position.x - minX), y: safeCursor.y + (n.position.y - minY) }
         : { x: n.position.x + 40, y: n.position.y + 40 };
       
       return {
@@ -702,6 +738,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   removeOpenWorkspace: (id) => set({ openWorkspaces: get().openWorkspaces.filter(w => w.id !== id) }),
   toggleBlockEditorMode: () => set({ isBlockEditorMode: !get().isBlockEditorMode }),
   toggleMobileMode: () => set({ mobileMode: !get().mobileMode }),
+  toggleZoomOnScroll: () => set({ zoomOnScroll: !get().zoomOnScroll }),
+  setExportProgress: (p) => set({ exportProgress: p }),
 }));
 
 // Custom Selector Hooks

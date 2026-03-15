@@ -134,6 +134,11 @@ export const CustomEdge = memo(({
 
   // Compute the base (non-physics) path for non-bezier types and as fallback
   const [basePath, baseLabelX, baseLabelY] = useMemo(() => {
+    // Safety check: if positions are NaN, return empty or safe default path
+    if (isNaN(sourceX) || isNaN(sourceY) || isNaN(targetX) || isNaN(targetY)) {
+      return ['', 0, 0];
+    }
+
     if (pathType === 'step') {
       return getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 20 });
     }
@@ -155,7 +160,9 @@ export const CustomEdge = memo(({
     const vel = velocity.current;
     const off = springOffset.current;
 
-    // Compute velocity from position delta
+    // Safety check for NaN
+    if (isNaN(sourceX) || isNaN(sourceY) || isNaN(targetX) || isNaN(targetY)) return;
+
     vel.sx = sourceX - prev.sx;
     vel.sy = sourceY - prev.sy;
     vel.tx = targetX - prev.tx;

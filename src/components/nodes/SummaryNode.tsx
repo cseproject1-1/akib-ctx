@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import { BaseNode } from './BaseNode';
 import { StickyNote } from 'lucide-react';
@@ -14,7 +15,7 @@ const colorMap: Record<string, { bg: string; border: string; bullet: string }> =
   default: { bg: '', border: 'border-border', bullet: 'bg-muted-foreground' },
 };
 
-export function SummaryNode({ id, data, selected }: NodeProps) {
+export const SummaryNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
   const nodeData = data as unknown as SummaryNodeData;
@@ -84,4 +85,6 @@ export function SummaryNode({ id, data, selected }: NodeProps) {
       </div>
     </BaseNode>
   );
-}
+});
+
+SummaryNode.displayName = 'SummaryNode';

@@ -57,9 +57,11 @@ export function NodeSelectionToolbar() {
   const zoom = getZoom();
 
   const rawPos = flowToScreenPosition({
-    x: node.position.x + nodeWidth / 2,
-    y: node.position.y,
+    x: (node.position?.x ?? 0) + nodeWidth / 2,
+    y: node.position?.y ?? 0,
   });
+
+  if (isNaN(rawPos.x) || isNaN(rawPos.y)) return null;
 
   const SAFE_TOP = 100;
   const SAFE_SIDE = 150;
@@ -69,10 +71,10 @@ export function NodeSelectionToolbar() {
   const showAtBottom = rawPos.y < SAFE_TOP + 70;
 
   const topPos = showAtBottom 
-    ? rawPos.y + (nodeHeight * zoom) + 15
+    ? rawPos.y + (nodeHeight * (zoom || 1)) + 15
     : rawPos.y - 65;
 
-  const leftPos = Math.max(Math.min(rawPos.x, window.innerWidth - SAFE_SIDE), SAFE_SIDE);
+  const leftPos = Math.max(Math.min(rawPos.x || 0, window.innerWidth - SAFE_SIDE), SAFE_SIDE);
 
   return (
     <motion.div

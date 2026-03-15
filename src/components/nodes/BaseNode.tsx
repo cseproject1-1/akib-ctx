@@ -1,7 +1,7 @@
-import { Handle, Position, useEdges, useNodeId, useStore, NodeResizer } from '@xyflow/react';
+import { Handle, Position, useNodeId, useStore, NodeResizer } from '@xyflow/react';
+import { memo, useCallback, type ReactNode } from 'react';
 import { MoreHorizontal, Lock, ChevronDown, ChevronRight, Expand, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { ReactNode } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { useCanvasStore } from '@/store/canvasStore';
@@ -82,7 +82,7 @@ interface BaseNodeProps {
   progress?: number;
 }
 
-export function BaseNode({
+export const BaseNode = memo(({
   children,
   id,
   title,
@@ -107,10 +107,17 @@ export function BaseNode({
   nodeType,
   color,
   progress,
-}: BaseNodeProps) {
+}: BaseNodeProps) => {
   const nodeTags = tags || [];
-  const edges = useEdges();
   const reactFlowNodeId = useNodeId();
+  const nodeId = id || reactFlowNodeId;
+
+  // Performance: Only listen to edge changes for this specific node
+  const edgeCount = useStore(useCallback((s) => {
+    if (!nodeId) return 0;
+    return s.edges.filter(e => e.source === nodeId || e.target === nodeId).length;
+  }, [nodeId]));
+
   const detectedType = useStore((s) => {
     const nid = id || reactFlowNodeId;
     if (!nid) return undefined;
@@ -121,8 +128,7 @@ export function BaseNode({
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const canvasMode = useCanvasStore((s) => s.canvasMode);
   const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
-  const edgeCount = id ? edges.filter((e) => e.source === id || e.target === id).length : 0;
-  const isFocused = id && focusedNodeId === id;
+  const isFocused = nodeId && focusedNodeId === nodeId;
 
   const resolvedType = nodeType || detectedType;
   const accent = resolvedType ? NODE_TYPE_ACCENTS[resolvedType] : undefined;
@@ -306,4 +312,6 @@ export function BaseNode({
   );
 
   return nodeContent;
-}
+});
+
+BaseNode.displayName = 'BaseNode';

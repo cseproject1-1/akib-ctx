@@ -1,8 +1,8 @@
+import { memo, useState, useCallback } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { BaseNode } from './BaseNode';
 import { Bookmark, ExternalLink, Globe, Loader2, RefreshCw } from 'lucide-react';
-import { useState, useCallback } from 'react';
 import { BookmarkNodeData } from '@/types/canvas';
 
 /**
@@ -11,7 +11,7 @@ import { BookmarkNodeData } from '@/types/canvas';
  * Metadata is fetched from an Open Graph proxy.
  * @param {NodeProps} props - React Flow node props
  */
-export function BookmarkNode({ id, data, selected }: NodeProps) {
+export const BookmarkNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
   const nodeData = data as unknown as BookmarkNodeData;
@@ -163,4 +163,6 @@ export function BookmarkNode({ id, data, selected }: NodeProps) {
       )}
     </BaseNode>
   );
-}
+});
+
+BookmarkNode.displayName = 'BookmarkNode';

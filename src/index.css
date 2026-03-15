@@ -512,10 +512,65 @@
 /* Selection box */
 .react-flow__selection {
   @apply backdrop-blur-sm;
-  background: hsla(var(--primary), 0.08) !important;
-  border: 1.5px solid hsla(var(--primary), 0.4) !important;
-  border-radius: 12px !important;
-  box-shadow: 0 0 40px -10px hsla(var(--primary), 0.15);
+  background: hsla(var(--primary), 0.05) !important;
+  border: 1.5px dashed hsla(var(--primary), 0.6) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 0 30px hsla(var(--primary), 0.1);
+  animation: selection-dash 30s linear infinite;
+}
+
+@keyframes selection-dash {
+  from { outline-offset: 0; }
+  to { outline-offset: 4px; }
+}
+
+/* Node Hover & Selection Glows */
+.react-flow__node {
+  transition: box-shadow 0.3s ease, border-color 0.3s ease, transform 0.2s ease !important;
+}
+
+.react-flow__node:hover {
+  box-shadow: 0 0 15px hsla(var(--primary), 0.15);
+  border-color: hsla(var(--primary), 0.3);
+}
+
+.react-flow__node.selected {
+  box-shadow: 0 0 25px hsla(var(--primary), 0.25), 0 0 0 2px hsl(var(--primary));
+  animation: node-pulse 2s ease-in-out infinite;
+}
+
+@keyframes node-pulse {
+  0%, 100% { box-shadow: 0 0 25px hsla(var(--primary), 0.2), 0 0 0 2px hsl(var(--primary)); }
+  50% { box-shadow: 0 0 35px hsla(var(--primary), 0.4), 0 0 0 3px hsl(var(--primary)); }
+}
+
+/* Interaction Effects */
+.shake-canvas {
+  animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+@keyframes shake {
+  10%, 90% { transform: translate3d(-1px, 0, 0); }
+  20%, 80% { transform: translate3d(2px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+  40%, 60% { transform: translate3d(4px, 0, 0); }
+}
+
+/* Premium Progress Bar */
+.progress-shimmer {
+  background: linear-gradient(
+    90deg,
+    hsla(var(--primary), 0.1) 0%,
+    hsla(var(--primary), 0.3) 50%,
+    hsla(var(--primary), 0.1) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite linear;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 /* Scrollbar - Hidden but functional */

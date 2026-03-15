@@ -49,6 +49,7 @@ export function CanvasToolbar() {
   const zenMode = useCanvasStore((s) => s.zenMode);
   const toggleZenMode = useCanvasStore((s) => s.toggleZenMode);
   const setNodes = useCanvasStore((s) => s.setNodes);
+  const setExportProgress = useCanvasStore((s) => s.setExportProgress);
   const snapEnabled = useCanvasStore((s) => s.snapEnabled);
   const toggleSnap = useCanvasStore((s) => s.toggleSnap);
   const gridStyle = useCanvasStore((s) => s.gridStyle);
@@ -60,6 +61,8 @@ export function CanvasToolbar() {
   const setConnectMode = useCanvasStore((s) => s.setConnectMode);
   const versionHistoryOpen = useCanvasStore((s) => s.versionHistoryOpen);
   const setVersionHistoryOpen = useCanvasStore((s) => s.setVersionHistoryOpen);
+  const zoomOnScroll = useCanvasStore((s) => s.zoomOnScroll);
+  const toggleZoomOnScroll = useCanvasStore((s) => s.toggleZoomOnScroll);
   const setWorkspaceMeta = useCanvasStore((s) => s.setWorkspaceMeta);
   const loadCanvas = useCanvasStore((s) => s.loadCanvas);
   const importNodesAction = useCanvasStore((s) => s.importNodes);
@@ -135,7 +138,20 @@ export function CanvasToolbar() {
     }
   };
 
-  const handleExportMd = (fullFidelity = false) => { exportToMarkdown(nodes, workspaceName, fullFidelity); toast.success(`Exported to Markdown${fullFidelity ? ' (Full Fidelity)' : ''}`); setShowExportMenu(false); };
+  const handleExportMd = async (fullFidelity = false) => {
+    setShowExportMenu(false);
+    setExportProgress(10);
+    // Simulate some "prep" time for polish
+    await new Promise(r => setTimeout(r, 400));
+    setExportProgress(40);
+    exportToMarkdown(nodes, workspaceName, fullFidelity);
+    setExportProgress(80);
+    await new Promise(r => setTimeout(r, 300));
+    setExportProgress(100);
+    setTimeout(() => setExportProgress(null), 500);
+    toast.success(`Exported to Markdown${fullFidelity ? ' (Full Fidelity)' : ''}`);
+  };
+
   const handleExportZip = async (selectedOnly = false) => {
     const nodesToExport = selectedOnly ? nodes.filter(n => n.selected) : nodes;
     const edgesToExport = selectedOnly ? edges.filter(e => {
@@ -149,9 +165,19 @@ export function CanvasToolbar() {
       return;
     }
 
-    await exportToZip(nodesToExport, edgesToExport, workspaceName);
-    toast.success(`Exported ${selectedOnly ? 'Selection' : 'Workspace'} to ZIP`);
     setShowExportMenu(false);
+    setExportProgress(10);
+    await new Promise(r => setTimeout(r, 500));
+    setExportProgress(30);
+    
+    await exportToZip(nodesToExport, edgesToExport, workspaceName);
+    
+    setExportProgress(70);
+    await new Promise(r => setTimeout(r, 400));
+    setExportProgress(100);
+    setTimeout(() => setExportProgress(null), 500);
+    
+    toast.success(`Exported ${selectedOnly ? 'Selection' : 'Workspace'} to ZIP`);
   };
   const handleExportTxt = () => { exportToPlainText(nodes, workspaceName); toast.success('Exported to Plain Text'); setShowExportMenu(false); };
   const handleExportJson = () => { exportToJSON(nodes, workspaceName); toast.success('Exported to JSON'); setShowExportMenu(false); };
@@ -469,9 +495,11 @@ export function CanvasToolbar() {
           <ToolbarBtn onClick={toggleSnap} tip={`Snap to grid: ${snapEnabled ? 'ON' : 'OFF'} (S)`} className={cn(snapEnabled ? 'text-primary bg-primary/5 border border-primary/20' : 'hover:bg-primary/10')}>
             <Magnet className="h-4 w-4" />
           </ToolbarBtn>
-          <ToolbarBtn onClick={cycleGridStyle} tip={`Grid style: ${gridLabel} (G)`} className="gap-2 px-3">
+          <ToolbarBtn onClick={cycleGridStyle} tip={`Grid style: ${gridLabel} (G)`}>
             <Grid3X3 className="h-4 w-4" />
-            <span className="text-[9px] font-black uppercase tracking-widest hidden sm:inline">{gridLabel}</span>
+          </ToolbarBtn>
+          <ToolbarBtn onClick={toggleZoomOnScroll} tip={zoomOnScroll ? 'Switch to Pan Mode (Scroll to Pan)' : 'Switch to Zoom Mode (Scroll to Zoom)'} className={cn(!zoomOnScroll && 'text-primary bg-primary/5 border border-primary/20')}>
+            {zoomOnScroll ? <MousePointerClick className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </ToolbarBtn>
           <ToolbarBtn onClick={() => toggleLockAll()} tip={allLocked ? 'Unlock all nodes (L)' : 'Lock all nodes (L)'} className={cn(allLocked ? 'text-primary bg-primary/5 border border-primary/20' : 'hover:bg-primary/10')}>
             {allLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}

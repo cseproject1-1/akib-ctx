@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import { BaseNode } from './BaseNode';
 import { Clock, Plus, Trash2, CheckCircle2, Circle } from 'lucide-react';
@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { DailyLogNodeData } from '@/types/canvas';
 
-export function DailyLogNode({ id, data, selected }: NodeProps) {
+export const DailyLogNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
   const [newEntry, setNewEntry] = useState('');
@@ -126,4 +126,6 @@ export function DailyLogNode({ id, data, selected }: NodeProps) {
       </div>
     </BaseNode>
   );
-}
+});
+
+DailyLogNode.displayName = 'DailyLogNode';

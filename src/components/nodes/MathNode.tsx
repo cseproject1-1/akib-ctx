@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
+import { memo, useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import { BaseNode } from './BaseNode';
 import { Sigma, Eye, Code2 } from 'lucide-react';
@@ -14,7 +14,7 @@ const EXAMPLES = [
   'f(x) = \\frac{1}{\\sigma\\sqrt{2\\pi}} e^{-\\frac{(x-\\mu)^2}{2\\sigma^2}}',
 ];
 
-export function MathNode({ id, data, selected }: NodeProps) {
+export const MathNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const canvasMode = useCanvasStore((s) => s.canvasMode);
   const nodeData = data as unknown as MathNodeData;
@@ -153,4 +153,6 @@ export function MathNode({ id, data, selected }: NodeProps) {
       </div>
     </BaseNode>
   );
-}
+});
+
+MathNode.displayName = 'MathNode';

@@ -116,5 +116,3 @@ export const VideoNode = memo(({ id, data, selected }: NodeProps) => {
 });
 
 VideoNode.displayName = 'VideoNode';
-
-VideoNode.displayName = 'VideoNode';

@@ -46,7 +46,7 @@ export class WebviewProvider {
     this._panel.webview.onDidReceiveMessage(
       async (message) => {
         switch (message.command) {
-          case 'openFile':
+          case 'openFile': {
             if (!vscode.workspace.workspaceFolders?.[0]) return;
             const uri = vscode.Uri.file(path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, message.filePath));
             const document = await vscode.workspace.openTextDocument(uri);
@@ -54,6 +54,7 @@ export class WebviewProvider {
                 selection: new vscode.Range(message.line - 1, 0, message.line - 1, 0)
             });
             return;
+          }
         }
       },
       null,

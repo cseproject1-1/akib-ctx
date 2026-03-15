@@ -1,9 +1,9 @@
+import { memo, useState, useRef, useCallback } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { toast } from 'sonner';
 import { BaseNode } from './BaseNode';
 import { Paperclip, Upload, X, FileText, FileImage, FileArchive, FileCode, FileAudio, FileVideo, Download, Loader2 } from 'lucide-react';
-import { useState, useRef, useCallback } from 'react';
 import { uploadCanvasFile } from '@/lib/r2/storage';
 import { FileAttachmentNodeData } from '@/types/canvas';
 
@@ -40,7 +40,7 @@ function formatBytes(bytes: number): string {
  * Files can be downloaded by clicking the download button.
  * @param {NodeProps} props - React Flow node props
  */
-export function FileAttachmentNode({ id, data, selected }: NodeProps) {
+export const FileAttachmentNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
   const nodeData = data as unknown as FileAttachmentNodeData;
@@ -188,4 +188,6 @@ export function FileAttachmentNode({ id, data, selected }: NodeProps) {
       </div>
     </BaseNode>
   );
-}
+});
+
+FileAttachmentNode.displayName = 'FileAttachmentNode';

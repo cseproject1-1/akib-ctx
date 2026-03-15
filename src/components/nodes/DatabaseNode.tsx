@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import { BaseNode } from './BaseNode';
 import { 
@@ -31,7 +31,7 @@ interface DatabaseRow extends Record<string, any> {
 
 const columnHelper = createColumnHelper<DatabaseRow>();
 
-export function DatabaseNode({ id, data, selected }: NodeProps) {
+export const DatabaseNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
   
@@ -205,4 +205,6 @@ export function DatabaseNode({ id, data, selected }: NodeProps) {
       </div>
     </BaseNode>
   );
-}
+});
+
+DatabaseNode.displayName = 'DatabaseNode';

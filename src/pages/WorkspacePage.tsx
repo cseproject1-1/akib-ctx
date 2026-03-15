@@ -89,7 +89,9 @@ const WorkspacePage = () => {
                                });
             
             if (edgesChanged) {
-              loadCanvas(useCanvasStore.getState().nodes, freshEdges);
+              const { nodes: latestNodes } = useCanvasStore.getState();
+              // Use a custom load that preserves history for real-time sync
+              loadCanvas(latestNodes, freshEdges, true);
             }
           }),
         ]);
@@ -150,7 +152,7 @@ const WorkspacePage = () => {
     nodesUnsub = subscribeCanvasNodes(workspaceId, (freshNodes) => {
       if (!loadComplete.current) return;
       
-      const { nodes: currentNodes, loadCanvas, edges } = useCanvasStore.getState();
+      const { nodes: currentNodes, edges: currentEdges } = useCanvasStore.getState(); // Get current edges here
       
       // Deep compare to avoid unnecessary re-renders
       const nodesChanged = currentNodes.length !== freshNodes.length || 
@@ -158,7 +160,9 @@ const WorkspacePage = () => {
       
       if (nodesChanged) {
         console.log('[sync] Applying real-time node updates');
-        loadCanvas(freshNodes, edges);
+       // Use a custom load that preserves history for real-time sync
+      // to avoid clearing the undo/redo stack on every remote change
+      loadCanvas(freshNodes, currentEdges, true);
         // Also update local cache
         import('@/lib/cache/indexedDB').then(({ cacheSet }) => {
           cacheSet('canvas-nodes', workspaceId, freshNodes);
@@ -176,7 +180,8 @@ const WorkspacePage = () => {
       
       if (edgesChanged) {
         console.log('[sync] Applying real-time edge updates');
-        loadCanvas(nodes, freshEdges);
+        const { nodes: latestNodes } = useCanvasStore.getState();
+        loadCanvas(latestNodes, freshEdges, true);
         // Also update local cache
         import('@/lib/cache/indexedDB').then(({ cacheSet }) => {
           cacheSet('canvas-edges', workspaceId, freshEdges);
@@ -195,6 +200,10 @@ const WorkspacePage = () => {
     if (!workspaceId) return;
 
     const { incSave, decSave } = useCanvasStore.getState();
+    const currentDataTimers = dataTimers.current;
+    const currentPosTimers = posTimers.current;
+    const currentStyleTimers = styleTimers.current;
+    const currentEdgeTimers = edgeTimers.current;
 
     const trackSave = (promise: Promise<void>) => {
       incSave();
@@ -258,7 +267,10 @@ const WorkspacePage = () => {
         const prev_n = prev.nodes.find(pn => pn.id === n.id);
         if (!prev_n) return;
 
-        if (prev_n.position.x !== n.position.x || prev_n.position.y !== n.position.y) {
+        if (
+          (prev_n.position.x !== n.position.x || prev_n.position.y !== n.position.y) &&
+          !isNaN(n.position.x) && !isNaN(n.position.y)
+        ) {
           const existing = posTimers.current.get(n.id);
           if (existing) clearTimeout(existing);
           posTimers.current.set(n.id, setTimeout(() => {
@@ -319,14 +331,14 @@ const WorkspacePage = () => {
     return () => {
       unsub();
       // Ensure all timers are cleared on unmount
-      dataTimers.current.forEach(clearTimeout);
-      posTimers.current.forEach(clearTimeout);
-      styleTimers.current.forEach(clearTimeout);
-      edgeTimers.current.forEach(clearTimeout);
-      dataTimers.current.clear();
-      posTimers.current.clear();
-      styleTimers.current.clear();
-      edgeTimers.current.clear();
+      currentDataTimers.forEach(clearTimeout);
+      currentPosTimers.forEach(clearTimeout);
+      currentStyleTimers.forEach(clearTimeout);
+      currentEdgeTimers.forEach(clearTimeout);
+      currentDataTimers.clear();
+      currentPosTimers.clear();
+      currentStyleTimers.clear();
+      currentEdgeTimers.clear();
     };
   }, [workspaceId]);
 

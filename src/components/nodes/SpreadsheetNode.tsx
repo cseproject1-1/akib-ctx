@@ -1,9 +1,9 @@
+import { memo, useState, useCallback, useRef } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { toast } from 'sonner';
 import { BaseNode } from './BaseNode';
 import { Sheet, Plus, Trash2, Download, Upload, Eraser } from 'lucide-react';
-import { useState, useCallback, useRef } from 'react';
 import { SpreadsheetNodeData } from '@/types/canvas';
 
 interface Cell {
@@ -65,7 +65,7 @@ function makeGrid(rows: number, cols: number): Grid {
  * Includes row/col add/remove and CSV export.
  * @param {NodeProps} props - React Flow node props
  */
-export function SpreadsheetNode({ id, data, selected }: NodeProps) {
+export const SpreadsheetNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
   const nodeData = data as unknown as SpreadsheetNodeData;
@@ -256,4 +256,6 @@ export function SpreadsheetNode({ id, data, selected }: NodeProps) {
       </div>
     </BaseNode>
   );
-}
+});
+
+SpreadsheetNode.displayName = 'SpreadsheetNode';

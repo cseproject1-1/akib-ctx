@@ -41,7 +41,7 @@ const LoginPage = () => {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm space-y-8">
         <div className="flex flex-col items-center gap-3">
-          <img src="/favicon.png" alt="ctxnote" className="h-14 w-14 rounded-xl border-2 border-border shadow-[4px_4px_0px_hsl(0,0%,15%)] object-cover" />
+          <img src="/favicon.svg" alt="ctxnote" className="h-14 w-14 rounded-xl border-2 border-border shadow-[4px_4px_0px_hsl(0,0%,15%)] object-cover" />
           <h1 className="text-2xl font-bold uppercase tracking-wider text-foreground">Sign In</h1>
           <p className="text-sm text-muted-foreground">Welcome back to Study Canvas</p>
         </div>

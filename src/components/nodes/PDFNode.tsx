@@ -1,8 +1,8 @@
+import { memo, useRef, useState } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import { BaseNode } from './BaseNode';
 import { FileText, Upload, Eye, Loader2, Presentation } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvasStore';
-import { useRef, useState } from 'react';
 import { uploadCanvasFile } from '@/lib/r2/storage';
 import { PDFViewerModal } from '@/components/canvas/PDFViewerModal';
 import { toast } from 'sonner';
@@ -22,7 +22,7 @@ function getIcon(fileType?: string) {
   return <FileText className="h-4 w-4" />;
 }
 
-export function PDFNode({ id, data, selected }: NodeProps) {
+export const PDFNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
   const workspaceId = useCanvasStore((s) => s.workspaceId);
@@ -129,4 +129,6 @@ export function PDFNode({ id, data, selected }: NodeProps) {
       )}
     </>
   );
-}
+});
+
+PDFNode.displayName = 'PDFNode';

@@ -28,6 +28,7 @@ import { HANDLE_IDS } from '@/lib/constants/canvas';
 import { CanvasContextMenu } from './CanvasContextMenu';
 import { NodeContextMenu } from './NodeContextMenu';
 import { EdgeContextMenu } from './EdgeContextMenu';
+import { Breadcrumbs } from './Breadcrumbs';
 import { CanvasToolbar } from './CanvasToolbar';
 import { NodeExpandModal } from './NodeExpandModal';
 import { AddNodeToolbar } from './AddNodeToolbar';
@@ -171,6 +172,8 @@ export function CanvasWrapper() {
   const setStoreNodes = useCanvasStore((s) => s.setNodes);
   const isAISynthesisOpen = useCanvasStore((s) => s.isAISynthesisOpen);
   const setAISynthesisOpen = useCanvasStore((s) => s.setAISynthesisOpen);
+  const zoomOnScroll = useCanvasStore((s) => s.zoomOnScroll);
+  const exportProgress = useCanvasStore((s) => s.exportProgress);
 
   const hotkeys = useSettingsStore((s) => s.hotkeys);
 
@@ -179,31 +182,49 @@ export function CanvasWrapper() {
   const isDraggingRef = useRef(false);
   const prevNodes = useRef<Node[]>(nodes);
 
+  type Guide = { type: 'v' | 'h'; pos: number; start: number; end: number; snapOffset?: number };
+  const [guides, setGuides] = useState<Guide[]>([]);
+  const [isShaking, setIsShaking] = useState(false);
+
+  const triggerShake = useCallback(() => {
+    setIsShaking(true);
+    setTimeout(() => setIsShaking(false), 400);
+  }, []);
+
+  useEffect(() => {
+    const handleActionShake = () => triggerShake();
+    window.addEventListener('canvas-action-shake', handleActionShake);
+    return () => window.removeEventListener('canvas-action-shake', handleActionShake);
+  }, [triggerShake]);
+
   useEffect(() => {
     if (!isDraggingRef.current) {
       // More efficient check to avoid triggering updates if the store didn't actually change content
-      if (nodes.length !== prevNodes.current.length) {
-        setLocalNodes(nodes);
-        prevNodes.current = nodes;
+      const storeNodes = useCanvasStore.getState().nodes;
+      if (storeNodes.length !== prevNodes.current.length) {
+        setLocalNodes(storeNodes);
+        prevNodes.current = storeNodes;
         return;
       }
 
-      const hasChanged = nodes.some((node, i) => {
+      const hasChanged = storeNodes.some((node, i) => {
         const prev = prevNodes.current[i];
+        if (!prev) return true;
         // Basic shallow comparison for common properties that would indicate a change
         return node.id !== prev.id || 
                node.position.x !== prev.position.x || 
                node.position.y !== prev.position.y ||
-               node.data !== prev.data || // Data object reference change
-               node.type !== prev.type;
+               node.data !== prev.data || 
+               node.type !== prev.type ||
+               node.selected !== prev.selected;
       });
 
       if (hasChanged) {
-        setLocalNodes(nodes);
-        prevNodes.current = nodes;
+        setLocalNodes(storeNodes);
+        prevNodes.current = storeNodes;
       }
     }
-  }, [nodes]);
+  }, [nodes]); // Depend on nodes array from hook to trigger check
 
   const debouncedSyncToStore = useMemo(
     () => debounce((n: Node[]) => setStoreNodes(n), 150),
@@ -221,7 +242,7 @@ export function CanvasWrapper() {
     (changes: NodeChange[]) => {
       setLocalNodes((prev) => {
         const nextNodes = applyNodeChanges(changes, prev);
-        const isDrag = changes.some((c) => c.type === 'position' && c.dragging);
+        const isDrag = changes.some((c) => c.type === 'position' && (c as any).dragging);
 
         if (isDrag) {
           isDraggingRef.current = true;
@@ -229,12 +250,12 @@ export function CanvasWrapper() {
         } else {
           isDraggingRef.current = false;
           debouncedSyncToStore.cancel();
-          onNodesChange(changes); // Immediate store sync for selection, remove, etc.
+          onNodesChange(changes);
         }
         return nextNodes;
       });
     },
-    [onNodesChange, debouncedSyncToStore]
+    [onNodesChange, debouncedSyncToStore] // Removed guides dependency to break the loop
   );
 
   const reactFlowInstance = useRef<ReactFlowInstance<Node, Edge> | null>(null);
@@ -248,19 +269,21 @@ export function CanvasWrapper() {
   const setDrawingMode = useCanvasStore((s) => s.setDrawingMode);
   const [drawColor, setDrawColor] = useState('hsl(52, 100%, 50%)'); // kept for future use
   const [drawWidth, setDrawWidth] = useState(3); // kept for future use
-  const [guides, setGuides] = useState<{ type: 'v' | 'h'; pos: number; start: number; end: number }[]>([]);
 
   const SNAP_THRESHOLD = 8;
   const isViewMode = canvasMode === 'view';
 
-  // Compute alignment guides while dragging
+  // Compute alignment guides and handle snapping while dragging
   const handleNodeDrag = useCallback((_: React.MouseEvent, draggedNode: Node) => {
     if (isViewMode) return;
     const instance = reactFlowInstance.current;
-    const zoom = instance ? instance.getZoom() : 1;
-    // Magnetic intensity scales inversely with zoom (easier to snap when zoomed out)
-    const dynamicThreshold = SNAP_THRESHOLD / zoom;
-    const newGuides: { type: 'v' | 'h'; pos: number; start: number; end: number }[] = [];
+    if (!instance) return;
+
+    const zoom = Math.max(instance.getZoom() || 1, 0.05);
+    const dynamicThreshold = 15 / zoom;
+
+    const { nodes } = useCanvasStore.getState();
+    const newGuides: { type: 'v' | 'h'; pos: number; start: number; end: number; snapOffset?: number }[] = [];
 
     const dw = (typeof draggedNode.style?.width === 'number' ? draggedNode.style.width : draggedNode.measured?.width) || 300;
     const dh = (typeof draggedNode.style?.height === 'number' ? draggedNode.style.height : draggedNode.measured?.height) || 200;
@@ -282,19 +305,51 @@ export function CanvasWrapper() {
       const ocx = ol + ow / 2;
       const ocy = ot + oh / 2;
 
-      // Vertical guides
+      // Vertical guides & Snapping
       for (const [dv, ov] of [[dl, ol], [dl, or2], [dr, ol], [dr, or2], [dcx, ocx]]) {
-        if (Math.abs(dv - ov) < dynamicThreshold) {
-          newGuides.push({ type: 'v', pos: ov, start: Math.min(dt, ot) - 20, end: Math.max(db, ob) + 20 });
+        const distance = Math.abs(dv - ov);
+        if (distance < dynamicThreshold) {
+          newGuides.push({ 
+            type: 'v', 
+            pos: ov, 
+            start: Math.min(dt, ot) - 20, 
+            end: Math.max(db, ob) + 20,
+            snapOffset: ov - dv
+          });
         }
       }
-      // Horizontal guides
+      // Horizontal guides & Snapping
       for (const [dv, ov] of [[dt, ot], [dt, ob], [db, ot], [db, ob], [dcy, ocy]]) {
-        if (Math.abs(dv - ov) < dynamicThreshold) {
-          newGuides.push({ type: 'h', pos: ov, start: Math.min(dl, ol) - 20, end: Math.max(dr, or2) + 20 });
+        const distance = Math.abs(dv - ov);
+        if (distance < dynamicThreshold) {
+          newGuides.push({ 
+            type: 'h', 
+            pos: ov, 
+            start: Math.min(dl, ol) - 20, 
+            end: Math.max(dr, or2) + 20,
+            snapOffset: ov - dv
+          });
         }
       }
     }
+
+    // Apply Snapping: Find the strongest snap for each axis
+    const verticalSnap = newGuides.filter(g => g.type === 'v').sort((a, b) => Math.abs(a.snapOffset!) - Math.abs(b.snapOffset!))[0];
+    const horizontalSnap = newGuides.filter(g => g.type === 'h').sort((a, b) => Math.abs(a.snapOffset!) - Math.abs(b.snapOffset!))[0];
+
+    if (verticalSnap || horizontalSnap) {
+      setLocalNodes(prev => prev.map(n => {
+        if (n.id !== draggedNode.id) return n;
+        return {
+          ...n,
+          position: {
+            x: verticalSnap ? n.position.x + verticalSnap.snapOffset! : n.position.x,
+            y: horizontalSnap ? n.position.y + horizontalSnap.snapOffset! : n.position.y,
+          }
+        };
+      }));
+    }
+
     setGuides(newGuides);
   }, [nodes, isViewMode]);
 
@@ -315,11 +370,11 @@ export function CanvasWrapper() {
   const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
   
   // Viewport bounds in graph coordinates (with a safe padding so things don't pop-in too obviously)
-  const padding = 500 / zoom;
-  const vLeft = -vx / zoom - padding;
-  const vRight = (-vx + screenWidth) / zoom + padding;
-  const vTop = -vy / zoom - padding;
-  const vBottom = (-vy + screenHeight) / zoom + padding;
+  const padding = 500 / (zoom || 1); // Guard against zero/NaN zoom
+  const vLeft = -vx / (zoom || 1) - padding;
+  const vRight = (-vx + screenWidth) / (zoom || 1) + padding;
+  const vTop = -vy / (zoom || 1) - padding;
+  const vBottom = (-vy + screenHeight) / (zoom || 1) + padding;
 
   // Apply locked state, view mode, focus mode and Virtualization filter
   const processedNodes = useMemo(() => {
@@ -524,11 +579,11 @@ export function CanvasWrapper() {
       if (isHotkeyMatch(e, hotkeys.selectAll)) { e.preventDefault(); selectAllNodes(); }
       if (isHotkeyMatch(e, hotkeys.fitView)) {
         e.preventDefault();
-        reactFlowInstance.current?.fitView({ duration: 300 });
+        reactFlowInstance.current?.fitView({ duration: 800 });
       }
       if (isHotkeyMatch(e, hotkeys.resetZoom)) {
         e.preventDefault();
-        reactFlowInstance.current?.zoomTo(1, { duration: 300 });
+        reactFlowInstance.current?.zoomTo(1, { duration: 800 });
       }
       if (isHotkeyMatch(e, hotkeys.toggleMinimap)) { e.preventDefault(); toggleMinimap(); }
       if (isHotkeyMatch(e, hotkeys.search)) { e.preventDefault(); openSearch(); }
@@ -554,6 +609,7 @@ export function CanvasWrapper() {
         if (selectedNodes.length > 0) {
           e.preventDefault();
           deleteSelected();
+          window.dispatchEvent(new CustomEvent('canvas-action-shake'));
           toast.success(`Deleted ${selectedNodes.length} node(s)`);
         }
       }
@@ -570,7 +626,49 @@ export function CanvasWrapper() {
         const { x, y, zoom } = rf.getViewport();
         const dx = e.key === 'ArrowLeft' ? PAN_STEP : e.key === 'ArrowRight' ? -PAN_STEP : 0;
         const dy = e.key === 'ArrowUp' ? PAN_STEP : e.key === 'ArrowDown' ? -PAN_STEP : 0;
-        rf.setViewport({ x: x + dx, y: y + dy, zoom }, { duration: 150 });
+        rf.setViewport({ x: x + dx, y: y + dy, zoom }, { duration: 300 }); // Smoother
+      }
+
+      // Tab to cycle nodes spatially
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const nodes = useCanvasStore.getState().nodes;
+        if (nodes.length === 0) return;
+
+        // Sort nodes spatially: top-down, then left-to-right with some vertical tolerance
+        const sortedNodes = [...nodes].sort((a, b) => {
+          const dy = a.position.y - b.position.y;
+          if (Math.abs(dy) < 100) { // Same horizontal belt
+            return a.position.x - b.position.x;
+          }
+          return dy;
+        });
+
+        const selectedIndex = sortedNodes.findIndex(n => n.selected);
+        let nextIndex = 0;
+        
+        if (e.shiftKey) {
+          nextIndex = selectedIndex <= 0 ? sortedNodes.length - 1 : selectedIndex - 1;
+        } else {
+          nextIndex = selectedIndex === -1 || selectedIndex === sortedNodes.length - 1 ? 0 : selectedIndex + 1;
+        }
+
+        const nextNode = sortedNodes[nextIndex];
+        if (nextNode) {
+          // Update selection
+          setLocalNodes(prev => prev.map(n => ({ ...n, selected: n.id === nextNode.id })));
+          
+          // Smoother camera jump
+          const rf = reactFlowInstance.current;
+          if (rf) {
+            const zoom = Math.max(rf.getZoom() || 0.8, 0.1);
+            rf.setCenter(
+              nextNode.position.x + (nextNode.measured?.width || 300) / 2,
+              nextNode.position.y + (nextNode.measured?.height || 200) / 2,
+              { duration: 800, zoom }
+            );
+          }
+        }
       }
 
       if (e.key === 'Escape') {
@@ -659,10 +757,15 @@ export function CanvasWrapper() {
       x: event.clientX,
       y: event.clientY,
     });
+    
+    // Add a tiny bit of jitter so multiple clicks don't stack perfectly if user clicks fast
+    const jitterX = (Math.random() - 0.5) * 10;
+    const jitterY = (Math.random() - 0.5) * 10;
+
     addNode({
       id: crypto.randomUUID(),
       type: 'aiNote',
-      position,
+      position: { x: position.x + jitterX, y: position.y + jitterY },
       data: { title: 'Untitled Note', content: null },
       style: { width: 380, height: 500 },
     });
@@ -719,6 +822,33 @@ export function CanvasWrapper() {
   const handleDragLeave = useCallback(() => {
     setDragOver(false);
   }, []);
+
+
+  const handleNodeDragStart = useCallback((event: React.MouseEvent, node: Node) => {
+    if (isViewMode) return;
+    
+    // Alt+Drag Duplication: if alt is pressed, clone the node at its current position
+    // The "original" node continues moving, the clone stays behind.
+    if (event.altKey) {
+      const { nodes: currentNodes } = useCanvasStore.getState();
+      const nodeToClone = currentNodes.find(n => n.id === node.id);
+      if (nodeToClone) {
+        // Create duplicate with new ID but same position and data
+        const cloneId = crypto.randomUUID();
+        const clone = {
+          ...nodeToClone,
+          id: cloneId,
+          selected: false,
+          dragging: false,
+          // Deep clone data to avoid reference sharing
+          data: JSON.parse(JSON.stringify(nodeToClone.data)),
+        };
+        
+        setLocalNodes(prev => [...prev, clone]);
+        toast.info('Node duplicated via Alt-Drag', { icon: '✨', duration: 1500 });
+      }
+    }
+  }, [isViewMode]);
 
   const handleDrop = useCallback(async (event: React.DragEvent) => {
     event.preventDefault();
@@ -791,9 +921,21 @@ export function CanvasWrapper() {
     }
   }, [workspaceId, addNode]);
 
+  const onNodeDoubleClick = useCallback((_: React.MouseEvent, node: Node) => {
+    if (!reactFlowInstance.current) return;
+    const { x, y } = node.position;
+    const w = node.measured?.width || 300;
+    const h = node.measured?.height || 200;
+    reactFlowInstance.current.setCenter(x + w / 2, y + h / 2, { duration: 800, zoom: 1 });
+  }, []);
+
   return (
     <div
-      className={`h-screen w-screen bg-canvas-bg ${connectMode ? 'cursor-crosshair' : ''}`}
+      className={cn(
+        "h-screen w-screen bg-canvas-bg transition-colors",
+        connectMode ? 'cursor-crosshair' : '',
+        isShaking && "shake-canvas"
+      )}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -863,11 +1005,26 @@ export function CanvasWrapper() {
           if (routerLocation.hash.startsWith('#viewport=')) {
             const [x, y, z] = routerLocation.hash.replace('#viewport=', '').split(',');
             if (x && y && z) {
-              // use timeout to ensure nodes have rendered bounds
-              setTimeout(() => {
-                instance.setViewport({ x: parseFloat(x), y: parseFloat(y), zoom: parseFloat(z) });
-              }, 50);
+              const vx = parseFloat(x);
+              const vy = parseFloat(y);
+              const vz = parseFloat(z);
+              
+              if (!isNaN(vx) && !isNaN(vy) && !isNaN(vz)) {
+                // use timeout to ensure nodes have rendered bounds
+                setTimeout(() => {
+                  instance.setViewport({ x: vx, y: vy, zoom: vz });
+                }, 50);
+              }
             }
+          }
+        }}
+        onNodeDoubleClick={(_e, node) => {
+          if (reactFlowInstance.current) {
+            reactFlowInstance.current.setCenter(
+              node.position.x + (node.measured?.width || 0) / 2,
+              node.position.y + (node.measured?.height || 0) / 2,
+              { duration: 800, zoom: 1.2 }
+            );
           }
         }}
         onPaneClick={handlePaneClick}
@@ -876,6 +1033,8 @@ export function CanvasWrapper() {
         onMouseMove={useCallback((event: React.MouseEvent) => {
           if (reactFlowInstance.current) {
             const pos = reactFlowInstance.current.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+            if (isNaN(pos.x) || isNaN(pos.y)) return; // Don't track invalid positions
+            
             const prev = useCanvasStore.getState().lastCursorFlowPosition;
             if (!prev || Math.abs(prev.x - pos.x) > 5 || Math.abs(prev.y - pos.y) > 5) {
               useCanvasStore.setState({ lastCursorFlowPosition: pos }, false);
@@ -890,6 +1049,10 @@ export function CanvasWrapper() {
         onMoveEnd={useCallback((_, viewport) => {
           // Update zoom-out state one last time to be sure
           setIsZoomedOut(viewport.zoom < 0.5);
+          
+          // Guard against NaN in viewport before syncing to URL
+          if (isNaN(viewport.x) || isNaN(viewport.y) || isNaN(viewport.zoom)) return;
+
           // Sync viewport state to URL immediately
           const hash = `#viewport=${Math.round(viewport.x)},${Math.round(viewport.y)},${viewport.zoom.toFixed(2)}`;
           if (routerLocation.hash !== hash) {
@@ -899,6 +1062,7 @@ export function CanvasWrapper() {
         onPaneContextMenu={isViewMode ? undefined : handleContextMenu}
         onNodeContextMenu={isViewMode ? undefined : handleNodeContextMenu}
         onEdgeContextMenu={isViewMode ? undefined : onEdgeContextMenu}
+        onNodeDragStart={isViewMode ? undefined : handleNodeDragStart}
         onNodeDrag={isViewMode ? undefined : handleNodeDrag}
         onNodeDragStop={isViewMode ? undefined : handleNodeDragStop}
         nodeTypes={safeNodeTypes}
@@ -913,12 +1077,21 @@ export function CanvasWrapper() {
         selectionOnDrag={!isViewMode && !connectMode}
         selectionMode={SelectionMode.Partial}
         panOnDrag={isViewMode ? true : connectMode ? [2] : [1, 2]}
+        zoomOnScroll={zoomOnScroll}
+        panOnScroll={!zoomOnScroll}
         nodesDraggable={!isViewMode}
         connectionMode={ConnectionMode.Loose}
         connectionRadius={50}
         nodesConnectable={!isViewMode}
         elementsSelectable={!isViewMode}
         proOptions={{ hideAttribution: true }}
+        autoPanOnNodeDrag={true}
+        autoPanOnConnect={true}
+        connectionLineStyle={{
+          stroke: 'hsl(var(--primary))',
+          strokeWidth: 2,
+          strokeDasharray: '5,5',
+        }}
         defaultEdgeOptions={{
           type: 'custom',
           animated: false,
@@ -945,13 +1118,77 @@ export function CanvasWrapper() {
           />
         )}
         <AlignmentGuidesLayer guides={guides} />
-        {showMinimap && !zenMode && (
-          <MiniMap
-            pannable
-            zoomable
-            nodeColor={(n) => (n.selected ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground)/0.2)')}
-            maskColor="hsl(var(--background)/0.5)"
+        
+        {/* Breadcrumbs HUD (Stacked above main toolbar) */}
+        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-[10] flex flex-col items-center gap-2">
+          <Breadcrumbs 
+            nodes={nodes}
+            edges={edges}
+            selectedNodeId={nodes.find(n => n.selected)?.id}
+            onNavigate={(id) => {
+              if (!id) {
+                reactFlowInstance.current?.fitView({ duration: 800 });
+              } else {
+                const node = nodes.find(n => n.id === id);
+                if (node && reactFlowInstance.current) {
+                  const nx = isNaN(node.position.x) ? 0 : node.position.x;
+                  const ny = isNaN(node.position.y) ? 0 : node.position.y;
+                  const nw = isNaN(node.measured?.width ?? NaN) ? 300 : (node.measured?.width || 300);
+                  const nh = isNaN(node.measured?.height ?? NaN) ? 200 : (node.measured?.height || 200);
+
+                  reactFlowInstance.current.setCenter(
+                    nx + nw / 2,
+                    ny + nh / 2,
+                    { duration: 800, zoom: 1.2 }
+                  );
+                  // Also select the node
+                  setLocalNodes(prev => prev.map(n => ({ ...n, selected: n.id === id })));
+                }
+              }
+            }}
           />
+        </div>
+
+        {showMinimap && !zenMode && (
+          <div 
+            onClick={(e) => {
+              if (!reactFlowInstance.current) return;
+              const target = e.currentTarget as HTMLElement;
+              const rect = target.getBoundingClientRect();
+              const x = (e.clientX - rect.left) / rect.width;
+              const y = (e.clientY - rect.top) / rect.height;
+              
+              // Estimate the bounds of the "actual" content in the minimap
+              // This is a simplified teleport to the center of the workspace based on click
+              // React Flow's MiniMap handles this better if we use standard props, but let's add a custom feel
+              const rf = reactFlowInstance.current;
+              const nodes = rf.getNodes();
+              if (nodes.length === 0) return;
+              
+              const bounds = rf.getNodes().reduce((acc, n) => ({
+                minX: Math.min(acc.minX, n.position.x),
+                maxX: Math.max(acc.maxX, n.position.x + (n.measured?.width || 0)),
+                minY: Math.min(acc.minY, n.position.y),
+                maxY: Math.max(acc.maxY, n.position.y + (n.measured?.height || 0)),
+              }), { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
+              
+              const targetX = bounds.minX + (bounds.maxX - bounds.minX) * x;
+              const targetY = bounds.minY + (bounds.maxY - bounds.minY) * y;
+              
+              if (isNaN(targetX) || isNaN(targetY) || !isFinite(targetX) || !isFinite(targetY)) return;
+
+              const currentZoom = Math.max(rf.getZoom() || 1, 0.1);
+              rf.setCenter(targetX, targetY, { duration: 800, zoom: isNaN(currentZoom) ? 1 : currentZoom });
+              toast.info('Teleporting viewport…', { icon: '🚀', duration: 1500 });
+            }}
+          >
+            <MiniMap
+              pannable
+              zoomable
+              nodeColor={(n) => (n.selected ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground)/0.2)')}
+              maskColor="hsl(var(--background)/0.5)"
+            />
+          </div>
         )}
         
         {!zenMode && (
@@ -1068,6 +1305,37 @@ export function CanvasWrapper() {
                 <span>Or Drop Files Anywhere</span>
               </div>
             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {exportProgress !== null && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-md"
+          >
+            <div className="w-full max-w-md rounded-3xl glass-morphism-strong p-8 pro-shadow border border-white/10 text-center">
+              <Sparkles className="mx-auto mb-4 h-12 w-12 text-primary animate-pulse" />
+              <h3 className="text-xl font-black uppercase tracking-[4px] text-foreground mb-2">Exporting Magic</h3>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 mb-8">Preparing your creative assets...</p>
+              
+              <div className="relative h-2 w-full overflow-hidden rounded-full bg-white/5 border border-white/5">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${exportProgress}%` }}
+                  className="absolute h-full bg-primary shadow-[0_0_20px_hsla(var(--primary),0.5)] transition-all duration-300"
+                />
+                <div className="progress-shimmer absolute inset-0 opacity-40" />
+              </div>
+              
+              <div className="mt-4 flex justify-between text-[10px] font-black uppercase tracking-widest text-primary/60">
+                <span>{Math.round(exportProgress)}%</span>
+                <span>Complete</span>
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

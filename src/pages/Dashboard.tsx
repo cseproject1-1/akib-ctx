@@ -413,7 +413,7 @@ const Dashboard = () => {
       >
         <div className="flex h-full flex-col p-4 w-[260px]">
           <div className="mb-8 flex items-center gap-3">
-             <img src="/favicon.png" alt="ctxnote" className="h-8 w-8 rounded-lg border-2 border-border shadow-[2px_2px_0px_hsl(0,0%,15%)] object-cover" />
+             <img src="/favicon.svg" alt="ctxnote" className="h-8 w-8 rounded-lg border-2 border-border shadow-[2px_2px_0px_hsl(0,0%,15%)] object-cover" />
              <h1 className="text-lg font-black uppercase tracking-tighter">ctxnote</h1>
           </div>
 

@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import { ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvasStore';
@@ -14,7 +15,7 @@ const groupColors: Record<string, { border: string; label: string; bg: string }>
   cyan: { border: 'border-cyan/60', label: 'text-cyan', bg: 'bg-cyan/5' },
 };
 
-export function GroupNode({ id, data, selected }: NodeProps) {
+export const GroupNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const toggleGroupCollapse = useCanvasStore((s) => s.toggleGroupCollapse);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
@@ -69,4 +70,6 @@ export function GroupNode({ id, data, selected }: NodeProps) {
       </div>
     </div>
   );
-}
+});
+
+GroupNode.displayName = 'GroupNode';

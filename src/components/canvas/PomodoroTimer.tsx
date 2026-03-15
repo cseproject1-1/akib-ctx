@@ -57,7 +57,7 @@ function sendNotification(mode: TimerMode) {
   if (Notification.permission === 'granted') {
     new Notification('Pomodoro Timer', {
       body: mode === 'work' ? '🎉 Focus session complete! Time for a break.' : '☕ Break over! Ready to focus?',
-      icon: '/favicon.png',
+      icon: '/favicon.svg',
     });
   }
 }
@@ -98,10 +98,16 @@ export function PomodoroTimer() {
   }, [mode, durations]);
 
   const saveDurations = (newDurations: typeof durations) => {
-    setDurations(newDurations);
-    localStorage.setItem('pomodoro-durations', JSON.stringify(newDurations));
+    // Ensure numbers are valid
+    const clean = {
+      work: Math.max(1, Number(newDurations.work) || 25),
+      short: Math.max(1, Number(newDurations.short) || 5),
+      long: Math.max(1, Number(newDurations.long) || 15)
+    };
+    setDurations(clean);
+    localStorage.setItem('pomodoro-durations', JSON.stringify(clean));
     // Reset current timer with new duration
-    const mins = mode === 'work' ? newDurations.work : mode === 'shortBreak' ? newDurations.short : newDurations.long;
+    const mins = mode === 'work' ? clean.work : mode === 'shortBreak' ? clean.short : clean.long;
     setSecondsLeft(mins * 60);
     setRunning(false);
   };
@@ -132,7 +138,9 @@ export function PomodoroTimer() {
 
   const minutes = Math.floor(secondsLeft / 60);
   const secs = secondsLeft % 60;
-  const progress = 1 - secondsLeft / (currentMode.minutes * 60);
+  const totalSeconds = (currentMode.minutes || 1) * 60;
+  const rawProgress = 1 - secondsLeft / totalSeconds;
+  const progress = isNaN(rawProgress) ? 0 : Math.max(0, Math.min(1, rawProgress));
 
   if (!open) {
     return (
@@ -220,7 +228,7 @@ export function PomodoroTimer() {
                   strokeWidth="4"
                   strokeLinecap="round"
                   strokeDasharray={2 * Math.PI * 42}
-                  strokeDashoffset={2 * Math.PI * 42 * (1 - progress)}
+                  strokeDashoffset={(2 * Math.PI * 42 * (1 - progress)) || 0}
                   transform="rotate(-90 50 50)"
                   className="transition-all duration-1000"
                 />

@@ -1,8 +1,8 @@
+import { memo, useState, useCallback } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { BaseNode } from './BaseNode';
 import { CalendarDays, ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
-import { useState, useCallback } from 'react';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, isSameMonth, isToday, addMonths, subMonths } from 'date-fns';
 import { CalendarNodeData } from '@/types/canvas';
 
@@ -21,7 +21,7 @@ const EVENT_COLORS = [
  * Events are stored as ISO date strings in node data.
  * @param {NodeProps} props - React Flow node props
  */
-export function CalendarNode({ id, data, selected }: NodeProps) {
+export const CalendarNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
   const nodeData = data as unknown as CalendarNodeData;
@@ -167,4 +167,6 @@ export function CalendarNode({ id, data, selected }: NodeProps) {
       </div>
     </BaseNode>
   );
-}
+});
+
+CalendarNode.displayName = 'CalendarNode';

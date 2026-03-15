@@ -1,7 +1,7 @@
+import { memo, useCallback, useMemo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { Expand } from 'lucide-react';
-import { useCallback, useMemo } from 'react';
 import { StickyNoteNodeData } from '@/types/canvas';
 
 const STICKY_COLORS: Record<string, { bg: string; text: string }> = {
@@ -16,7 +16,7 @@ const STICKY_COLORS: Record<string, { bg: string; text: string }> = {
 const FONT_SIZES: Record<string, number> = { S: 12, M: 16, L: 22 };
 const FONT_CYCLE: ('S' | 'M' | 'L')[] = ['S', 'M', 'L'];
 
-export function StickyNoteNode({ id, data, selected }: NodeProps) {
+export const StickyNoteNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setExpandedNode = useCanvasStore((s) => s.setExpandedNode);
   const nodeData = data as unknown as StickyNoteNodeData;
@@ -109,4 +109,6 @@ export function StickyNoteNode({ id, data, selected }: NodeProps) {
       <div className="anchor-dot right-0 top-1/2 translate-x-1/2 -translate-y-1/2" />
     </div>
   );
-}
+});
+
+StickyNoteNode.displayName = 'StickyNoteNode';

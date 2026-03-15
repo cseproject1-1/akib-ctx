@@ -186,5 +186,3 @@ export const TableNode = memo(({ id, data, selected }: NodeProps) => {
 });
 
 TableNode.displayName = 'TableNode';
-
-TableNode.displayName = 'TableNode';

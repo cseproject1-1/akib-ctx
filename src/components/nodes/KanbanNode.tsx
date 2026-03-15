@@ -1,8 +1,9 @@
+import { memo, useCallback, useState } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { BaseNode } from './BaseNode';
 import { Columns3, Plus, X, GripVertical } from 'lucide-react';
-import { useCallback, useState } from 'react';
+
 import { KanbanNodeData } from '@/types/canvas';
 
 interface KanbanCard {
@@ -28,7 +29,7 @@ const DEFAULT_COLUMNS: KanbanColumn[] = [
  * @description A Kanban board node with drag-and-drop cards across To Do / In Progress / Done columns.
  * @param {NodeProps} props - React Flow node props
  */
-export function KanbanNode({ id, data, selected }: NodeProps) {
+export const KanbanNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
   const nodeData = data as unknown as KanbanNodeData;
@@ -182,4 +183,6 @@ export function KanbanNode({ id, data, selected }: NodeProps) {
       </div>
     </BaseNode>
   );
-}
+});
+
+KanbanNode.displayName = 'KanbanNode';

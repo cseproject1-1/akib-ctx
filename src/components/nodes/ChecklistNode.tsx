@@ -1,13 +1,13 @@
+import { memo, useCallback, useState } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { BaseNode } from './BaseNode';
 import { CheckSquare, Plus, X, GripVertical } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
-import { useCallback, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { ChecklistNodeData } from '@/types/canvas';
 
-export function ChecklistNode({ id, data, selected }: NodeProps) {
+export const ChecklistNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
   const nodeData = data as unknown as ChecklistNodeData;
@@ -145,4 +145,6 @@ export function ChecklistNode({ id, data, selected }: NodeProps) {
       </div>
     </BaseNode>
   );
-}
+});
+
+ChecklistNode.displayName = 'ChecklistNode';

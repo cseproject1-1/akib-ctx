@@ -1,14 +1,15 @@
+import { memo, useRef, useState } from 'react';
 import { type NodeProps, useReactFlow } from '@xyflow/react';
 import { BaseNode } from './BaseNode';
 import { ImagePlus, Upload, Loader2, Maximize2 } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvasStore';
-import { useRef, useState } from 'react';
+
 import { uploadCanvasFile } from '@/lib/r2/storage';
 import { ImageLightboxModal } from '@/components/canvas/ImageLightboxModal';
 import { toast } from 'sonner';
 import { ImageNodeData } from '@/types/canvas';
 
-export function ImageNode({ id, data, selected }: NodeProps) {
+export const ImageNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
   const workspaceId = useCanvasStore((s) => s.workspaceId);
@@ -159,4 +160,6 @@ export function ImageNode({ id, data, selected }: NodeProps) {
       )}
     </>
   );
-}
+});
+
+ImageNode.displayName = 'ImageNode';
