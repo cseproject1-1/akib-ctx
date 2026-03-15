@@ -15,7 +15,7 @@ const steps: Step[] = [
   {
     id: 'welcome',
     title: 'Welcome to CtxNote',
-    content: 'Your spatial thinking environment. Organize notes, ideas, and links on an infinite canvas with brutalist aesthetics.',
+    content: 'Your spatial thinking environment. Organize notes, ideas, and links on an infinite canvas with soft claymorphism aesthetics.',
     icon: Sparkles
   },
   {

@@ -49,8 +49,8 @@ export const FlashcardNode = memo(({ id, data, selected }: NodeProps) => {
 
   return (
     <div
-      className={`group animate-node-appear rounded-xl border-2 bg-card transition-all ${
-        selected ? 'border-primary shadow-[4px_4px_0px_hsl(var(--primary)/0.3)]' : 'border-border shadow-[var(--brutal-shadow)]'
+      className={`group animate-node-appear rounded-xl border bg-card transition-all ${
+        selected ? 'border-primary shadow-[var(--clay-shadow-md)]' : 'border-border shadow-[var(--clay-shadow-sm)]'
       }`}
       style={{ opacity: (nodeData.opacity ?? 100) / 100 }}
       onContextMenu={(e) => {

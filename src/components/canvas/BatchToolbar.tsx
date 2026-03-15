@@ -46,7 +46,7 @@ export function BatchToolbar() {
         initial={{ y: 50, opacity: 0, x: '-50%' }}
         animate={{ y: 0, opacity: 1, x: '-50%' }}
         exit={{ y: 50, opacity: 0, x: '-50%' }}
-        className="fixed bottom-24 left-1/2 z-[100] flex items-center gap-2 rounded-2xl border-2 border-primary bg-card dark:bg-zinc-900 p-2 shadow-[var(--brutal-shadow)]"
+        className="fixed bottom-24 left-1/2 z-[100] flex items-center gap-2 rounded-2xl border border-primary bg-card dark:bg-zinc-900 p-2 shadow-[var(--clay-shadow-sm)]"
       >
         <div className="flex items-center gap-2 px-3 border-r-2 border-border mr-2">
           <div className="flex -space-x-2">

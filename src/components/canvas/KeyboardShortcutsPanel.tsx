@@ -80,7 +80,7 @@ export function KeyboardShortcutsPanel() {
   return (
     <>
       <div className="fixed inset-0 z-[70] bg-background/60 backdrop-blur-sm" onClick={() => setOpen(false)} />
-      <div className="fixed left-1/2 top-1/2 z-[71] w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border-2 border-border bg-card p-6 shadow-[6px_6px_0px_hsl(0,0%,10%)] animate-brutal-pop">
+      <div className="fixed left-1/2 top-1/2 z-[71] w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-card p-6 shadow-[var(--clay-shadow-md)] animate-brutal-pop">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <Keyboard className="h-5 w-5 text-primary" />

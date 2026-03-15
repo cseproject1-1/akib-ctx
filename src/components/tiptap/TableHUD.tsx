@@ -10,7 +10,7 @@ export function TableHUD({ editor }: TableHUDProps) {
   if (!editor.isActive('table')) return null;
 
   return (
-    <div className="flex items-center gap-1.5 rounded-lg border-2 border-primary bg-card p-1 shadow-[4px_4px_0px_rgba(0,0,0,1)] animate-brutal-pop">
+    <div className="flex items-center gap-1.5 rounded-lg border border-primary bg-card p-1 shadow-[var(--clay-shadow-sm)] animate-brutal-pop">
       <div className="flex items-center gap-0.5 border-r pr-1.5 border-border">
          <HUDButton onClick={() => editor.chain().focus().addRowBefore().run()} title="Add Row Above"><ArrowUp className="h-3 w-3" /></HUDButton>
          <HUDButton onClick={() => editor.chain().focus().addRowAfter().run()} title="Add Row Below"><ArrowDown className="h-3 w-3" /></HUDButton>

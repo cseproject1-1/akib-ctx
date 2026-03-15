@@ -39,8 +39,8 @@ export function PinnedNodesPanel() {
   }
 
   return (
-    <div className="fixed left-6 bottom-20 z-[60] w-60 rounded-xl border-2 border-border bg-card shadow-[6px_6px_0px_hsl(0,0%,15%)] animate-brutal-pop">
-      <div className="flex items-center justify-between border-b-2 border-border px-3 py-2">
+    <div className="fixed left-6 bottom-20 z-[60] w-60 rounded-xl border border-border bg-card shadow-[var(--clay-shadow-md)] animate-brutal-pop">
+      <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <div className="flex items-center gap-2">
           <Star className="h-4 w-4 text-primary" />
           <span className="text-xs font-bold uppercase tracking-wider text-foreground">Pinned</span>

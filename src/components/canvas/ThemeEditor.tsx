@@ -74,8 +74,8 @@ export function ThemeEditor() {
   }
 
   return (
-    <div className="fixed bottom-[196px] left-6 z-[60] w-72 rounded-xl border-2 border-border bg-card shadow-[10px_10px_0px_rgba(0,0,0,0.2)] animate-brutal-pop overflow-hidden">
-      <div className="flex items-center justify-between border-b-2 border-border px-4 py-3 bg-muted/30">
+    <div className="fixed bottom-[196px] left-6 z-[60] w-72 rounded-xl border border-border bg-card shadow-[var(--clay-shadow-lg)] animate-brutal-pop overflow-hidden">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3 bg-muted/30">
         <div className="flex items-center gap-2">
           <Palette className="h-4 w-4 text-primary" />
           <span className="text-xs font-black uppercase tracking-widest">Aesthetics</span>

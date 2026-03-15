@@ -190,11 +190,11 @@ export const EmbedNode = memo(({ id, data, selected }: NodeProps) => {
 
   return (
     <div
-      className={`group relative flex h-full w-full flex-col overflow-hidden rounded-xl border-2 bg-card transition-shadow animate-node-appear ${selected ? 'border-primary shadow-[4px_4px_0px_hsl(var(--primary)/0.3)]' : 'border-border shadow-[var(--brutal-shadow)]'
+      className={`group relative flex h-full w-full flex-col overflow-hidden rounded-xl border bg-card transition-shadow animate-node-appear ${selected ? 'border-primary shadow-[var(--clay-shadow-md)]' : 'border-border shadow-[var(--clay-shadow-sm)]'
         }`}
     >
       {/* Header */}
-      <div className="flex items-center gap-2 border-b-2 border-border px-3 py-2 cursor-grab active:cursor-grabbing">
+      <div className="flex items-center gap-2 border-b border-border px-3 py-2 cursor-grab active:cursor-grabbing">
         <Globe className="h-4 w-4 text-cyan" />
         <span className="flex-1 truncate text-xs font-bold uppercase tracking-wider text-foreground">
           {nodeData.url ? (nodeData.title || 'Embed') : 'Embed URL'}

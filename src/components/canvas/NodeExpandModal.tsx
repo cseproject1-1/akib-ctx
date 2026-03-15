@@ -586,12 +586,12 @@ export function NodeExpandModal() {
       <div
         ref={modalRef}
         className={cn(
-          "relative overflow-hidden rounded-xl border-2 border-border bg-card shadow-[6px_6px_0px_hsl(0,0%,15%)] animate-brutal-pop transition-all duration-200 flex flex-col",
+          "relative overflow-hidden rounded-xl border border-border bg-card shadow-[var(--clay-shadow-md)] animate-brutal-pop transition-all duration-200 flex flex-col",
           isFullscreen ? 'w-full h-full max-w-full max-h-full rounded-none' : 'w-full max-w-5xl max-h-[90vh]'
         )}
       >
         {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b-2 border-border bg-card px-6 py-4">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-6 py-4">
           <input
             className="flex-1 bg-transparent text-lg font-bold uppercase tracking-wider text-foreground outline-none placeholder:text-muted-foreground"
             value={getTitle()}

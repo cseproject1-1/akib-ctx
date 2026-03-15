@@ -98,7 +98,7 @@ export function EditorFooter({
             <button className="rounded px-1 text-[10px] font-bold text-muted-foreground hover:bg-accent hover:text-foreground">
               Play ({(editor.storage as any).macro?.macros.length})
             </button>
-            <div className="absolute right-0 bottom-full mb-1 z-50 hidden group-hover:flex flex-col gap-0.5 rounded-lg border-2 border-border bg-card p-1 shadow-[var(--brutal-shadow)] min-w-[120px]">
+            <div className="absolute right-0 bottom-full mb-1 z-50 hidden group-hover:flex flex-col gap-0.5 rounded-lg border border-border bg-card p-1 shadow-[var(--clay-shadow-sm)] min-w-[120px]">
               {(editor.storage as any).macro?.macros.map((m: any) => (
                 <button
                   key={m.id}
@@ -156,7 +156,7 @@ export function EditorFooter({
           </button>
 
           {showExport && (
-            <div className="absolute right-0 bottom-full mb-1 z-50 flex flex-col gap-0.5 rounded-lg border-2 border-border bg-card p-1 shadow-[var(--brutal-shadow)] animate-scale-in min-w-[140px]">
+            <div className="absolute right-0 bottom-full mb-1 z-50 flex flex-col gap-0.5 rounded-lg border border-border bg-card p-1 shadow-[var(--clay-shadow-sm)] animate-scale-in min-w-[140px]">
               <button
                 onClick={handleExportMarkdown}
                 className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs font-bold text-foreground transition-all hover:bg-accent hover:translate-x-0.5"

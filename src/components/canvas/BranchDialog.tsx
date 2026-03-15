@@ -49,7 +49,7 @@ export function BranchDialog({ onClose, parentWorkspaceId }: BranchDialogProps) 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div className="w-96 rounded-xl border-2 border-border bg-card p-5 shadow-[var(--brutal-shadow)] animate-brutal-pop" onClick={(e) => e.stopPropagation()}>
+      <div className="w-96 rounded-xl border border-border bg-card p-5 shadow-[var(--clay-shadow-sm)] animate-brutal-pop" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-bold uppercase tracking-wider text-foreground flex items-center gap-2">
             <GitBranch className="h-4 w-4 text-primary" />

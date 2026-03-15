@@ -166,7 +166,7 @@ export function ImportModal({ open, onOpenChange, initialFiles }: {
               <p className="text-center text-sm font-bold text-foreground/60">
                 Drag and drop files here or click below
               </p>
-              <label className="brutal-btn cursor-pointer rounded-lg bg-primary px-6 py-2 text-xs font-black uppercase tracking-widest text-primary-foreground shadow-[4px_4px_0px_black] active:translate-x-0 active:translate-y-0 active:shadow-none">
+              <label className="brutal-btn cursor-pointer rounded-lg bg-primary px-6 py-2 text-xs font-black uppercase tracking-widest text-primary-foreground shadow-[var(--clay-shadow-sm)] active:translate-x-0 active:translate-y-0 active:shadow-none">
                 Select Files
                 <input
                   type="file"

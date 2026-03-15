@@ -72,9 +72,9 @@ export function NodeSearchPanel() {
               initial={{ opacity: 0, scale: 0.95, y: -20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -20 }}
-              className="relative w-full max-w-lg bg-card border-2 border-border rounded-2xl shadow-[var(--brutal-shadow-lg)] pointer-events-auto overflow-hidden flex flex-col max-h-[70vh]"
+              className="relative w-full max-w-lg bg-card border border-border rounded-2xl shadow-[var(--clay-shadow-lg)] pointer-events-auto overflow-hidden flex flex-col max-h-[70vh]"
             >
-              <div className="p-4 border-b-2 border-border flex items-center gap-3">
+              <div className="p-4 border-b border-border flex items-center gap-3">
                 <Search className="h-5 w-5 text-muted-foreground" />
                 <input 
                   autoFocus

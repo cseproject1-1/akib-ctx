@@ -106,7 +106,7 @@ export const ShareWorkspaceModal = forwardRef<HTMLDivElement, ShareWorkspaceModa
   return (
     <div ref={ref} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="w-full max-w-md rounded-xl border-2 border-border bg-card p-6 shadow-[var(--brutal-shadow-lg)] animate-brutal-pop"
+        className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-[var(--clay-shadow-lg)] animate-brutal-pop"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-5">

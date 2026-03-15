@@ -60,7 +60,7 @@ export function TemplateGallery({ open, onClose }: { open: boolean; onClose: () 
   return (
     <>
       <div className="fixed inset-0 z-[70] bg-background/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed left-1/2 top-1/2 z-[71] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 rounded-xl border-2 border-border bg-card shadow-[var(--brutal-shadow-lg)] animate-brutal-pop flex flex-col max-h-[85vh]">
+      <div className="fixed left-1/2 top-1/2 z-[71] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-card shadow-[var(--clay-shadow-lg)] animate-brutal-pop flex flex-col max-h-[85vh]">
         {/* Header */}
         <div className="flex items-center justify-between border-b-2 border-border p-4 bg-primary px-6 py-4">
           <div className="flex items-center gap-3">

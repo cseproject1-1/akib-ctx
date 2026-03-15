@@ -101,14 +101,14 @@ export const PresentationMode = forwardRef<HTMLDivElement>(function Presentation
 
       {/* Content */}
       <div className="flex flex-1 items-center justify-center p-8 overflow-auto">
-        <div className="max-w-3xl w-full rounded-xl border-2 border-border bg-card p-8 shadow-[var(--brutal-shadow-lg)]">
+        <div className="max-w-3xl w-full rounded-xl border border-border bg-card p-8 shadow-[var(--clay-shadow-lg)]">
           <h2 className="mb-4 text-xl font-bold uppercase tracking-wider text-foreground">{nodeTitle}</h2>
           {renderSlideContent(current, mathRef)}
         </div>
       </div>
 
       {/* Navigation */}
-      <div className="flex items-center justify-center gap-4 border-t-2 border-border py-4">
+      <div className="flex items-center justify-center gap-4 border-t border-border py-4">
         <button
           onClick={() => setCurrentIndex((i) => Math.max(i - 1, 0))}
           disabled={currentIndex === 0}

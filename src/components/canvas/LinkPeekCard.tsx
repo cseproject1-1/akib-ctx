@@ -42,7 +42,7 @@ export function LinkPeekCard() {
           top: hoveredLink.y + 20, // Offset below the cursor
         }}
       >
-        <div className="rounded-2xl border-2 border-primary bg-card p-4 shadow-[var(--brutal-shadow-lg)] flex flex-col gap-3">
+        <div className="rounded-2xl border border-primary bg-card p-4 shadow-[var(--clay-shadow-lg)] flex flex-col gap-3">
           {loading ? (
             <div className="flex items-center gap-3 py-4">
               <Loader2 className="h-5 w-5 animate-spin text-primary" />

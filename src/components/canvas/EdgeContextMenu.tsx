@@ -73,13 +73,13 @@ export function EdgeContextMenu() {
         onContextMenu={(e) => { e.preventDefault(); setEdgeContextMenu(null); }}
       />
       <div
-        className="absolute z-50 min-w-[200px] rounded-xl border-2 border-border bg-card p-2 shadow-[var(--brutal-shadow)] animate-brutal-pop overflow-hidden"
+        className="absolute z-50 min-w-[200px] rounded-xl border border-border bg-card p-2 shadow-[var(--clay-shadow-sm)] animate-brutal-pop overflow-hidden"
         style={{ 
           left: Math.min(x + window.scrollX, window.innerWidth + window.scrollX - 220), 
           top: Math.min(y + window.scrollY, window.innerHeight + window.scrollY - 350) 
         }}
       >
-        <div className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b-2 border-border mb-2 bg-muted/30 -mx-2 -mt-2">
+        <div className="px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-border mb-2 bg-muted/30 -mx-2 -mt-2">
           Edge Settings
         </div>
 

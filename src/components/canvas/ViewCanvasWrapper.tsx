@@ -108,7 +108,7 @@ export function ViewCanvasWrapper() {
                 <ArrowLeft className="h-4 w-4" />
               </button>
             )}
-            <div className="flex items-center gap-1 rounded-lg border-2 border-border bg-card p-1 shadow-sm">
+            <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1 shadow-sm">
               <button
                 onClick={() => canvasMode !== 'view' && toggleCanvasMode()}
                 className={cn(
@@ -183,7 +183,7 @@ export function ViewCanvasWrapper() {
 
       {/* Mobile Bottom Navigation */}
       {isMobile && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[110] flex items-center gap-3 px-6 py-3 rounded-2xl bg-background/80 backdrop-blur-xl border border-border/50 shadow-2xl animate-brutal-pop">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[110] flex items-center gap-3 px-6 py-3 rounded-2xl bg-background/80 backdrop-blur-xl border border-border/50 shadow-[var(--clay-shadow-lg)] animate-brutal-pop">
           <MobileNavBtn 
             active={!mobileMode} 
             onClick={() => mobileMode && toggleMobileMode()} 

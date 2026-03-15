@@ -53,7 +53,7 @@ export function SlashCommandPopover({ title, fields, onSubmit, onCancel, positio
   return (
     <div
       ref={containerRef}
-      className="absolute z-[999] w-64 rounded-lg border-2 border-border bg-popover p-3 shadow-[4px_4px_0px_hsl(0,0%,10%)] animate-brutal-pop"
+      className="absolute z-[999] w-64 rounded-lg border border-border bg-popover p-3 shadow-[var(--clay-shadow-sm)] animate-brutal-pop"
       style={position ? { top: position.top, left: position.left } : { top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}
       onKeyDown={handleKeyDown}
     >

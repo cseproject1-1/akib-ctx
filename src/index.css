@@ -8,147 +8,161 @@
   /* Dark theme (default) */
   :root,
   .dark {
-    /* Neo-Brutalism AMOLED Theme */
+    /* Claymorphism Pure AMOLED Theme */
     --background: 0 0% 0%;
     --foreground: 0 0% 95%;
 
-    --card: 0 0% 5%;
+    --card: 0 0% 3%;
     --card-foreground: 0 0% 95%;
 
     --popover: 0 0% 4%;
     --popover-foreground: 0 0% 95%;
 
-    --primary: 52 100% 50%;
-    --primary-foreground: 0 0% 0%;
+    /* Premium Indigo/Purple for claymorphism */
+    --primary: 262 83% 58%; 
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 10%;
+    --secondary: 0 0% 8%;
     --secondary-foreground: 0 0% 95%;
 
-    --muted: 0 0% 8%;
-    --muted-foreground: 0 0% 50%;
+    --muted: 0 0% 6%;
+    --muted-foreground: 0 0% 60%;
 
-    --accent: 0 0% 12%;
+    --accent: 0 0% 10%;
     --accent-foreground: 0 0% 95%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 25%;
-    --input: 0 0% 15%;
-    --ring: 52 100% 50%;
+    --border: 0 0% 15%;
+    --input: 0 0% 8%;
+    --ring: 262 83% 58%;
 
-    --radius: 0.5rem;
+    --radius: 1rem; /* Softer radius for clay */
 
     /* Canvas tokens */
     --canvas-bg: 0 0% 0%;
-    --canvas-dot: 0 0% 25%;
-    --canvas-node-bg: 0 0% 4%;
-    --canvas-node-border: 0 0% 45%;
-    --canvas-node-selected: 52 100% 50%;
+    --canvas-dot: 0 0% 15%;
+    --canvas-node-bg: 0 0% 3%;
+    --canvas-node-border: 0 0% 20%;
+    --canvas-node-selected: 262 83% 58%;
 
-    /* Neo-brut specific */
-    --brutal-shadow: 4px 4px 0px hsl(0 0% 35%);
-    --brutal-shadow-lg: 6px 6px 0px hsl(0 0% 30%);
-    --brutal-border: 2px solid hsl(0 0% 45%);
+    /* Claymorphism specific (Soft, Diffused Shadows) */
+    --clay-shadow-sm: 4px 4px 10px rgba(0,0,0,0.4), -2px -2px 6px rgba(255,255,255,0.02);
+    --clay-shadow-md: 8px 8px 20px rgba(0,0,0,0.5), -4px -4px 10px rgba(255,255,255,0.03);
+    --clay-shadow-lg: 12px 12px 30px rgba(0,0,0,0.6), -6px -6px 15px rgba(255,255,255,0.04);
+    
+    /* Legacy (kept for compatibility but updated values) */
+    --brutal-shadow: 4px 4px 10px rgba(0,0,0,0.4);
+    --brutal-shadow-lg: 8px 8px 20px rgba(0,0,0,0.5);
+    --brutal-border: 1px solid hsl(0 0% 15%);
 
-    /* Accent palette */
-    --yellow: 52 100% 50%;
+    /* Accent palette (Adjusted for dark clay) */
+    --yellow: 45 100% 50%;
     --yellow-foreground: 0 0% 0%;
     --green: 142 71% 45%;
-    --green-foreground: 0 0% 0%;
+    --green-foreground: 0 0% 100%;
     --red: 0 84% 60%;
     --red-foreground: 0 0% 100%;
-    --purple: 263 70% 58%;
+    --purple: 262 83% 58%;
     --purple-foreground: 0 0% 100%;
     --orange: 25 95% 53%;
     --orange-foreground: 0 0% 0%;
     --cyan: 187 85% 53%;
     --cyan-foreground: 0 0% 0%;
 
-    --sidebar-background: 0 0% 3%;
+    --sidebar-background: 0 0% 2%;
     --sidebar-foreground: 0 0% 85%;
-    --sidebar-primary: 52 100% 50%;
-    --sidebar-primary-foreground: 0 0% 0%;
-    --sidebar-accent: 0 0% 8%;
+    --sidebar-primary: 262 83% 58%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 6%;
     --sidebar-accent-foreground: 0 0% 95%;
-    --sidebar-border: 0 0% 15%;
-    --sidebar-ring: 52 100% 50%;
+    --sidebar-border: 0 0% 10%;
+    --sidebar-ring: 262 83% 58%;
 
-    /* Pro Premium Tokens */
-    --pro-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.5);
-    --glass-bg: 0 0% 5% / 80%;
-    --glass-border: 0 0% 100% / 10%;
-    --node-glow: 52 100% 50% / 15%;
+    /* Pro Premium Tokens (Claymorphism Glass) */
+    --pro-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.6);
+    --glass-bg: 0 0% 2% / 85%;
+    --glass-border: 0 0% 100% / 8%;
+    --node-glow: 262 83% 58% / 20%;
   }
 
   /* Light theme — higher specificity to override :root */
   html.light,
   html.light *::backdrop {
+    /* Soft Claymorphism Light Theme */
     --background: 0 0% 98%;
-    --foreground: 0 0% 10%;
+    --foreground: 0 0% 15%;
 
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 10%;
+    --card-foreground: 0 0% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 10%;
+    --popover-foreground: 0 0% 15%;
 
-    --primary: 52 100% 45%;
-    --primary-foreground: 0 0% 0%;
+    /* Premium Indigo/Purple for light clay */
+    --primary: 262 70% 45%; 
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 0 0% 93%;
-    --secondary-foreground: 0 0% 10%;
+    --secondary: 0 0% 95%;
+    --secondary-foreground: 0 0% 15%;
 
-    --muted: 0 0% 95%;
-    --muted-foreground: 0 0% 40%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
 
-    --accent: 0 0% 92%;
-    --accent-foreground: 0 0% 10%;
+    --accent: 0 0% 94%;
+    --accent-foreground: 0 0% 15%;
 
     --destructive: 0 84% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 80%;
-    --input: 0 0% 88%;
-    --ring: 52 100% 45%;
+    --border: 0 0% 85%;
+    --input: 0 0% 90%;
+    --ring: 262 70% 45%;
 
-    --canvas-bg: 0 0% 96%;
-    --canvas-dot: 0 0% 82%;
+    --canvas-bg: 0 0% 97%;
+    --canvas-dot: 0 0% 85%;
     --canvas-node-bg: 0 0% 100%;
-    --canvas-node-border: 0 0% 75%;
-    --canvas-node-selected: 52 100% 45%;
+    --canvas-node-border: 0 0% 80%;
+    --canvas-node-selected: 262 70% 45%;
 
-    --brutal-shadow: 4px 4px 0px hsl(0 0% 75%);
-    --brutal-shadow-lg: 6px 6px 0px hsl(0 0% 70%);
-    --brutal-border: 2px solid hsl(0 0% 75%);
+    /* Soft Clay Shadows for Light Theme */
+    --clay-shadow-sm: 2px 2px 5px rgba(0,0,0,0.08), -1px -1px 3px rgba(255,255,255,0.8);
+    --clay-shadow-md: 4px 4px 10px rgba(0,0,0,0.1), -2px -2px 6px rgba(255,255,255,0.9);
+    --clay-shadow-lg: 6px 6px 15px rgba(0,0,0,0.12), -3px -3px 8px rgba(255,255,255,0.95);
 
-    --yellow: 52 100% 45%;
+    /* Legacy (updated for light) */
+    --brutal-shadow: 2px 2px 5px rgba(0,0,0,0.08);
+    --brutal-shadow-lg: 4px 4px 10px rgba(0,0,0,0.1);
+    --brutal-border: 1px solid hsl(0 0% 85%);
+
+    --yellow: 45 100% 45%;
     --yellow-foreground: 0 0% 0%;
     --green: 142 71% 35%;
     --green-foreground: 0 0% 100%;
     --red: 0 84% 55%;
     --red-foreground: 0 0% 100%;
-    --purple: 263 70% 50%;
+    --purple: 262 70% 45%;
     --purple-foreground: 0 0% 100%;
     --orange: 25 95% 48%;
     --orange-foreground: 0 0% 0%;
     --cyan: 187 85% 40%;
     --cyan-foreground: 0 0% 0%;
 
-    --sidebar-background: 0 0% 97%;
-    --sidebar-foreground: 0 0% 25%;
-    --sidebar-primary: 52 100% 45%;
-    --sidebar-primary-foreground: 0 0% 0%;
-    --sidebar-accent: 0 0% 93%;
-    --sidebar-accent-foreground: 0 0% 10%;
-    --sidebar-border: 0 0% 85%;
-    --sidebar-ring: 52 100% 45%;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 0 0% 30%;
+    --sidebar-primary: 262 70% 45%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 95%;
+    --sidebar-accent-foreground: 0 0% 15%;
+    --sidebar-border: 0 0% 88%;
+    --sidebar-ring: 262 70% 45%;
 
-    /* Pro Premium Tokens (Light) */
+    /* Pro Premium Tokens (Light Clay) */
     --pro-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.1);
-    --glass-bg: 0 0% 100% / 80%;
-    --glass-border: 0 0% 0% / 10%;
-    --node-glow: 52 100% 45% / 10%;
+    --glass-bg: 0 0% 100% / 85%;
+    --glass-border: 0 0% 0% / 8%;
+    --node-glow: 262 70% 45% / 15%;
   }
 
   /* Professional Scrollbar - Hidden but functional */
@@ -192,30 +206,43 @@
   }
 }
 
-/* Interactive utility classes */
-.brutal-btn {
+/* Interactive utility classes - Claymorphism */
+.clay-btn {
   transition: transform 0.15s cubic-bezier(0.2, 0, 0.2, 1), box-shadow 0.15s ease;
+  border-radius: 0.75rem;
 }
 
-.brutal-btn:hover {
+.clay-btn:hover {
   transform: translateY(-1px);
+  box-shadow: var(--clay-shadow-md);
 }
 
-.brutal-btn:active {
+.clay-btn:active {
   transform: translateY(1px) scale(0.97);
+  box-shadow: var(--clay-shadow-sm);
 }
 
-.brutal-card {
+.clay-card {
+  border-radius: 1.25rem;
   transition: transform 0.2s cubic-bezier(0.2, 0, 0.2, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  box-shadow: var(--clay-shadow-md);
 }
 
-.brutal-card:hover {
+.clay-card:hover {
   transform: translateY(-2px);
+  box-shadow: var(--clay-shadow-lg);
 }
 
-.brutal-card:active {
+.clay-card:active {
   transform: translateY(0px) scale(0.98);
+  box-shadow: var(--clay-shadow-sm);
 }
+
+/* Legacy aliases for compatibility */
+.brutal-btn { @apply clay-btn; }
+.brutal-card { @apply clay-card; }
 
 /* Pro Premium Utilities */
 .pro-btn {
@@ -225,11 +252,13 @@
 .pro-card {
   @apply rounded-2xl glass-effect pro-shadow border border-white/5;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--clay-shadow-md);
 }
 
 .pro-card:hover {
   @apply border-white/10 brightness-110;
   transform: translateY(-2px);
+  box-shadow: var(--clay-shadow-lg);
 }
 
 .pro-input {
@@ -353,7 +382,7 @@
   background-color: hsl(var(--glass-bg)) !important;
   border: 1px solid hsl(var(--glass-border)) !important;
   border-radius: 1.5rem !important;
-  box-shadow: var(--pro-shadow) !important;
+  box-shadow: var(--clay-shadow-md) !important;
   margin: 1.5rem !important;
 }
 
@@ -372,7 +401,7 @@
   border: 1px solid hsl(var(--glass-border)) !important;
   border-radius: 1rem !important;
   overflow: hidden;
-  box-shadow: var(--pro-shadow) !important;
+  box-shadow: var(--clay-shadow-md) !important;
   margin: 1.5rem !important;
   display: flex !important;
   flex-direction: column !important;
@@ -524,18 +553,23 @@
   to { outline-offset: 4px; }
 }
 
-/* Node Hover & Selection Glows */
+/* Node Hover & Selection Glows - Claymorphism */
 .react-flow__node {
   transition: box-shadow 0.3s ease, border-color 0.3s ease, transform 0.2s ease !important;
+  box-shadow: var(--clay-shadow-md);
+  border-radius: var(--radius);
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
 }
 
 .react-flow__node:hover {
-  box-shadow: 0 0 15px hsla(var(--primary), 0.15);
+  box-shadow: var(--clay-shadow-lg), 0 0 15px hsla(var(--primary), 0.15);
   border-color: hsla(var(--primary), 0.3);
+  transform: translateY(-2px);
 }
 
 .react-flow__node.selected {
-  box-shadow: 0 0 25px hsla(var(--primary), 0.25), 0 0 0 2px hsl(var(--primary));
+  box-shadow: var(--clay-shadow-lg), 0 0 25px hsla(var(--primary), 0.25), 0 0 0 2px hsl(var(--primary));
   animation: node-pulse 2s ease-in-out infinite;
 }
 
@@ -595,14 +629,18 @@
   animation: fade-slide-in 0.12s ease-out;
 }
 
-@keyframes brutal-pop {
+@keyframes clay-pop {
   0% { transform: scale(0.95); opacity: 0; }
   50% { transform: scale(1.02); }
   100% { transform: scale(1); opacity: 1; }
 }
 
 .animate-brutal-pop {
-  animation: brutal-pop 0.2s cubic-bezier(0.2, 0, 0.2, 1);
+  animation: clay-pop 0.2s cubic-bezier(0.2, 0, 0.2, 1);
+}
+
+.animate-clay-pop {
+  animation: clay-pop 0.2s cubic-bezier(0.2, 0, 0.2, 1);
 }
 
 /* Tiptap editor styles */
@@ -1210,32 +1248,43 @@
   font-size: 0.9em;
 }
 
-/* Neo-brutalism utility */
-.brutal-card {
-  border: 2px solid hsl(var(--border));
-  box-shadow: var(--brutal-shadow);
+/* Claymorphism utility (replaces Neo-brutalism) */
+.clay-card {
+  border: 1px solid hsl(var(--border));
+  box-shadow: var(--clay-shadow-md);
   background: hsl(var(--card));
+  border-radius: var(--radius);
 }
 
-.brutal-card:hover {
-  box-shadow: var(--brutal-shadow-lg);
-  transform: translate(-1px, -1px);
+.clay-card:hover {
+  box-shadow: var(--clay-shadow-lg);
+  transform: translateY(-2px);
+}
+
+.clay-btn {
+  border: 1px solid hsl(var(--border));
+  box-shadow: var(--clay-shadow-sm);
+  transition: all 0.12s cubic-bezier(0.2, 0, 0.2, 1);
+  border-radius: 0.75rem;
+}
+
+.clay-btn:hover {
+  box-shadow: var(--clay-shadow-md);
+  transform: translateY(-1px);
+}
+
+.clay-btn:active {
+  box-shadow: var(--clay-shadow-sm);
+  transform: translateY(1px) scale(0.97);
+}
+
+/* Legacy aliases */
+.brutal-card {
+  @apply clay-card;
 }
 
 .brutal-btn {
-  border: 2px solid hsl(var(--border));
-  box-shadow: 3px 3px 0px hsl(0 0% 20%);
-  transition: all 0.12s cubic-bezier(0.2, 0, 0.2, 1);
-}
-
-.brutal-btn:hover {
-  box-shadow: 1px 1px 0px hsl(0 0% 20%);
-  transform: translate(2px, 2px);
-}
-
-.brutal-btn:active {
-  box-shadow: 0px 0px 0px hsl(0 0% 20%);
-  transform: translate(3px, 3px);
+  @apply clay-btn;
 }
 
 /* Smooth node transitions */

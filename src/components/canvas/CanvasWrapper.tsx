@@ -58,6 +58,7 @@ import { nodeTypes } from './nodeTypes';
 import { edgeTypes } from './edgeTypes';
 import { cn } from '@/lib/utils';
 import { isHotkeyMatch } from '@/lib/utils/hotkeys';
+import { parseContent } from '@/lib/utils/contentParser';
 import { useSettingsStore } from '@/store/settingsStore';
 import { AISynthesisDialog } from './AISynthesisDialog';
 import { NodeErrorBoundary } from './NodeErrorBoundary';
@@ -159,6 +160,7 @@ export function CanvasWrapper() {
   const selectAllNodes = useCanvasStore((s) => s.selectAllNodes);
   const deleteSelected = useCanvasStore((s) => s.deleteSelected);
   const addNode = useCanvasStore((s) => s.addNode);
+  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const workspaceId = useWorkspaceId();
   const canvasMode = useCanvasMode();
   const focusMode = useCanvasStore((s) => s.focusMode);
@@ -493,114 +495,121 @@ export function CanvasWrapper() {
   }, [canvasMode, throttledUpdateCursor]);
 
   // Pro-level paste type detection with smart title extraction
-  const detectPasteType = (text: string, html?: string): { type: string; data: Record<string, unknown>; style?: { width: number; height: number } } => {
-    const { parseContent } = require('@/lib/utils/contentParser');
+  const detectPasteType = useCallback((text: string, html?: string) => {
     return parseContent(text, html);
-  };
+  }, []);
+
+  // Helper to get the best position for a new node (cursor or center)
+  const getBestPastePosition = useCallback(() => {
+    const { lastCursorFlowPosition } = useCanvasStore.getState();
+    if (lastCursorFlowPosition) return { ...lastCursorFlowPosition };
+    
+    // Fallback to viewport center
+    const rf = reactFlowInstance.current;
+    if (rf) {
+      const { x, y, zoom } = rf.getViewport();
+      // Center of screen mapped to flow coordinates
+      return rf.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+    }
+    return { x: 0, y: 0 };
+  }, []);
 
   // Handle clipboard paste (images + text + nodes)
   const handleClipboardPaste = useCallback(async () => {
     try {
-      const items = await navigator.clipboard.read();
-      for (const item of items) {
-        // 1. Image binary data (screenshots, copied images)
-        const imageType = item.types.find((t) => t.startsWith('image/'));
-        if (imageType) {
-          const blob = await item.getType(imageType);
-          const file = new File([blob], `pasted-image-${Date.now()}.png`, { type: imageType });
+      // Try high-fidelity read first (supports images)
+      const items = await navigator.clipboard.read().catch(() => null);
+      
+      if (items && items.length > 0) {
+        for (const item of items) {
+          // 1. Image binary data
+          const imageType = item.types.find((t) => t.startsWith('image/'));
+          if (imageType && workspaceId) {
+            const blob = await item.getType(imageType);
+            const file = new File([blob], `pasted-image-${Date.now()}.png`, { type: imageType });
+            const nodeId = crypto.randomUUID();
+            const pos = getBestPastePosition();
+            addNode({
+              id: nodeId,
+              type: 'image',
+              position: pos,
+              data: { altText: 'Pasted image', uploading: true, progress: 0 },
+              style: { width: 320, height: 280 },
+            });
 
-          if (!workspaceId) return;
-          const nodeId = crypto.randomUUID();
-          addNode({
-            id: nodeId,
-            type: 'image',
-            position: { x: Math.random() * 200 - 100, y: Math.random() * 200 - 100 },
-            data: { altText: 'Pasted image', uploading: true, progress: 0 },
-            style: { width: 320, height: 280 },
-          });
-
-          const { uploadCanvasFile } = await import('@/lib/r2/storage');
-          try {
-            const { url, path } = await uploadCanvasFile(workspaceId, file);
-            const { updateNodeData } = useCanvasStore.getState();
-            updateNodeData(nodeId, { storageKey: path, storageUrl: url, uploading: false, progress: 100 });
-            toast.success('🖼️ Image pasted & uploaded');
-          } catch {
-            const { updateNodeData } = useCanvasStore.getState();
-            updateNodeData(nodeId, { uploading: false });
-            toast.error('Failed to upload pasted image');
+            const { uploadCanvasFile: upload } = await import('@/lib/r2/storage');
+            upload(workspaceId, file).then(({ url, path }) => {
+              useCanvasStore.getState().updateNodeData(nodeId, { storageKey: path, storageUrl: url, uploading: false, progress: 100 });
+              toast.success('🖼️ Image pasted & uploaded');
+            }).catch(() => {
+              useCanvasStore.getState().updateNodeData(nodeId, { uploading: false });
+              toast.error('Failed to upload pasted image');
+            });
+            return;
           }
-          return;
-        }
 
-        // 2. Read both plain text and HTML
-        let plainText = '';
-        let htmlContent = '';
+          // 2. Text data from rich item
+          let plainText = '';
+          let htmlContent = '';
+          if (item.types.includes('text/plain')) {
+            const blob = await item.getType('text/plain');
+            plainText = (await blob.text()).trim();
+          }
+          if (item.types.includes('text/html')) {
+            const blob = await item.getType('text/html');
+            htmlContent = (await blob.text()).trim();
+          }
 
-        if (item.types.includes('text/plain')) {
-          const blob = await item.getType('text/plain');
-          plainText = (await blob.text()).trim();
-        }
-        if (item.types.includes('text/html')) {
-          const blob = await item.getType('text/html');
-          htmlContent = (await blob.text()).trim();
-        }
+          if (plainText || htmlContent) {
+            const detected = detectPasteType(plainText, htmlContent);
+            const pos = getBestPastePosition();
+            const firstLine = plainText.split('\n')[0].slice(0, 40).trim();
 
-        if (!plainText && !htmlContent) continue;
-
-        // 3. Run smart detection on plain text
-        if (plainText) {
-          const detected = detectPasteType(plainText, htmlContent);
-
-          // For non-aiNote types, create the specialized node directly
-          if (detected.type !== 'aiNote') {
             addNode({
               id: crypto.randomUUID(),
               type: detected.type,
-              position: { x: Math.random() * 200 - 100, y: Math.random() * 200 - 100 },
-              data: detected.data,
-              style: detected.style || { width: 380, height: 400 },
+              position: pos,
+              data: { 
+                ...detected.data, 
+                title: detected.data.title || (detected.type === 'aiNote' ? (firstLine || '📝 Note') : undefined)
+              },
+              style: detected.style || (detected.type === 'aiNote' ? { width: 420, height: 500 } : undefined),
             });
-            toast.success(`${TYPE_LABELS[detected.type] || detected.type} created from paste`);
+            window.dispatchEvent(new CustomEvent('canvas-action-shake'));
+            toast.success(`${TYPE_LABELS[detected.type] || '📝 Note'} created from paste`);
             return;
           }
-        }
-
-        // 4. Rich HTML from AI tools/browsers → aiNote with HTML format
-        if (htmlContent) {
-          const hasSemanticTags = /<(h[1-6]|table|thead|tbody|tr|th|td|ul|ol|li|pre|code|blockquote|strong|em|img)\b/i.test(htmlContent);
-          if (hasSemanticTags) {
-            addNode({
-              id: crypto.randomUUID(),
-              type: 'aiNote',
-              position: { x: Math.random() * 200 - 100, y: Math.random() * 200 - 100 },
-              data: { title: 'Pasted Note', pasteContent: htmlContent, pasteFormat: 'html' },
-              style: { width: 420, height: 500 },
-            });
-            toast.success('📝 Rich content pasted as note');
-            return;
-          }
-        }
-
-        // 5. Fallback: plain text as markdown note
-        if (plainText) {
-          const detected = detectPasteType(plainText);
-          addNode({
-            id: crypto.randomUUID(),
-            type: detected.type,
-            position: { x: Math.random() * 200 - 100, y: Math.random() * 200 - 100 },
-            data: detected.data,
-            style: detected.style || { width: 420, height: 500 },
-          });
-          toast.success(`${TYPE_LABELS[detected.type] || '📝 Note'} created from paste`);
-          return;
         }
       }
-    } catch {
-      // Clipboard API not available or denied — fall back to node paste
+
+      // 3. Fallback for systems where read() fails but readText() works
+      const text = await navigator.clipboard.readText();
+      if (text.trim()) {
+        const detected = detectPasteType(text.trim());
+        const pos = getBestPastePosition();
+        const firstLine = text.trim().split('\n')[0].slice(0, 40).trim();
+        addNode({
+          id: crypto.randomUUID(),
+          type: detected.type,
+          position: pos,
+          data: { 
+            ...detected.data, 
+            title: detected.data.title || (detected.type === 'aiNote' ? (firstLine || '📝 Note') : undefined)
+          },
+          style: detected.style || (detected.type === 'aiNote' ? { width: 420, height: 500 } : undefined),
+        });
+        window.dispatchEvent(new CustomEvent('canvas-action-shake'));
+        toast.success(`${TYPE_LABELS[detected.type] || '📝 Note'} created from paste`);
+        return;
+      }
+
+      // 4. Final fallback: Internal node paste
+      pasteNodes();
+    } catch (err) {
+      console.error('Paste failed:', err);
       pasteNodes();
     }
-  }, [workspaceId, addNode, pasteNodes]);
+  }, [workspaceId, addNode, updateNodeData, getBestPastePosition, detectPasteType, pasteNodes]);
 
   // Keyboard shortcuts
   useEffect(() => {

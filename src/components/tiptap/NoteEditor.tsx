@@ -450,7 +450,7 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
     <div className="tiptap-wrapper relative nodrag nowheel nopan" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} ref={wrapperRef}>
       {showBubble && editable && (
         <div
-          className="absolute z-50 flex items-center gap-0.5 rounded-lg border-2 border-primary bg-card p-1 shadow-[4px_4px_0px_rgba(0,0,0,1)] animate-brutal-pop"
+          className="absolute z-50 flex items-center gap-0.5 rounded-lg border border-primary bg-card p-1 shadow-[var(--clay-shadow-sm)] animate-brutal-pop"
           style={{ top: bubblePos.top, left: bubblePos.left }}
         >
           <BubbleBtn active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()} title="Bold">
@@ -536,7 +536,7 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
 
       {showAIInline && showBubble && editable && (
         <div
-          className="absolute z-50 rounded-xl border-2 border-primary bg-card p-2 shadow-[8px_8px_0px_rgba(0,0,0,1)] animate-brutal-pop"
+          className="absolute z-50 rounded-xl border border-primary bg-card p-2 shadow-[var(--clay-shadow-md)] animate-brutal-pop"
           style={{ 
             top: bubblePos.top + 45, 
             left: bubblePos.left,

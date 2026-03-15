@@ -80,8 +80,8 @@ export function VersionHistoryPanel() {
   };
 
   return (
-    <div className="fixed right-0 top-0 z-50 flex h-full w-80 flex-col border-l-2 border-border bg-card shadow-[var(--brutal-shadow)] animate-slide-left">
-      <div className="flex items-center justify-between border-b-2 border-border px-4 py-3">
+    <div className="fixed right-0 top-0 z-50 flex h-full w-80 flex-col border-l border-border bg-card shadow-[var(--clay-shadow-sm)] animate-slide-left">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <h3 className="text-sm font-bold uppercase tracking-wider text-foreground flex items-center gap-2">
           <Clock className="h-4 w-4 text-primary" />
           Version History

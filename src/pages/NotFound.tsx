@@ -12,8 +12,8 @@ const NotFound = () => {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-6">
-      <div className="w-full max-w-md rounded-xl border-2 border-border bg-card p-8 shadow-[8px_8px_0px_hsl(0,0%,15%)] text-center animate-brutal-pop">
-        <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-xl border-2 border-border bg-primary/10 shadow-[4px_4px_0px_hsl(var(--primary)/0.3)]">
+      <div className="w-full max-w-md rounded-xl border border-border bg-card p-8 shadow-[var(--clay-shadow-lg)] text-center animate-brutal-pop">
+        <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-xl border border-border bg-primary/10 shadow-[var(--clay-shadow-sm)]">
           <Search className="h-12 w-12 text-primary" />
         </div>
         
@@ -31,7 +31,7 @@ const NotFound = () => {
         <div className="flex flex-col gap-3 sm:flex-row">
           <button
             onClick={() => navigate(-1)}
-            className="brutal-btn flex flex-1 items-center justify-center gap-2 rounded-lg bg-card border-2 border-border px-4 py-3 text-sm font-bold uppercase tracking-wider text-foreground hover:bg-muted"
+            className="brutal-btn flex flex-1 items-center justify-center gap-2 rounded-lg bg-card border border-border px-4 py-3 text-sm font-bold uppercase tracking-wider text-foreground hover:bg-muted"
           >
             <ArrowLeft className="h-4 w-4" />
             Go Back
@@ -39,7 +39,7 @@ const NotFound = () => {
           
           <button
             onClick={() => navigate('/')}
-            className="brutal-btn flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary border-2 border-border px-4 py-3 text-sm font-bold uppercase tracking-wider text-primary-foreground"
+            className="brutal-btn flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary border border-border px-4 py-3 text-sm font-bold uppercase tracking-wider text-primary-foreground"
           >
             <Home className="h-4 w-4" />
             Home

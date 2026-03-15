@@ -57,14 +57,14 @@ const Index = () => {
           <div className="flex flex-wrap items-center justify-center gap-4">
             <button
               onClick={() => navigate('/signup')}
-              className="brutal-btn flex items-center gap-2 rounded-xl bg-primary px-8 py-3.5 text-base font-bold uppercase tracking-wider text-primary-foreground shadow-[4px_4px_0px_hsl(0,0%,15%)] transition-transform hover:scale-105 active:scale-95"
+              className="brutal-btn flex items-center gap-2 rounded-xl bg-primary px-8 py-3.5 text-base font-bold uppercase tracking-wider text-primary-foreground shadow-[var(--clay-shadow-sm)] transition-transform hover:scale-105 active:scale-95"
             >
               Start for Free
               <ArrowRight className="h-5 w-5" />
             </button>
             <button
               onClick={() => navigate('/login')}
-              className="brutal-btn flex items-center gap-2 rounded-xl border-2 border-border bg-card px-8 py-3.5 text-base font-bold uppercase tracking-wider text-foreground shadow-[4px_4px_0px_hsl(0,0%,15%)] transition-transform hover:scale-105 active:scale-95"
+              className="brutal-btn flex items-center gap-2 rounded-xl border border-border bg-card px-8 py-3.5 text-base font-bold uppercase tracking-wider text-foreground shadow-[var(--clay-shadow-sm)] transition-transform hover:scale-105 active:scale-95"
             >
               Sign In
             </button>
@@ -126,7 +126,7 @@ const Index = () => {
           <p className="mb-8 text-muted-foreground">Join students and researchers who think visually.</p>
           <button
             onClick={() => navigate('/signup')}
-            className="brutal-btn inline-flex items-center gap-2 rounded-xl bg-primary px-10 py-4 text-base font-bold uppercase tracking-wider text-primary-foreground shadow-[4px_4px_0px_hsl(0,0%,15%)] transition-transform hover:scale-105 active:scale-95"
+            className="brutal-btn inline-flex items-center gap-2 rounded-xl bg-primary px-10 py-4 text-base font-bold uppercase tracking-wider text-primary-foreground shadow-[var(--clay-shadow-sm)] transition-transform hover:scale-105 active:scale-95"
           >
             Create Your First Canvas
             <ArrowRight className="h-5 w-5" />
@@ -135,7 +135,7 @@ const Index = () => {
       </section>
 
       {/* Footer */}
-      <footer className="border-t-2 border-border px-6 py-6">
+      <footer className="border-t border-border px-6 py-6">
         <div className="mx-auto flex max-w-6xl items-center justify-between text-xs font-bold uppercase tracking-wider text-muted-foreground">
           <span>© 2026 ctxnote</span>
           <div className="flex items-center gap-1">
