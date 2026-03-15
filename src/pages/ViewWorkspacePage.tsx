@@ -78,8 +78,11 @@ const ViewWorkspacePage = () => {
             id: docSnap.id,
             source: row.source_node_id,
             target: row.target_node_id,
+            sourceHandle: row.source_handle || undefined,
+            targetHandle: row.target_handle || undefined,
             type: 'custom',
             label: row.label || undefined,
+            data: row.style || {},
           };
         });
 

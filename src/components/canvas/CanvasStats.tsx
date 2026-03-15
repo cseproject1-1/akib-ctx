@@ -43,9 +43,13 @@ export function CanvasStats() {
   }
 
   // Compute stats
+  const selectedNodes = nodes.filter(n => n.selected);
+  const targetNodes = selectedNodes.length > 0 ? selectedNodes : nodes;
+  const isSelectionMode = selectedNodes.length > 0;
+
   const typeCounts: Record<string, number> = {};
   let totalWords = 0;
-  nodes.forEach((n) => {
+  targetNodes.forEach((n) => {
     typeCounts[n.type || 'unknown'] = (typeCounts[n.type || 'unknown'] || 0) + 1;
     const text = extractTextFromNode(n.data);
     totalWords += text.split(/\s+/).filter(Boolean).length;
@@ -55,16 +59,18 @@ export function CanvasStats() {
     <div className="fixed left-6 bottom-6 z-40 w-52 rounded-xl border-2 border-border bg-card shadow-[6px_6px_0px_hsl(0,0%,15%)] animate-brutal-pop">
       <div className="flex items-center justify-between border-b-2 border-border px-3 py-2">
         <div className="flex items-center gap-2">
-          <BarChart3 className="h-4 w-4 text-muted-foreground" />
-          <span className="text-xs font-bold uppercase tracking-wider text-foreground">Stats</span>
+          <BarChart3 className="h-4 w-4 text-primary" />
+          <span className="text-xs font-black uppercase tracking-widest text-foreground">
+            {isSelectionMode ? 'Selection' : 'Canvas'}
+          </span>
         </div>
         <button onClick={() => setOpen(false)} className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground">
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
       <div className="space-y-1.5 p-3">
-        <StatRow label="Nodes" value={nodes.length} />
-        <StatRow label="Connections" value={edges.length} />
+        <StatRow label="Nodes" value={targetNodes.length} />
+        <StatRow label="Connections" value={isSelectionMode ? edges.filter(e => selectedNodes.some(n => n.id === e.source || n.id === e.target)).length : edges.length} />
         <StatRow label="Words" value={totalWords} />
         <div className="h-px bg-border" />
         {Object.entries(typeCounts)

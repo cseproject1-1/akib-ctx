@@ -207,8 +207,8 @@ export const CustomEdge = memo(({
     const path = `M${sourceX},${sourceY} C${cx1},${cy1} ${cx2},${cy2} ${targetX},${targetY}`;
     setPhysicsPath(path);
     setPhysicsLabelPos({
-      x: (sourceX + targetX) / 2 + (off.cx1 + off.cx2) * 0.25,
-      y: (sourceY + targetY) / 2 + (off.cy1 + off.cy2) * 0.25,
+      x: (sourceX + targetX) / 2 + (off.cx1 + off.cx2) * 0.15,
+      y: (sourceY + targetY) / 2 + (off.cy1 + off.cy2) * 0.15,
     });
 
     // Keep animating if offsets are still significant or minimum frames not reached
@@ -387,6 +387,7 @@ export const CustomEdge = memo(({
         )}
 
         {/* Main edge path */}
+        {/* Tension based thinning/glow */}
         <path
           ref={pathRef}
           id={id}
@@ -396,13 +397,33 @@ export const CustomEdge = memo(({
           markerStart={effectiveMarkerStart !== 'none' ? `url(#${markerStartId})` : undefined}
           style={{
             stroke: gradientEnabled ? `url(#${gradientId})` : strokeColor,
-            strokeWidth: selected ? edgeThickness + 0.5 : edgeThickness,
+            strokeWidth: (() => {
+              // Round 5: Tension Physics
+              const dx = targetX - sourceX;
+              const dy = targetY - sourceY;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              const baseWidth = selected ? edgeThickness + 0.5 : edgeThickness;
+              // Thinning effect: edges get thinner as they stretch
+              const tensionFactor = Math.max(0.4, Math.min(1.0, 600 / (dist + 300)));
+              return baseWidth * tensionFactor;
+            })(),
             strokeDasharray: isAnimated ? undefined : (edgeStyleMap[edgeStyle] || undefined),
             strokeLinecap: 'round',
             strokeLinejoin: 'round',
-            transition: 'stroke 0.2s ease, stroke-width 0.15s ease',
+            transition: 'stroke 0.2s ease, stroke-width 0.1s ease', // Faster width transition
           }}
         />
+
+        {/* Tension Glow (Dynamic based on distance) */}
+        {(() => {
+          const dist = Math.sqrt(Math.pow(targetX - sourceX, 2) + Math.pow(targetY - sourceY, 2));
+          if (dist > 800) {
+            return (
+              <path d={edgePath} fill="none" stroke={strokeColor} strokeWidth={1} strokeOpacity={Math.min(0.5, (dist - 800) / 1000)} style={{ filter: 'blur(2px)' }} />
+            );
+          }
+          return null;
+        })()}
 
         {/* Direction Indicator on Hover */}
         <path

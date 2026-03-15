@@ -1,5 +1,5 @@
 import { Handle, Position, useNodeId, useStore, NodeResizer } from '@xyflow/react';
-import { memo, useCallback, type ReactNode } from 'react';
+import { memo, useMemo, useCallback, type ReactNode } from 'react';
 import { MoreHorizontal, Lock, ChevronDown, ChevronRight, Expand, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
@@ -129,6 +129,19 @@ export const BaseNode = memo(({
   const canvasMode = useCanvasStore((s) => s.canvasMode);
   const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
   const isFocused = nodeId && focusedNodeId === nodeId;
+  const isHighlighted = useCanvasStore((s) => nodeId && s.highlightedNodeIds.includes(nodeId));
+  const isDeepWorkActive = useCanvasStore((s) => s.isDeepWorkActive);
+  const edges = useStore(useCallback((s) => s.edges, []));
+
+  const isRelevantInDeepWork = useMemo(() => {
+    if (!isDeepWorkActive || !focusedNodeId || !nodeId) return true;
+    if (nodeId === focusedNodeId) return true;
+    // Check if connected directly to focused node
+    return edges.some(e => 
+      (e.source === nodeId && e.target === focusedNodeId) || 
+      (e.target === nodeId && e.source === focusedNodeId)
+    );
+  }, [isDeepWorkActive, focusedNodeId, nodeId, edges]);
 
   const resolvedType = nodeType || detectedType;
   const accent = resolvedType ? NODE_TYPE_ACCENTS[resolvedType] : undefined;
@@ -138,7 +151,11 @@ export const BaseNode = memo(({
   const nodeContent = (
     <Wrapper
       initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: (opacity ?? 100) / 100, scale: 1 }}
+      animate={{ 
+        opacity: isRelevantInDeepWork ? (opacity ?? 100) / 100 : 0.1, 
+        scale: isRelevantInDeepWork ? 1 : 0.98,
+        filter: isRelevantInDeepWork ? 'none' : 'grayscale(1) blur(1px)'
+      }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.15, ease: 'easeOut' }}
       className={cn(
@@ -148,6 +165,7 @@ export const BaseNode = memo(({
           ? 'border-primary shadow-[6px_6px_0px_rgba(0,0,0,0.2)] scale-[1.01] z-50'
           : 'shadow-[4px_4px_0px_rgba(0,0,0,0.1)] hover:scale-[1.005] hover:border-primary/50 hover:shadow-[6px_6px_0px_rgba(0,0,0,0.15)]',
         isFocused && 'ring-4 ring-primary ring-opacity-30 shadow-[0_0_20px_rgba(var(--primary-rgb),0.3)] animate-pulse border-primary',
+        isHighlighted && 'ring-4 ring-yellow-400 ring-opacity-50 shadow-[0_0_25px_rgba(250,204,21,0.4)] animate-pulse border-yellow-400 z-[100]',
         userColor ? `${userColor.bg}` : accent && !selected ? `border-l-4 ${accent.border}` : '',
         className
       )}

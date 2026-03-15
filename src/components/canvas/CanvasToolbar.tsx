@@ -66,6 +66,7 @@ export function CanvasToolbar() {
   const setWorkspaceMeta = useCanvasStore((s) => s.setWorkspaceMeta);
   const loadCanvas = useCanvasStore((s) => s.loadCanvas);
   const importNodesAction = useCanvasStore((s) => s.importNodes);
+  const tidyUp = useCanvasStore((s) => s.tidyUp);
   const pushSnapshot = useCanvasStore((s) => s.pushSnapshot);
   const navigate = useNavigate();
   const [shareOpen, setShareOpen] = useState(false);
@@ -533,6 +534,11 @@ export function CanvasToolbar() {
                   className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 flex flex-col gap-1 rounded-2xl glass-morphism-strong pro-shadow p-2 z-[100] min-w-[200px]"
                 >
                   <div className="px-3 py-2 text-[9px] font-black uppercase tracking-[2px] text-primary/40 mb-1 border-b border-white/5">Auto Layouts</div>
+                  {selectedCount > 1 && (
+                    <button onClick={() => { tidyUp(); setShowLayoutMenu(false); toast.success('Tidied up selection'); }} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider text-primary transition-all hover:bg-primary/10 group animate-pulse">
+                      <div className="p-1.5 rounded-lg bg-primary/20 group-hover:bg-primary/30"><Sparkles className="h-3.5 w-3.5 text-primary" /></div> Tidy Selected
+                    </button>
+                  )}
                   <button onClick={handleGridLayout} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-all hover:bg-white/10 hover:text-foreground group">
                     <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-primary/20"><LayoutGrid className="h-3.5 w-3.5 text-primary" /></div> Grid Layout
                   </button>

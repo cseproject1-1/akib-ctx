@@ -135,6 +135,12 @@ export function ViewCanvasWrapper() {
               <Eye className="h-4 w-4 text-primary" />
               <span className="text-sm font-bold text-foreground max-sm:max-w-[120px] truncate">{workspaceName}</span>
             </div>
+
+            {/* Active Viewers (Mocked for Round 5 presence exploration) */}
+            <div className="flex items-center gap-1.5 rounded-full border-2 border-green/30 bg-green/10 px-2.5 py-1 shadow-sm">
+              <div className="h-2 w-2 rounded-full bg-green animate-pulse" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-green">1 Active</span>
+            </div>
           </div>
         </Panel>
 

@@ -56,6 +56,7 @@ import { isHotkeyMatch } from '@/lib/utils/hotkeys';
 import { useSettingsStore } from '@/store/settingsStore';
 import { AISynthesisDialog } from './AISynthesisDialog';
 import { NodeErrorBoundary } from './NodeErrorBoundary';
+import { PredictiveLinkingLayer } from './PredictiveLinkingLayer';
 import React from 'react';
 
 const withErrorBoundary = (Component: React.ComponentType<Record<string, unknown>>) => {
@@ -283,7 +284,7 @@ export function CanvasWrapper() {
     const dynamicThreshold = 15 / zoom;
 
     const { nodes } = useCanvasStore.getState();
-    const newGuides: { type: 'v' | 'h'; pos: number; start: number; end: number; snapOffset?: number }[] = [];
+    const newGuides: Guide[] = [];
 
     const dw = (typeof draggedNode.style?.width === 'number' ? draggedNode.style.width : draggedNode.measured?.width) || 300;
     const dh = (typeof draggedNode.style?.height === 'number' ? draggedNode.style.height : draggedNode.measured?.height) || 200;
@@ -295,7 +296,7 @@ export function CanvasWrapper() {
     const dcy = dt + dh / 2;
 
     for (const other of nodes) {
-      if (other.id === draggedNode.id) continue;
+      if (other.id === draggedNode.id || other.parentId === draggedNode.id) continue;
       const ow = (typeof other.style?.width === 'number' ? other.style.width : other.measured?.width) || 300;
       const oh = (typeof other.style?.height === 'number' ? other.style.height : other.measured?.height) || 200;
       const ol = other.position.x;
@@ -305,37 +306,40 @@ export function CanvasWrapper() {
       const ocx = ol + ow / 2;
       const ocy = ot + oh / 2;
 
-      // Vertical guides & Snapping
-      for (const [dv, ov] of [[dl, ol], [dl, or2], [dr, ol], [dr, or2], [dcx, ocx]]) {
-        const distance = Math.abs(dv - ov);
+      // Vertical guides & Snapping (Left, Right, Center)
+      for (const [dv, ov, isCenter] of [[dl, ol, false], [dl, or2, false], [dr, ol, false], [dr, or2, false], [dcx, ocx, true]]) {
+        const distance = Math.abs((dv as number) - (ov as number));
         if (distance < dynamicThreshold) {
           newGuides.push({ 
             type: 'v', 
-            pos: ov, 
-            start: Math.min(dt, ot) - 20, 
-            end: Math.max(db, ob) + 20,
-            snapOffset: ov - dv
+            pos: ov as number, 
+            start: Math.min(dt, ot) - 50, 
+            end: Math.max(db, ob) + 50,
+            snapOffset: (ov as number) - (dv as number)
           });
         }
       }
-      // Horizontal guides & Snapping
-      for (const [dv, ov] of [[dt, ot], [dt, ob], [db, ot], [db, ob], [dcy, ocy]]) {
-        const distance = Math.abs(dv - ov);
+      // Horizontal guides & Snapping (Top, Bottom, Center)
+      for (const [dv, ov, isCenter] of [[dt, ot, false], [dt, ob, false], [db, ot, false], [db, ob, false], [dcy, ocy, true]]) {
+        const distance = Math.abs((dv as number) - (ov as number));
         if (distance < dynamicThreshold) {
           newGuides.push({ 
             type: 'h', 
-            pos: ov, 
-            start: Math.min(dl, ol) - 20, 
-            end: Math.max(dr, or2) + 20,
-            snapOffset: ov - dv
+            pos: ov as number, 
+            start: Math.min(dl, ol) - 50, 
+            end: Math.max(dr, or2) + 50,
+            snapOffset: (ov as number) - (dv as number)
           });
         }
       }
     }
 
     // Apply Snapping: Find the strongest snap for each axis
-    const verticalSnap = newGuides.filter(g => g.type === 'v').sort((a, b) => Math.abs(a.snapOffset!) - Math.abs(b.snapOffset!))[0];
-    const horizontalSnap = newGuides.filter(g => g.type === 'h').sort((a, b) => Math.abs(a.snapOffset!) - Math.abs(b.snapOffset!))[0];
+    const verticalSnaps = newGuides.filter(g => g.type === 'v').sort((a, b) => Math.abs(a.snapOffset!) - Math.abs(b.snapOffset!));
+    const horizontalSnaps = newGuides.filter(g => g.type === 'h').sort((a, b) => Math.abs(a.snapOffset!) - Math.abs(b.snapOffset!));
+
+    const verticalSnap = verticalSnaps[0];
+    const horizontalSnap = horizontalSnaps[0];
 
     if (verticalSnap || horizontalSnap) {
       setLocalNodes(prev => prev.map(n => {
@@ -350,13 +354,53 @@ export function CanvasWrapper() {
       }));
     }
 
+    // Round 5: Active Collision Repulsion
+    // When dragging, nearby nodes gently push away to avoid overlap
+    const REPULSION_RADIUS = 200;
+    const REPULSION_STRENGTH = 1.2;
+
+    const nearbyNodes = nodes.filter(n => {
+      if (n.id === draggedNode.id || n.parentId === draggedNode.id) return false;
+      const nx = n.position.x;
+      const ny = n.position.y;
+      const dist = Math.sqrt(Math.pow(dcx - nx, 2) + Math.pow(dcy - ny, 2));
+      return dist < REPULSION_RADIUS;
+    });
+
+    if (nearbyNodes.length > 0) {
+      setLocalNodes(prev => prev.map(n => {
+        const isNearby = nearbyNodes.some(nn => nn.id === n.id);
+        if (!isNearby) return n;
+
+        const ncx = n.position.x + (n.measured?.width || 200) / 2;
+        const ncy = n.position.y + (n.measured?.height || 100) / 2;
+        
+        const dx = ncx - dcx;
+        const dy = ncy - dcy;
+        const distance = Math.max(1, Math.sqrt(dx * dx + dy * dy));
+        
+        if (distance < REPULSION_RADIUS) {
+          const force = (REPULSION_RADIUS - distance) / REPULSION_RADIUS * REPULSION_STRENGTH;
+          return {
+            ...n,
+            position: {
+              x: n.position.x + (dx / distance) * force * 15,
+              y: n.position.y + (dy / distance) * force * 15,
+            }
+          };
+        }
+        return n;
+      }));
+    }
+
     setGuides(newGuides);
-  }, [nodes, isViewMode]);
+  }, [nodes, isViewMode, setLocalNodes]);
 
   const handleNodeDragStop = useCallback((_: React.MouseEvent, node: Node) => {
     setGuides([]);
     isDraggingRef.current = false;
     debouncedSyncToStore.cancel();
+    
     setLocalNodes((current) => {
       setStoreNodes(current);
       return current;
@@ -415,45 +459,8 @@ export function CanvasWrapper() {
 
   // Pro-level paste type detection with smart title extraction
   const detectPasteType = (text: string, html?: string): { type: string; data: Record<string, unknown>; style?: { width: number; height: number } } => {
-    const trimmed = text.trim();
-    const lines = trimmed.split('\n');
-
-    // Extract smart title from first line (heading or first few words)
-    const extractTitle = (content: string, fallback: string): string => {
-      const firstLine = content.split('\n')[0].replace(/^#+\s*/, '').trim();
-      if (firstLine.length > 0 && firstLine.length <= 60) return firstLine;
-      const words = content.split(/\s+/).slice(0, 5).join(' ');
-      return words.length > 50 ? words.slice(0, 47) + '...' : words || fallback;
-    };
-
-    // Keep URL detection: Turn pasted links into embed nodes
-    if (/^https?:\/\/[^\s]+$/.test(trimmed) && !trimmed.includes('\n')) {
-      try {
-        const domain = new URL(trimmed).hostname.replace('www.', '');
-        return {
-          type: 'embed',
-          data: { url: trimmed, title: domain },
-          style: { width: 450, height: 380 }
-        };
-      } catch {
-        return {
-          type: 'embed',
-          data: { url: trimmed, title: 'Embedded Link' },
-          style: { width: 450, height: 380 }
-        };
-      }
-    }
-
-    // Default: AI note with markdown/html + smart title. Tiptap engine handles UI rendering.
-    return {
-      type: 'aiNote',
-      data: {
-        title: extractTitle(trimmed, 'Pasted Note'),
-        pasteContent: trimmed,
-        pasteFormat: html ? 'html' : 'markdown'
-      },
-      style: { width: 420, height: Math.min(600, 150 + lines.length * 24) }
-    };
+    const { parseContent } = require('@/lib/utils/contentParser');
+    return parseContent(text, html);
   };
 
   // Handle clipboard paste (images + text + nodes)
@@ -1244,6 +1251,7 @@ export function CanvasWrapper() {
             </marker>
           </defs>
         </svg>
+        <PredictiveLinkingLayer />
       </ReactFlow>
       <CanvasContextMenu />
       <NodeContextMenu />

@@ -6,6 +6,7 @@ import { HybridEditor, type NoteEditorHandle } from '@/components/editor/HybridE
 import { useCanvasStore } from '@/store/canvasStore';
 import type { JSONContent } from '@tiptap/react';
 import { AINoteNodeData } from '@/types/canvas';
+import { extractText } from '@/lib/utils/contentParser';
 
 function countWords(content: JSONContent | null | string): { words: number; chars: number } {
   if (!content) return { words: 0, chars: 0 };
@@ -21,18 +22,10 @@ function countWords(content: JSONContent | null | string): { words: number; char
   }
 }
 
-function extractText(content: any): string {
-  if (!content) return '';
-  if (typeof content === 'string') return content;
-  if (content.text) return content.text;
-  if (content.content && Array.isArray(content.content)) {
-    return content.content.map(extractText).filter(Boolean).join(' ');
-  }
-  return '';
-}
 
 export const AINoteNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const scanContentForLinks = useCanvasStore((s) => s.scanContentForLinks);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
   const nodeData = data as unknown as AINoteNodeData;
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
@@ -56,8 +49,9 @@ export const AINoteNode = memo(({ id, data, selected }: NodeProps) => {
         pasteFormat: undefined,
         ...extraData 
       });
+      scanContentForLinks(id, json);
     }, 800);
-  }, [id, updateNodeData]);
+  }, [id, updateNodeData, scanContentForLinks]);
 
   const stats = useMemo(() => countWords(nodeData.content), [nodeData.content]);
   const footerStats = stats.words > 0 ? `${stats.words} words · ${stats.chars} chars` : undefined;

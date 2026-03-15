@@ -84,6 +84,8 @@ const WorkspacePage = () => {
                                  return ce.id !== fe.id || 
                                         ce.source !== fe.source ||
                                         ce.target !== fe.target ||
+                                        ce.sourceHandle !== fe.sourceHandle ||
+                                        ce.targetHandle !== fe.targetHandle ||
                                         JSON.stringify(ce.data) !== JSON.stringify(fe.data) ||
                                         ce.label !== fe.label;
                                });

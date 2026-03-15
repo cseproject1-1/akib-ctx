@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
-import { Node, Edge } from '@xyflow/react';
+import { useReactFlow, type Node, type Edge } from '@xyflow/react';
 import { ChevronRight, Home, Target } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface BreadcrumbsProps {
   nodes: Node[];
@@ -18,6 +19,7 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
   onNavigate,
   className
 }) => {
+  const { fitView } = useReactFlow();
   const path = useMemo(() => {
     if (!selectedNodeId) return [];
     
@@ -53,26 +55,55 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({
       <button 
         onClick={() => onNavigate('')}
         className="hover:text-primary transition-colors p-0.5"
-        title="View All"
       >
         <Home size={14} />
       </button>
       
-      {path.map((node, index) => (
-        <React.Fragment key={node.id}>
-          <ChevronRight size={12} className="opacity-40" />
-          <button
-            onClick={() => onNavigate(node.id)}
-            className={cn(
-              "hover:text-primary transition-colors max-w-[120px] truncate px-1 rounded-sm",
-              index === path.length - 1 && "text-foreground font-bold"
-            )}
-            title={(node.data?.label as string) || node.id}
-          >
-            {(node.data?.label as string) || 'Untitled Node'}
-          </button>
-        </React.Fragment>
-      ))}
+      {path.map((node, index) => {
+        const isLast = index === path.length - 1;
+        const handleBreadcrumbClick = () => {
+          onNavigate(node.id);
+          fitView({ nodes: [node], duration: 800, padding: 0.5 });
+        };
+
+        return (
+          <React.Fragment key={node.id}>
+            <ChevronRight size={12} className="opacity-40" />
+            <div className="relative group/breadcrumb">
+              <button
+                onClick={handleBreadcrumbClick}
+                className={cn(
+                  "hover:text-primary transition-colors max-w-[120px] truncate px-1 rounded-sm",
+                  isLast && "text-foreground font-bold"
+                )}
+              >
+                {(node.data?.title as string) || (node.data?.label as string) || 'Untitled Note'}
+              </button>
+              
+              {/* Glimpse Popover */}
+              <AnimatePresence>
+                <motion.div 
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  whileHover={{ opacity: 1, y: 0, scale: 1 }}
+                  className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-3 rounded-xl glass-effect border border-white/10 shadow-xl pointer-events-none opacity-0 group-hover/breadcrumb:opacity-100 transition-opacity z-50"
+                >
+                  <div className="text-[9px] font-black uppercase tracking-widest text-primary mb-1">
+                    {node.type} Glimpse
+                  </div>
+                  <div className="text-[11px] font-bold text-foreground line-clamp-2 mb-2">
+                    {(node.data?.title as string) || (node.data?.label as string) || 'No title'}
+                  </div>
+                  <div className="flex gap-2 text-[8px] font-bold uppercase tracking-widest text-muted-foreground/60">
+                    <span>{edges.filter(e => e.source === node.id || e.target === node.id).length} Links</span>
+                    <span className="w-1 h-1 bg-border rounded-full self-center" />
+                    <span>Active</span>
+                  </div>
+                </motion.div>
+              </AnimatePresence>
+            </div>
+          </React.Fragment>
+        );
+      })}
 
       {path.length > 0 && (
         <div className="ml-1 pl-1 border-l border-border/50 flex items-center">

@@ -2,13 +2,16 @@ import { memo, useCallback, useState } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { BaseNode } from './BaseNode';
-import { Columns3, Plus, X, GripVertical } from 'lucide-react';
+import { Columns3, Plus, X, GripVertical, ExternalLink } from 'lucide-react';
+import { useReactFlow } from '@xyflow/react';
 
+import { toast } from 'sonner';
 import { KanbanNodeData } from '@/types/canvas';
 
 interface KanbanCard {
   id: string;
   text: string;
+  portalNodeId?: string;
 }
 
 interface KanbanColumn {
@@ -32,6 +35,7 @@ const DEFAULT_COLUMNS: KanbanColumn[] = [
 export const KanbanNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
+  const { setCenter, getNodes } = useReactFlow();
   const nodeData = data as unknown as KanbanNodeData;
   const title: string = nodeData.title || 'Kanban';
   const columns: KanbanColumn[] = (nodeData.columns as unknown as KanbanColumn[]) || DEFAULT_COLUMNS;
@@ -89,6 +93,37 @@ export const KanbanNode = memo(({ id, data, selected }: NodeProps) => {
     setDrag(null);
   };
 
+  const handleNodeDrop = (e: React.DragEvent, toColId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const nodeId = e.dataTransfer.getData('application/reactflow');
+    if (!nodeId) return;
+
+    const allNodes = getNodes();
+    const droppedNode = allNodes.find(n => n.id === nodeId);
+    if (!droppedNode || droppedNode.id === id) return;
+
+    const nodeTitle = (droppedNode.data as any).title || (droppedNode.data as any).label || 'Untitled Node';
+    
+    setColumns(
+      columns.map(col => 
+        col.id === toColId 
+          ? { ...col, cards: [...col.cards, { id: crypto.randomUUID(), text: nodeTitle, portalNodeId: nodeId }] }
+          : col
+      )
+    );
+    toast.success(`Docked ${nodeTitle} as portal`);
+  };
+
+  const handlePortalClick = (portalNodeId: string) => {
+    const node = getNodes().find(n => n.id === portalNodeId);
+    if (node) {
+      setCenter(node.position.x + (node.width || 300) / 2, node.position.y + (node.height || 200) / 2, { zoom: 1.2, duration: 800 });
+    } else {
+      toast.error('Portal target node not found');
+    }
+  };
+
   return (
     <BaseNode
       id={id}
@@ -112,9 +147,16 @@ export const KanbanNode = memo(({ id, data, selected }: NodeProps) => {
         {columns.map((col) => (
           <div
             key={col.id}
-            className="flex flex-col gap-1.5 flex-1 min-w-[140px] rounded-lg border-2 border-border bg-accent/30 p-2"
+            className="flex flex-col gap-1.5 flex-1 min-w-[140px] rounded-lg border-2 border-border bg-accent/30 p-2 transition-colors hover:bg-accent/50 group/col"
             onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-            onDrop={(e) => handleDrop(e, col.id)}
+            onDrop={(e) => {
+              const rfData = e.dataTransfer.getData('application/reactflow');
+              if (rfData) {
+                handleNodeDrop(e, col.id);
+              } else {
+                handleDrop(e, col.id);
+              }
+            }}
           >
             {/* Column header */}
             <div className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${col.color}`}>
@@ -129,10 +171,21 @@ export const KanbanNode = memo(({ id, data, selected }: NodeProps) => {
                 draggable
                 onDragStart={(e) => handleDragStart(e, card.id, col.id)}
                 onDragEnd={(e) => { e.stopPropagation(); setDrag(null); }}
-                className={`group/card flex items-start gap-1 rounded border border-border bg-card px-2 py-1.5 text-xs cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md transition-all ${drag?.cardId === card.id ? 'opacity-40 scale-95' : ''}`}
+                onClick={(e) => { 
+                  if (card.portalNodeId) {
+                    e.stopPropagation();
+                    handlePortalClick(card.portalNodeId);
+                  }
+                }}
+                className={`group/card flex items-start gap-1 rounded border border-border bg-card px-2 py-1.5 text-xs cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md transition-all ${drag?.cardId === card.id ? 'opacity-40 scale-95' : ''} ${card.portalNodeId ? 'border-primary/50 bg-primary/5 cursor-pointer' : ''}`}
               >
-                <GripVertical className="h-3 w-3 mt-0.5 flex-shrink-0 text-muted-foreground opacity-0 group-hover/card:opacity-100 transition-opacity" />
+                {card.portalNodeId ? (
+                  <ExternalLink className="h-3 w-3 mt-0.5 flex-shrink-0 text-primary" />
+                ) : (
+                  <GripVertical className="h-3 w-3 mt-0.5 flex-shrink-0 text-muted-foreground opacity-0 group-hover/card:opacity-100 transition-opacity" />
+                )}
                 <span className="flex-1 text-foreground break-words">{card.text}</span>
+                {card.portalNodeId && <span className="text-[8px] font-black text-primary/40 uppercase tracking-tighter self-end px-1">Portal</span>}
                 <button
                   onClick={(e) => { e.stopPropagation(); removeCard(col.id, card.id); }}
                   className="opacity-0 group-hover/card:opacity-100 transition-opacity text-muted-foreground hover:text-destructive flex-shrink-0"

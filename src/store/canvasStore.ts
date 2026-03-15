@@ -10,6 +10,7 @@ import {
   applyEdgeChanges,
   addEdge,
 } from '@xyflow/react';
+import { extractText } from '@/lib/utils/contentParser';
 
 interface HistorySnapshot {
   nodes: Node[];
@@ -107,6 +108,7 @@ interface CanvasState {
   setConnectMode: (on: boolean) => void;
   setConnectSourceId: (id: string | null) => void;
   setLastCursorFlowPosition: (pos: { x: number; y: number } | null) => void;
+  createGroupFromSelection: () => void;
   toggleGroupCollapse: (groupId: string) => void;
   addBookmark: (name: string, viewport: { x: number; y: number; zoom: number }) => void;
   removeBookmark: (id: string) => void;
@@ -119,6 +121,12 @@ interface CanvasState {
   setExportProgress: (p: number | null) => void;
   importNodes: (nodes: Node[]) => void;
   updateBacklinks: (sourceId: string, targetIds: string[]) => void;
+  highlightedNodeIds: string[];
+  setHighlightedNodes: (ids: string[]) => void;
+  isDeepWorkActive: boolean;
+  setDeepWorkActive: (active: boolean) => void;
+  scanContentForLinks: (sourceId: string, content: any) => void;
+  tidyUp: () => void;
   toggleZoomOnScroll: () => void;
 
 
@@ -224,12 +232,44 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     get()._syncAllBacklinks();
   },
 
+  scanContentForLinks: (sourceId, content) => {
+    const text = extractText(content);
+    if (!text) return;
+
+    const nodes = get().nodes;
+    const targetIds: string[] = [];
+
+    // Find all node titles in the text using [[Title]] or simple title match
+    nodes.forEach(node => {
+      if (node.id === sourceId) return;
+      const title = (node.data as any)?.title || (node.data as any)?.label;
+      if (!title) return;
+
+      // Escape title for regex
+      const escapedTitle = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const wikiLinkRegex = new RegExp(`\\[\\[${escapedTitle}\\]\\]`, 'gi');
+      
+      if (wikiLinkRegex.test(text)) {
+        targetIds.push(node.id);
+      }
+    });
+
+    if (targetIds.length > 0) {
+      get().updateBacklinks(sourceId, targetIds);
+    }
+  },
+
 
   setWorkspaceId: (id) => set({ workspaceId: id }),
   setWorkspaceMeta: (name, color) => set({ workspaceName: name, workspaceColor: color }),
   setNodes: (nodes) => set({ nodes }),
   setEdges: (edges) => set({ edges }),
 
+  highlightedNodeIds: [],
+  setHighlightedNodes: (ids) => set({ highlightedNodeIds: ids }),
+  isDeepWorkActive: false,
+  setDeepWorkActive: (active) => set({ isDeepWorkActive: active }),
+  
   onNodesChange: (changes) => {
     const nodes = get().nodes;
     const removedIds = changes
@@ -429,6 +469,61 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
         ),
       };
     });
+  },
+
+  createGroupFromSelection: () => {
+    const { nodes, pushSnapshot } = get();
+    const selectedNodes = nodes.filter(n => n.selected);
+
+    if (selectedNodes.length === 0) return;
+
+    pushSnapshot('Create Group');
+
+    // Calculate bounding box of selected nodes
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    selectedNodes.forEach(node => {
+      const nodeWidth = node.measured?.width || 200; // Default width if not measured
+      const nodeHeight = node.measured?.height || 100; // Default height if not measured
+      minX = Math.min(minX, node.position.x);
+      minY = Math.min(minY, node.position.y);
+      maxX = Math.max(maxX, node.position.x + nodeWidth);
+      maxY = Math.max(maxY, node.position.y + nodeHeight);
+    });
+
+    const padding = 40; // Padding around the group
+    const groupX = minX - padding;
+    const groupY = minY - padding;
+    const groupWidth = (maxX - minX) + (2 * padding);
+    const groupHeight = (maxY - minY) + (2 * padding);
+
+    const groupId = crypto.randomUUID();
+
+    const groupNode = {
+      id: groupId,
+      type: 'group',
+      position: { x: groupX, y: groupY },
+      data: { label: 'New Group', collapsed: false },
+      style: { width: groupWidth, height: groupHeight, zIndex: 0 },
+      draggable: true,
+      selectable: true,
+      deletable: true,
+    };
+
+    const updatedNodes = nodes.map(n => {
+      if (selectedNodes.some(sn => sn.id === n.id)) {
+        // Update selected nodes to be children of the new group
+        return {
+          ...n,
+          parentId: groupId,
+          extent: 'parent' as const,
+          position: { x: n.position.x - groupX, y: n.position.y - groupY },
+          selected: false,
+        };
+      }
+      return { ...n, selected: false }; // Deselect other nodes
+    });
+
+    set({ nodes: [groupNode, ...updatedNodes] });
   },
 
   toggleGroupCollapse: (groupId) => {
@@ -649,6 +744,18 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   pushSnapshot: (label = 'Action') => {
     const { nodes, edges, past } = get();
+    
+    // Atomic/Smart History: If the last action was the same as this one and happened very recently,
+    // we don't need a new snapshot (e.g., consecutive 'Move' actions while dragging)
+    const lastSnapshot = past[past.length - 1];
+    if (lastSnapshot && lastSnapshot.label === label && (Date.now() - lastSnapshot.timestamp < 1000)) {
+      // Just update timestamp, don't add new entry
+      set({
+        past: [...past.slice(0, -1), { ...lastSnapshot, timestamp: Date.now() }]
+      });
+      return;
+    }
+
     // Use structuredClone for full fidelity deep cloning of the entire state
     const snapshot: HistorySnapshot = { 
       nodes: structuredClone(nodes), 
@@ -739,6 +846,41 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   toggleBlockEditorMode: () => set({ isBlockEditorMode: !get().isBlockEditorMode }),
   toggleMobileMode: () => set({ mobileMode: !get().mobileMode }),
   toggleZoomOnScroll: () => set({ zoomOnScroll: !get().zoomOnScroll }),
+  tidyUp: () => {
+    const selected = get().nodes.filter(n => n.selected);
+    if (selected.length < 2) return;
+    
+    get().pushSnapshot('Tidy Up Canvas');
+    
+    // Sort selected nodes top-to-bottom, left-to-right
+    const sorted = [...selected].sort((a, b) => (a.position.y - b.position.y) || (a.position.x - b.position.x));
+    
+    const startX = Math.min(...selected.map(n => n.position.x));
+    const startY = Math.min(...selected.map(n => n.position.y));
+    
+    const COLUMNS = Math.ceil(Math.sqrt(selected.length));
+    const SPACING_X = 400;
+    const SPACING_Y = 300;
+    
+    const newNodes = get().nodes.map(n => {
+      const idx = sorted.findIndex(s => s.id === n.id);
+      if (idx === -1) return n;
+      
+      const col = idx % COLUMNS;
+      const row = Math.floor(idx / COLUMNS);
+      
+      return {
+        ...n,
+        position: {
+          x: startX + col * SPACING_X,
+          y: startY + row * SPACING_Y
+        }
+      };
+    });
+    
+    set({ nodes: newNodes });
+  },
+
   setExportProgress: (p) => set({ exportProgress: p }),
 }));
 

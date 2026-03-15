@@ -73,6 +73,7 @@ export function PomodoroTimer() {
   const nodes = useCanvasStore((s) => s.nodes);
   const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
+  const setDeepWorkActive = useCanvasStore((s) => s.setDeepWorkActive);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const modes: ModeConfig[] = [
@@ -87,7 +88,8 @@ export function PomodoroTimer() {
     if (running && 'Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
-  }, [running]);
+    setDeepWorkActive(running && mode === 'work');
+  }, [running, mode, setDeepWorkActive]);
 
   const reset = useCallback((newMode?: TimerMode) => {
     const m = newMode || mode;

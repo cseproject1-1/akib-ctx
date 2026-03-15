@@ -12,7 +12,15 @@ import {
   Unlock,
   Trash2,
   Trash,
-  FileDown
+  FileDown,
+  Palette,
+  Check,
+  Magnet,
+  Copy,
+  Tag,
+  Grid3X3,
+  GripHorizontal,
+  Move
 } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { useNodes, useEdges } from '@xyflow/react';
@@ -27,8 +35,22 @@ export function SelectionToolbar() {
   const edges = useEdges();
   const setNodes = useCanvasStore((s) => s.setNodes);
   const deleteSelected = useCanvasStore((s) => s.deleteSelected);
+  const duplicateNode = useCanvasStore((s) => s.duplicateNode);
+  const createGroupFromSelection = useCanvasStore((s) => s.createGroupFromSelection);
   const pushSnapshot = useCanvasStore((s) => s.pushSnapshot);
   const { fitView } = useReactFlow();
+  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+
+  const PRESET_COLORS = [
+    '#ffffff', // Default
+    '#fecaca', // Red
+    '#fed7aa', // Orange
+    '#fef08a', // Yellow
+    '#bbf7d0', // Green
+    '#bfdbfe', // Blue
+    '#ddd6fe', // Purple
+    '#f5d0fe', // Pink
+  ];
 
   const expandedNode = useCanvasStore((s) => s.expandedNode);
   const isAISynthesisOpen = useCanvasStore((s) => s.isAISynthesisOpen);
@@ -120,6 +142,14 @@ export function SelectionToolbar() {
     toast.success(`Exported ${selectedNodes.length} nodes to ZIP`);
   };
 
+  const handleApplyColor = (color: string) => {
+    pushSnapshot();
+    selectedNodes.forEach((node) => {
+      updateNodeData(node.id, { color });
+    });
+    toast.success(`Applied color to ${selectedNodes.length} nodes`);
+  };
+
   return (
     <Panel position="top-center" className="mt-20">
       <TooltipProvider delayDuration={300}>
@@ -131,6 +161,21 @@ export function SelectionToolbar() {
           <div className="flex items-center px-3 py-1 text-[10px] font-bold tracking-tight text-primary border-r border-border/40 mr-1.5">
             {selectedNodes.length} SELECTED
           </div>
+          
+          <div className="w-px h-6 bg-border mx-1" />
+
+        <button
+          onClick={createGroupFromSelection}
+          className="p-2 text-muted-foreground hover:bg-accent hover:text-foreground rounded-lg transition-colors group relative"
+          title="Create Group"
+        >
+          <Magnet className="h-4 w-4" />
+          <span className="absolute -top-10 left-1/2 -translate-x-1/2 px-2 py-1 bg-popover border border-border text-[10px] font-bold rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none transition-opacity">
+            Create Smart Group
+          </span>
+        </button>
+
+        <div className="w-px h-6 bg-border mx-1" />
           
           <ActionBtn onClick={() => handleAlign('left')} tip="Align Left">
             <AlignLeft className="h-4 w-4" />
@@ -164,6 +209,17 @@ export function SelectionToolbar() {
           </ActionBtn>
 
           <Divider />
+
+          <div className="flex items-center gap-1.5 px-2 py-1">
+            {PRESET_COLORS.map((color) => (
+              <button
+                key={color}
+                onClick={() => handleApplyColor(color)}
+                className="w-5 h-5 rounded-md border border-white/10 transition-transform hover:scale-125 active:scale-95 shadow-sm"
+                style={{ backgroundColor: color }}
+              />
+            ))}
+          </div>
 
           <ActionBtn onClick={() => handleLockToggle(true)} tip="Lock All">
             <Lock className="h-4 w-4" />
