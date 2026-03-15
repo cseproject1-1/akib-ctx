@@ -17,7 +17,7 @@ import {
   replayPendingOps,
 } from '@/lib/cache/canvasCache';
 import { getWorkspaces } from '@/lib/firebase/workspaces';
-import { createSnapshot, pruneSnapshots, subscribeCanvasNodes, subscribeCanvasEdges } from '@/lib/firebase/canvasData';
+import { createSnapshot, pruneSnapshots, subscribeCanvasNodes, subscribeCanvasEdges, subscribeCursors } from '@/lib/firebase/canvasData';
 // Note: deleteCanvasFile is not migrated yet; we'll keep the import or comment it out if not needed now
 import { deleteCanvasFile } from '@/lib/r2/storage';
 import { auth } from '@/lib/firebase/client';
@@ -31,6 +31,8 @@ const WorkspacePage = () => {
   const setWorkspaceId = useCanvasStore((s) => s.setWorkspaceId);
   const setWorkspaceMeta = useCanvasStore((s) => s.setWorkspaceMeta);
   const resetState = useCanvasStore((s) => s.resetState);
+  const updateCursorPosition = useCanvasStore((s) => s.updateCursorPosition);
+  const removeCursor = useCanvasStore((s) => s.removeCursor);
   const changesSinceSnapshot = useRef(0);
   // Track whether initial load is fully complete — subscriber is inert until this is true
   const loadComplete = useRef(false);
@@ -191,11 +193,18 @@ const WorkspacePage = () => {
       }
     });
 
+    const cursorsUnsub = subscribeCursors(workspaceId, (freshCursors) => {
+      Object.entries(freshCursors).forEach(([id, cursor]) => {
+        updateCursorPosition(id, cursor.x, cursor.y, cursor.name, cursor.color);
+      });
+    });
+
     return () => {
       if (nodesUnsub) nodesUnsub();
       if (edgesUnsub) edgesUnsub();
+      if (cursorsUnsub) cursorsUnsub();
     };
-  }, [workspaceId]);
+  }, [workspaceId, updateCursorPosition]);
 
   // Subscribe to store changes and persist (using cached write-through wrappers)
   useEffect(() => {

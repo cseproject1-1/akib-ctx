@@ -7,6 +7,10 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/comp
 import { useCanvasStore } from '@/store/canvasStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { HANDLE_IDS } from '@/lib/constants/canvas';
+import { useReactFlow } from '@xyflow/react';
+
+const LOD_THRESHOLD = 0.45;
+const ULTIMATE_LOD_THRESHOLD = 0.2;
 
 const NODE_COLORS: Record<string, { border: string; bg: string }> = {
   blue:    { border: 'border-l-blue-500',   bg: 'bg-blue-500/5' },
@@ -71,6 +75,7 @@ interface BaseNodeProps {
   locked?: boolean;
   tags?: string[];
   collapsed?: boolean;
+  summary?: string | React.ReactNode;
   onToggleCollapse?: () => void;
   emoji?: string;
   dueDate?: string;
@@ -80,6 +85,7 @@ interface BaseNodeProps {
   nodeType?: string;
   color?: string;
   progress?: number;
+  isSyncing?: boolean;
 }
 
 export const BaseNode = memo(({
@@ -107,6 +113,8 @@ export const BaseNode = memo(({
   nodeType,
   color,
   progress,
+  summary,
+  isSyncing,
 }: BaseNodeProps) => {
   const nodeTags = tags || [];
   const reactFlowNodeId = useNodeId();
@@ -132,6 +140,7 @@ export const BaseNode = memo(({
   const isHighlighted = useCanvasStore((s) => nodeId && s.highlightedNodeIds.includes(nodeId));
   const isDeepWorkActive = useCanvasStore((s) => s.isDeepWorkActive);
   const edges = useStore(useCallback((s) => s.edges, []));
+  const zoom = useStore(useCallback((s) => s.transform[2], []));
 
   const isRelevantInDeepWork = useMemo(() => {
     if (!isDeepWorkActive || !focusedNodeId || !nodeId) return true;
@@ -234,6 +243,17 @@ export const BaseNode = memo(({
           ) : (
             <span className="flex-1 truncate text-sm font-medium tracking-tight text-foreground">{title}</span>
           )}
+          {id && (
+            <div className="flex items-center gap-1.5 px-1">
+              <div 
+                className={cn(
+                  "h-1.5 w-1.5 rounded-full transition-all duration-500",
+                  isSyncing ? "bg-yellow-400 animate-pulse shadow-[0_0_8px_rgba(250,204,21,0.5)]" : "bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.3)]"
+                )} 
+                title={isSyncing ? "Syncing changes..." : "All changes saved"}
+              />
+            </div>
+          )}
           {headerExtra}
           {id && (
             <button
@@ -283,14 +303,42 @@ export const BaseNode = memo(({
         </div>
       )}
 
-      {!collapsed && (
-        <div className={cn('flex-1 overflow-auto nodrag nowheel nopan', bodyClassName)} onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
-          {children}
+          {/* Collapsed Summary Overlay */}
+          {collapsed && summary && (
+            <div className="px-3 py-1.5 text-[10px] text-muted-foreground italic border-t border-border/50 bg-accent/5 line-clamp-1">
+              {summary}
+            </div>
+          )}
+
+          {!collapsed && (
+            <div className={cn('flex-1 overflow-auto nodrag nowheel nopan', bodyClassName)} onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+          {zoom < LOD_THRESHOLD ? (
+            <div className="flex flex-col items-center justify-center h-full w-full p-4 opacity-40 select-none pointer-events-none gap-2">
+              <div className="flex flex-col items-center gap-1">
+                {emoji ? (
+                  <span className="text-2xl">{emoji}</span>
+                ) : (
+                  icon && <div className="text-primary scale-125">{icon}</div>
+                )}
+                {zoom < ULTIMATE_LOD_THRESHOLD ? null : (
+                  <span className="text-[10px] font-black uppercase tracking-tighter text-center line-clamp-2 max-w-[120px]">
+                    {title || 'Empty'}
+                  </span>
+                )}
+              </div>
+              {zoom >= ULTIMATE_LOD_THRESHOLD && progress !== undefined && (
+                <div className="w-12 h-1 bg-muted rounded-full overflow-hidden border border-border/10">
+                  <div className={cn("h-full", accent?.indicator || "bg-primary")} style={{ width: `${progress}%` }} />
+                </div>
+              )}
+            </div>
+          ) : (
+            children
+          )}
         </div>
       )}
 
-      {/* Footer stats & Progress */}
-      {(footerStats || progress !== undefined) && !collapsed && (
+      {(footerStats || progress !== undefined) && !collapsed && zoom >= LOD_THRESHOLD && (
         <div className="border-t-2 border-border/50 px-3 py-1 text-[10px] text-muted-foreground font-bold flex flex-col gap-1">
           {progress !== undefined && (
             <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden border border-border/20">

@@ -26,6 +26,7 @@ import { TypographyExtensions } from './TypographyExtensions';
 import { TableSortExtension } from './TableSortExtension';
 import { TableTemplatesExtension } from './TableTemplatesExtension';
 import { TableFormulaExtension } from './TableFormulaExtension';
+import { BlockHandleExtension } from './BlockHandleExtension';
 
 export function getEditorExtensions(placeholder = 'Type / for commands, or start typing…') {
   return [
@@ -62,5 +63,6 @@ export function getEditorExtensions(placeholder = 'Type / for commands, or start
     TableSortExtension,
     TableTemplatesExtension,
     TableFormulaExtension,
+    BlockHandleExtension,
   ];
 }

@@ -2,7 +2,7 @@ import { useEditor, EditorContent, Editor } from '@tiptap/react';
 import { getEditorExtensions } from '@/lib/tiptap/extensions';
 import { cn } from '@/lib/utils';
 import { extensionRegistry, type AnyExtension } from '@/lib/tiptap/extensionRegistry';
-import { Bold, Italic, Strikethrough, Code, Heading1, Heading2, Link as LinkIcon, List, ListOrdered, Quote, Highlighter, Underline as UnderlineIcon, Palette, Type, Superscript, Subscript, RemoveFormatting, Search } from 'lucide-react';
+import { Bold, Italic, Strikethrough, Code, Heading1, Heading2, Link as LinkIcon, List, ListOrdered, Quote, Highlighter, Underline as UnderlineIcon, Palette, Type, Superscript, Subscript, RemoveFormatting, Search, Sparkles } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import type { JSONContent } from '@tiptap/react';
 import { Markdown } from 'tiptap-markdown';
@@ -14,6 +14,8 @@ import { marked } from 'marked';
 import { useCanvasStore } from '@/store/canvasStore';
 import { TypographyDropdown } from './TypographyDropdown';
 import { ColorPickerDropdown } from './ColorPickerDropdown';
+import { AIInlineTool } from './AIInlineTool';
+import { TableHUD } from './TableHUD';
 import { markdownToHtml, sanitizeKatexHtml } from '@/lib/editor/markdownUtils';/**
  * Calculate task progress from Tiptap JSON content.
  */
@@ -123,6 +125,7 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
   const [popoverConfig, setPopoverConfig] = useState<{ item: SlashMenuItem; editor: any } | null>(null);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [isTypewriterMode, setIsTypewriterMode] = useState(false);
+  const [showAIInline, setShowAIInline] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const backlinkTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const typewriterRef = useRef(isTypewriterMode);
@@ -289,6 +292,7 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
         setShowBubble(true);
       } else {
         setShowBubble(false);
+        setShowAIInline(false);
       }
 
       if (typewriterRef.current) {
@@ -409,8 +413,35 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
         }
       }
     };
+
+    const handleMouseOver = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const link = target.closest('a');
+      if (link && link.href) {
+        useCanvasStore.getState().setHoveredLink({
+          url: link.href,
+          x: e.clientX,
+          y: e.clientY,
+        });
+      }
+    };
+
+    const handleMouseOut = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('a')) {
+        useCanvasStore.getState().setHoveredLink(null);
+      }
+    };
+
     editor.view.dom.addEventListener('click', handleClick);
-    return () => editor.view.dom.removeEventListener('click', handleClick);
+    editor.view.dom.addEventListener('mouseover', handleMouseOver);
+    editor.view.dom.addEventListener('mouseout', handleMouseOut);
+    
+    return () => {
+      editor.view.dom.removeEventListener('click', handleClick);
+      editor.view.dom.removeEventListener('mouseover', handleMouseOver);
+      editor.view.dom.removeEventListener('mouseout', handleMouseOut);
+    };
   }, [editor]);
 
   if (!editor) return null;
@@ -487,7 +518,41 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
             onSelect={(color) => color ? editor.chain().focus().toggleHighlight({ color }).run() : editor.chain().focus().unsetHighlight().run()}
           />
           <div className="mx-0.5 h-5 w-px bg-border" />
+          <div className="mx-0.5 h-5 w-px bg-border" />
           <TypographyDropdown editor={editor} />
+          <div className="mx-0.5 h-5 w-px bg-border" />
+          <button
+            onClick={(e) => { e.preventDefault(); setShowAIInline(!showAIInline); }}
+            className={cn(
+              "rounded-md p-1.5 text-xs transition-all flex items-center gap-1.5 font-bold",
+              showAIInline ? "bg-primary text-primary-foreground shadow-[inset_2px_2px_0px_rgba(0,0,0,0.2)]" : "text-primary hover:bg-primary/10"
+            )}
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            {showAIInline ? "Close AI" : "Magic Pen"}
+          </button>
+        </div>
+      )}
+
+      {showAIInline && showBubble && editable && (
+        <div
+          className="absolute z-50 rounded-xl border-2 border-primary bg-card p-2 shadow-[8px_8px_0px_rgba(0,0,0,1)] animate-brutal-pop"
+          style={{ 
+            top: bubblePos.top + 45, 
+            left: bubblePos.left,
+            maxWidth: '320px'
+          }}
+        >
+          <AIInlineTool 
+            selectedText={editor.state.doc.textBetween(editor.state.selection.from, editor.state.selection.to)}
+            onApply={(text) => {
+                const html = markdownToHtml(text);
+                editor.chain().focus().insertContent(html).run();
+                setShowAIInline(false);
+                setShowBubble(false);
+            }}
+            onCancel={() => setShowAIInline(false)}
+          />
         </div>
       )}
 
@@ -505,6 +570,18 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
           }}
           onCancel={() => setPopoverConfig(null)}
         />
+      )}
+
+      {editor.isActive('table') && editable && (
+        <div 
+          className="absolute z-50 pointer-events-auto"
+          style={{ 
+            top: bubblePos.top - 40,
+            left: bubblePos.left,
+          }}
+        >
+          <TableHUD editor={editor} />
+        </div>
       )}
 
       <div className="flex-1 overflow-y-auto">

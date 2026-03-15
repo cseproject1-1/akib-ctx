@@ -142,6 +142,7 @@ export const KanbanNode = memo(({ id, data, selected }: NodeProps) => {
       color={nodeData.color}
       nodeType="kanban"
       bodyClassName="p-2"
+      summary={columns.map(c => `${c.title}: ${c.cards.length}`).join(' · ')}
     >
       <div className="flex gap-2 min-w-[480px]">
         {columns.map((col) => (

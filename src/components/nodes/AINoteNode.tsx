@@ -79,6 +79,7 @@ export const AINoteNode = memo(({ id, data, selected }: NodeProps) => {
       onMenuClick={(e) => setNodeContextMenu({ x: e.clientX, y: e.clientY, nodeId: id })}
       color={(data as any).color}
       progress={nodeData.progress}
+      isSyncing={false} // Placeholder for real sync state
       headerExtra={
         <button
           className="rounded-md p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover/header:opacity-100"

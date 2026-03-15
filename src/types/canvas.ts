@@ -105,6 +105,7 @@ export interface ChecklistNodeData extends SharedNodeFields {
 export interface TextNodeData extends SharedNodeFields {
   text: string;
   fontSize?: number;
+  title?: string;
 }
 
 export interface ShapeNodeData extends SharedNodeFields {

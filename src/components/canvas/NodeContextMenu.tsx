@@ -286,6 +286,22 @@ export function NodeContextMenu() {
                 <CtxBtn onClick={handleAutoFit}>
                   <Maximize className="h-4 w-4" /> Auto-fit Size
                 </CtxBtn>
+                {nodeType === 'text' && (
+                  <CtxBtn onClick={() => handleAction(() => {
+                    const text = (node.data as any).text || '';
+                    if (!text) return;
+                    addNode({
+                      id: crypto.randomUUID(),
+                      type: 'stickyNote',
+                      position: { x: node.position.x + 100, y: node.position.y + 100 },
+                      data: { text: text.slice(0, 200), color: 'yellow' },
+                      style: { width: 200, height: 200 },
+                    });
+                    toast.success('Extracted to Sticky Note');
+                  })}>
+                    <Smile className="h-4 w-4" /> Extract to Sticky
+                  </CtxBtn>
+                )}
               </div>
 
               <div className="my-2 h-px bg-white/5 mx-2" />

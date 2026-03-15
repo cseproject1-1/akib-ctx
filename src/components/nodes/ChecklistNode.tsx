@@ -77,6 +77,7 @@ export const ChecklistNode = memo(({ id, data, selected }: NodeProps) => {
       opacity={nodeData.opacity}
       createdAt={nodeData.createdAt}
       color={nodeData.color}
+      summary={`${doneCount}/${items.length} tasks done`}
     >
       <div className="flex flex-col gap-0 p-2">
         {/* Progress bar */}

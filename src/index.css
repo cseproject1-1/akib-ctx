@@ -611,6 +611,8 @@
   word-wrap: break-word;
   overflow-wrap: break-word;
   white-space: normal;
+  padding-left: 28px;
+  position: relative;
 }
 
 .tiptap-editor > *:first-child { margin-top: 0; }

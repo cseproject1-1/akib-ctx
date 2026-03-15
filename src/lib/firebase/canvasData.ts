@@ -233,3 +233,41 @@ export function subscribeCanvasEdges(workspaceId: string, onUpdate: (edges: Edge
         console.error('[sync] Edges subscription error:', err);
     });
 }
+
+export async function updateCursorPositionInDb(workspaceId: string, userId: string, x: number, y: number, name: string, color: string) {
+    const cursorRef = doc(db, `workspaces/${workspaceId}/presence`, userId);
+    await setDoc(cursorRef, {
+        x,
+        y,
+        name,
+        color,
+        last_seen: new Date().toISOString()
+    }, { merge: true });
+}
+
+export function subscribeCursors(workspaceId: string, onUpdate: (cursors: Record<string, any>) => void) {
+    const q = query(collection(db, `workspaces/${workspaceId}/presence`));
+    return onSnapshot(q, (snapshot) => {
+        if (snapshot.metadata.hasPendingWrites) return;
+
+        const cursors: Record<string, any> = {};
+        const now = Date.now();
+        snapshot.docs.forEach((docSnap) => {
+            const data = docSnap.data();
+            // Filter out cursors older than 1 minute to keep it clean
+            const lastSeen = new Date(data.last_seen).getTime();
+            if (now - lastSeen < 60000) {
+                cursors[docSnap.id] = {
+                    x: data.x,
+                    y: data.y,
+                    name: data.name,
+                    color: data.color,
+                    lastSeen
+                };
+            }
+        });
+        onUpdate(cursors);
+    }, (err) => {
+        console.error('[sync] Cursors subscription error:', err);
+    });
+}

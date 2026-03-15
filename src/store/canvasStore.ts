@@ -53,6 +53,7 @@ interface CanvasState {
   isBlockEditorMode: boolean;
   mobileMode: boolean;
   backlinks: Record<string, string[]>; // targetId -> sourceIds[]
+  hoveredLink: { url: string; x: number; y: number } | null;
   _contentBacklinks: Record<string, string[]>;
   _syncAllBacklinks: () => void;
 
@@ -67,6 +68,9 @@ interface CanvasState {
   // Actions
   setWorkspaceId: (id: string | null) => void;
   setWorkspaceMeta: (name: string, color: string) => void;
+  cursors: Record<string, { x: number; y: number; name: string; color: string; lastSeen: number }>;
+  updateCursorPosition: (userId: string, x: number, y: number, name: string, color: string) => void;
+  removeCursor: (userId: string) => void;
   setNodes: (nodes: Node[]) => void;
   setEdges: (edges: Edge[]) => void;
   onNodesChange: OnNodesChange;
@@ -136,9 +140,11 @@ interface CanvasState {
   undo: () => void;
   redo: () => void;
   clearResyncNeeded: () => void;
+  setHoveredLink: (link: { url: string; x: number; y: number } | null) => void;
   setVersionHistoryOpen: (open: boolean) => void;
   resetState: () => void;
   loadCanvas: (nodes: Node[], edges: Edge[], preserveHistory?: boolean) => void;
+  addNodesAndEdges: (nodes: Node[], edges: Edge[]) => void;
 }
 
 let skipSyncTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -183,6 +189,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   zenMode: false,
   zoomOnScroll: true,
   backlinks: {},
+  hoveredLink: null,
   _contentBacklinks: {},
   _syncAllBacklinks: () => {
     const { _contentBacklinks, edges } = get();
@@ -262,6 +269,23 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   setWorkspaceId: (id) => set({ workspaceId: id }),
   setWorkspaceMeta: (name, color) => set({ workspaceName: name, workspaceColor: color }),
+  cursors: {},
+  updateCursorPosition: (userId, x, y, name, color) => {
+    set((state) => ({
+      cursors: {
+        ...state.cursors,
+        [userId]: { x, y, name, color, lastSeen: Date.now() }
+      }
+    }));
+  },
+  removeCursor: (userId) => {
+    set((state) => {
+      const newCursors = { ...state.cursors };
+      delete newCursors[userId];
+      return { cursors: newCursors };
+    });
+  },
+
   setNodes: (nodes) => set({ nodes }),
   setEdges: (edges) => set({ edges }),
 
@@ -308,6 +332,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set({ edges: newEdges });
     get()._syncAllBacklinks();
   },
+
+  setHoveredLink: (link) => set({ hoveredLink: link }),
 
   setAISynthesisOpen: (open) => set({ isAISynthesisOpen: open }),
   setOpenWorkspaces: (workspaces) => set({ openWorkspaces: workspaces }),
@@ -595,6 +621,42 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     }, 200);
   },
 
+  addNodesAndEdges: (newNodes, newEdges) => {
+    get().pushSnapshot(`Add ${newNodes.length} Nodes & ${newEdges.length} Edges`);
+    
+    // Position nodes relative to last cursor if they don't have safe positions
+    const cursor = get().lastCursorFlowPosition;
+    const safeCursor = (cursor && !isNaN(cursor.x) && !isNaN(cursor.y)) ? cursor : { x: 0, y: 0 };
+    
+    // Calculate bounding box of new nodes to center them on cursor
+    let minX = Infinity, minY = Infinity;
+    newNodes.forEach(n => {
+      minX = Math.min(minX, n.position.x);
+      minY = Math.min(minY, n.position.y);
+    });
+
+    const processedNodes = newNodes.map(n => ({
+      ...n,
+      id: n.id || crypto.randomUUID(),
+      position: {
+        x: (n.position.x - (minX === Infinity ? 0 : minX)) + safeCursor.x,
+        y: (n.position.y - (minY === Infinity ? 0 : minY)) + safeCursor.y,
+      }
+    }));
+
+    const processedEdges = newEdges.map(e => ({
+      ...e,
+      id: e.id || crypto.randomUUID(),
+      type: e.type || 'custom'
+    }));
+
+    set({
+      nodes: [...get().nodes, ...processedNodes],
+      edges: [...get().edges, ...processedEdges]
+    });
+    get()._syncAllBacklinks();
+  },
+
   toggleMinimap: () => set({ showMinimap: !get().showMinimap }),
 
   setSaveStatus: (s) => set({ saveStatus: s }),
@@ -764,7 +826,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       timestamp: Date.now()
     };
     set({
-      past: [...past.slice(-99), snapshot],
+      past: [...past.slice(-29), snapshot],
       future: [],
     });
   },
@@ -888,3 +950,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 export const useNodes = () => useCanvasStore(useShallow((s) => s.nodes));
 export const useEdges = () => useCanvasStore(useShallow((s) => s.edges));
 export const useSelectedNodes = () => useCanvasStore(useShallow((s) => s.nodes.filter(n => n.selected)));
+export const useCanvasMode = () => useCanvasStore((s) => s.canvasMode);
+export const useZenMode = () => useCanvasStore((s) => s.zenMode);
+export const useWorkspaceId = () => useCanvasStore((s) => s.workspaceId);
+export const useCursors = () => useCanvasStore((s) => s.cursors);
+export const useSaveStatus = () => useCanvasStore((s) => s.saveStatus);

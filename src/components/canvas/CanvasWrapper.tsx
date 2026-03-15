@@ -21,9 +21,14 @@ import { debounce } from '@/lib/utils/debounce';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { uploadCanvasFile } from '@/lib/r2/storage';
 import { toast } from 'sonner';
+import { throttle } from '@/lib/utils/throttle';
+import { updateCursorPositionInDb } from '@/lib/firebase/canvasData';
+import { MagicCursorsLayer } from './MagicCursorsLayer';
+import { LinkPeekCard } from './LinkPeekCard';
+import { auth } from '@/lib/firebase/client';
 import '@xyflow/react/dist/style.css';
 
-import { useCanvasStore, useNodes, useEdges } from '@/store/canvasStore';
+import { useCanvasStore, useNodes, useEdges, useWorkspaceId, useCanvasMode, useZenMode } from '@/store/canvasStore';
 import { HANDLE_IDS } from '@/lib/constants/canvas';
 import { CanvasContextMenu } from './CanvasContextMenu';
 import { NodeContextMenu } from './NodeContextMenu';
@@ -154,11 +159,11 @@ export function CanvasWrapper() {
   const selectAllNodes = useCanvasStore((s) => s.selectAllNodes);
   const deleteSelected = useCanvasStore((s) => s.deleteSelected);
   const addNode = useCanvasStore((s) => s.addNode);
-  const workspaceId = useCanvasStore((s) => s.workspaceId);
-  const canvasMode = useCanvasStore((s) => s.canvasMode);
+  const workspaceId = useWorkspaceId();
+  const canvasMode = useCanvasMode();
   const focusMode = useCanvasStore((s) => s.focusMode);
   const toggleFocusMode = useCanvasStore((s) => s.toggleFocusMode);
-  const zenMode = useCanvasStore((s) => s.zenMode);
+  const zenMode = useZenMode();
   const toggleZenMode = useCanvasStore((s) => s.toggleZenMode);
   const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
@@ -457,6 +462,36 @@ export function CanvasWrapper() {
       }) as Node[];
   }, [localNodes, focusMode, focusedNodeId, vLeft, vRight, vTop, vBottom]);
 
+  const throttledUpdateCursor = useMemo(() => 
+    throttle((x: number, y: number) => {
+      if (!workspaceId) return;
+      const user = auth.currentUser;
+      const userId = user?.uid || 'local';
+      const name = user?.displayName || 'Guest';
+      const color = '#6366f1'; // Default theme color
+      updateCursorPositionInDb(workspaceId, userId, x, y, name, color);
+    }, 80),
+    [workspaceId]
+  );
+
+  const handleMouseMove = useCallback((event: React.MouseEvent) => {
+    if (canvasMode !== 'edit' || !reactFlowInstance.current) return;
+    const pos = reactFlowInstance.current.screenToFlowPosition({
+      x: event.clientX,
+      y: event.clientY,
+    });
+    if (isNaN(pos.x) || isNaN(pos.y)) return;
+
+    // Update local state for predictive features
+    const prev = useCanvasStore.getState().lastCursorFlowPosition;
+    if (!prev || Math.abs(prev.x - pos.x) > 5 || Math.abs(prev.y - pos.y) > 5) {
+      useCanvasStore.setState({ lastCursorFlowPosition: pos }, false);
+    }
+
+    // Update global presence
+    throttledUpdateCursor(pos.x, pos.y);
+  }, [canvasMode, throttledUpdateCursor]);
+
   // Pro-level paste type detection with smart title extraction
   const detectPasteType = (text: string, html?: string): { type: string; data: Record<string, unknown>; style?: { width: number; height: number } } => {
     const { parseContent } = require('@/lib/utils/contentParser');
@@ -571,7 +606,7 @@ export function CanvasWrapper() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      if (target.closest('.tiptap-wrapper') || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+      if (target.closest('.tiptap-wrapper') || target.closest('.blocknote-wrapper') || target.isContentEditable || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
 
       const mod = e.metaKey || e.ctrlKey;
 
@@ -1037,17 +1072,7 @@ export function CanvasWrapper() {
         onPaneClick={handlePaneClick}
         onDoubleClick={handlePaneDoubleClick}
         onNodeClick={handleNodeClick}
-        onMouseMove={useCallback((event: React.MouseEvent) => {
-          if (reactFlowInstance.current) {
-            const pos = reactFlowInstance.current.screenToFlowPosition({ x: event.clientX, y: event.clientY });
-            if (isNaN(pos.x) || isNaN(pos.y)) return; // Don't track invalid positions
-            
-            const prev = useCanvasStore.getState().lastCursorFlowPosition;
-            if (!prev || Math.abs(prev.x - pos.x) > 5 || Math.abs(prev.y - pos.y) > 5) {
-              useCanvasStore.setState({ lastCursorFlowPosition: pos }, false);
-            }
-          }
-        }, [])}
+        onMouseMove={handleMouseMove}
         onMove={useCallback((_, viewport) => {
           if (viewport.zoom < 0.5 !== isZoomedOut) {
             setIsZoomedOut(viewport.zoom < 0.5);
@@ -1082,6 +1107,7 @@ export function CanvasWrapper() {
         deleteKeyCode={['Delete', 'Backspace']}
         onSelectionChange={handleSelectionChange}
         selectionOnDrag={!isViewMode && !connectMode}
+        onlyRenderVisibleElements
         selectionMode={SelectionMode.Partial}
         panOnDrag={isViewMode ? true : connectMode ? [2] : [1, 2]}
         zoomOnScroll={zoomOnScroll}
@@ -1155,6 +1181,9 @@ export function CanvasWrapper() {
             }}
           />
         </div>
+
+        <MagicCursorsLayer />
+        <LinkPeekCard />
 
         {showMinimap && !zenMode && (
           <div 
