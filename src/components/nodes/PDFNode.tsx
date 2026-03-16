@@ -123,7 +123,7 @@ export const PDFNode = memo(({ id, data, selected }: NodeProps) => {
           url={nodeData.storageUrl}
           fileName={nodeData.fileName || 'document.pdf'}
           fileSize={nodeData.fileSize || 0}
-          fileType={nodeData.fileType as any}
+          fileType={nodeData.fileType as 'pdf' | 'doc' | 'docx' | 'ppt' | 'pptx'}
           onClose={() => setViewerOpen(false)}
         />
       )}

@@ -176,6 +176,9 @@ export interface AttachedFile {
   path?: string; // For R2 storage path
   storageType?: 'r2' | 'google_drive'; // Storage provider
   driveFileId?: string; // Google Drive file ID
+  category?: string; // File category
+  tags?: string[]; // File-specific tags
+  lastModified?: string; // ISO date string
 }
 
 export interface FileAttachmentNodeData extends SharedNodeFields {

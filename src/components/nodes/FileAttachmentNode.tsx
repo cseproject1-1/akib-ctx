@@ -3,10 +3,22 @@ import { type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { toast } from 'sonner';
 import { BaseNode } from './BaseNode';
-import { Paperclip, Upload, X, FileText, FileImage, FileArchive, FileCode, FileAudio, FileVideo, Download, Loader2, Cloud, ExternalLink } from 'lucide-react';
+import { Paperclip, Upload, X, FileText, FileImage, FileArchive, FileCode, FileAudio, FileVideo, Download, Loader2, Cloud, ExternalLink, Folder, FolderOpen, Tag, MoreVertical, ChevronDown, ChevronUp } from 'lucide-react';
 import { uploadCanvasFile } from '@/lib/r2/storage';
 import { FileAttachmentNodeData, AttachedFile } from '@/types/canvas';
 import { getGoogleDriveAuthUrl, isGoogleDriveConfigured } from '@/lib/googleDrive/service';
+
+// File categories for organization
+const FILE_CATEGORIES = [
+  'Documents',
+  'Images',
+  'Videos',
+  'Audio',
+  'Archives',
+  'Code',
+  'Data',
+  'Other'
+] as const;
 
 // AttachedFile interface is now imported from types/canvas
 
@@ -43,6 +55,8 @@ export const FileAttachmentNode = memo(({ id, data, selected }: NodeProps) => {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
 
   const setFiles = useCallback(
     (f: AttachedFile[]) => updateNodeData(id, { files: f }),
@@ -189,42 +203,76 @@ export const FileAttachmentNode = memo(({ id, data, selected }: NodeProps) => {
           </button>
         )}
 
-        {/* File list */}
+        {/* Category filter */}
+        {files.length > 0 && (
+          <div className="flex items-center gap-1 flex-wrap">
+            <span className="text-[10px] text-muted-foreground">Filter:</span>
+            {['All', ...FILE_CATEGORIES].map((cat) => (
+              <button
+                key={cat}
+                onClick={(e) => { e.stopPropagation(); setSelectedCategory(cat); }}
+                className={`text-[10px] px-1.5 py-0.5 rounded ${selectedCategory === cat ? 'bg-primary text-white' : 'bg-muted text-muted-foreground hover:bg-accent'}`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* File list with categorization */}
         {files.length > 0 && (
           <div className="flex flex-col gap-1">
-            {(files as unknown as AttachedFile[]).map((f) => (
-              <div key={f.id} className="group/file flex items-center gap-2 rounded-lg border border-border bg-card px-2 py-1.5 transition-all hover:border-primary/40 hover:shadow-sm">
-                {f.storageType === 'google_drive' ? (
-                  <Cloud className="h-4 w-4 flex-shrink-0 text-primary" />
-                ) : (
-                  <FileIcon type={f.type} className="h-4 w-4 flex-shrink-0 text-primary" />
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-foreground truncate">{f.name}</p>
-                  {f.size && (
-                    <p className="text-[9px] text-muted-foreground">{formatBytes(f.size)}</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-0.5 opacity-0 group-hover/file:opacity-100 transition-opacity">
-                  <a
-                    href={f.url}
-                    {...(f.storageType === 'google_drive' ? { target: '_blank', rel: 'noopener noreferrer' } : { download: f.name })}
-                    onClick={(e) => e.stopPropagation()}
-                    className="rounded p-0.5 text-muted-foreground hover:text-primary"
-                    title={f.storageType === 'google_drive' ? 'Open in Google Drive' : 'Download/View'}
-                  >
-                    {f.storageType === 'google_drive' ? (
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    ) : (
-                      <Download className="h-3.5 w-3.5" />
+            {(files as unknown as AttachedFile[])
+              .filter(f => selectedCategory === 'All' || (f.category || 'Other') === selectedCategory)
+              .map((f) => {
+                const category = f.category || 'Other';
+                return (
+                  <div key={f.id} className="group/file flex flex-col gap-1 rounded-lg border border-border bg-card px-2 py-1.5 transition-all hover:border-primary/40 hover:shadow-sm">
+                    <div className="flex items-center gap-2">
+                      {f.storageType === 'google_drive' ? (
+                        <Cloud className="h-4 w-4 flex-shrink-0 text-primary" />
+                      ) : (
+                        <FileIcon type={f.type} className="h-4 w-4 flex-shrink-0 text-primary" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-foreground truncate">{f.name}</p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[9px] text-muted-foreground">{formatBytes(f.size)}</span>
+                          <span className="text-[9px] px-1 rounded bg-muted text-muted-foreground">{category}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover/file:opacity-100 transition-opacity">
+                        <a
+                          href={f.url}
+                          {...(f.storageType === 'google_drive' ? { target: '_blank', rel: 'noopener noreferrer' } : { download: f.name })}
+                          onClick={(e) => e.stopPropagation()}
+                          className="rounded p-0.5 text-muted-foreground hover:text-primary"
+                          title={f.storageType === 'google_drive' ? 'Open in Google Drive' : 'Download/View'}
+                        >
+                          {f.storageType === 'google_drive' ? (
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          ) : (
+                            <Download className="h-3.5 w-3.5" />
+                          )}
+                        </a>
+                        <button onClick={(e) => { e.stopPropagation(); removeFile(f.id); }} className="rounded p-0.5 text-muted-foreground hover:text-destructive" title="Remove">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    {/* Tags for file */}
+                    {f.tags && f.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 ml-6">
+                        {f.tags.map((tag, index) => (
+                          <span key={index} className="text-[8px] px-1 rounded bg-primary/10 text-primary">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
                     )}
-                  </a>
-                  <button onClick={(e) => { e.stopPropagation(); removeFile(f.id); }} className="rounded p-0.5 text-muted-foreground hover:text-destructive" title="Remove">
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))}
+                  </div>
+                );
+              })}
           </div>
         )}
       </div>

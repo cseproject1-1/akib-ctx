@@ -1,19 +1,68 @@
-import { memo, useState, useCallback, useRef } from 'react';
+import { memo, useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { toast } from 'sonner';
 import { BaseNode } from './BaseNode';
-import { Sheet, Plus, Trash2, Download, Upload, Eraser } from 'lucide-react';
+import { Sheet, Plus, Trash2, Download, Upload, Eraser, BarChart3, Bold, Italic, Underline, Palette, Type, HelpCircle, X, Maximize2 } from 'lucide-react';
 import { SpreadsheetNodeData } from '@/types/canvas';
+import {
+  BarChart,
+  Bar,
+  LineChart as ReLineChart,
+  Line,
+  PieChart as RePieChart,
+  Pie as RePie,
+  Cell as ReCell,
+  ResponsiveContainer,
+  Tooltip,
+} from 'recharts';
 
 interface Cell {
   value: string;
+  format?: CellFormat;
+}
+
+interface CellFormat {
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  bgColor?: string;
+  textColor?: string;
+  align?: 'left' | 'center' | 'right';
 }
 
 type Grid = Cell[][];
+type ChartType = 'none' | 'bar' | 'line' | 'pie';
 
-const DEFAULT_ROWS = 4;
-const DEFAULT_COLS = 4;
+interface ChartConfig {
+  type: ChartType;
+  dataColumn: number;
+  labelColumn: number;
+  color: string;
+}
+
+const COLORS = ['#4f46e5', '#ec4899', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6'];
+
+const DEFAULT_ROWS = 6;
+const DEFAULT_COLS = 5;
+
+// Generate chart data from grid
+interface ChartData {
+  name: string;
+  value: number;
+}
+
+function generateChartData(grid: Grid, dataColumn: number, labelColumn: number): ChartData[] {
+  const data: ChartData[] = [];
+  for (let i = 1; i < grid.length; i++) {
+    const dataVal = parseFloat(grid[i]?.[dataColumn]?.value || '0');
+    const labelVal = grid[i]?.[labelColumn]?.value || `Row ${i + 1}`;
+    if (!isNaN(dataVal)) {
+      data.push({ name: labelVal, value: dataVal });
+    }
+  }
+  return data;
+}
 
 /**
  * Evaluate simple cell formulas starting with '='.
@@ -79,7 +128,7 @@ export const SpreadsheetNode = memo(({ id, data, selected }: NodeProps) => {
   const [editVal, setEditVal] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const setGrid = useCallback((g: Grid) => updateNodeData(id, { grid: g as any }), [id, updateNodeData]);
+  const setGrid = useCallback((g: Grid) => updateNodeData(id, { grid: g as unknown as { value: string }[][] }), [id, updateNodeData]);
 
   const startEdit = (r: number, c: number) => {
     setEditing({ r, c });
@@ -142,6 +191,68 @@ export const SpreadsheetNode = memo(({ id, data, selected }: NodeProps) => {
     }
   };
 
+  // Chart and fullscreen state
+  const [showChartPanel, setShowChartPanel] = useState(false);
+  const [selectedCell, setSelectedCell] = useState<{ r: number; c: number } | null>(null);
+  const [chartConfig, setChartConfig] = useState<ChartConfig>({
+    type: 'none',
+    dataColumn: 1,
+    labelColumn: 0,
+    color: COLORS[0]
+  });
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const spreadsheetRef = useRef<HTMLDivElement>(null);
+
+  // Chart data
+  const chartData = useMemo(() => {
+    if (chartConfig.type === 'none') return [];
+    return generateChartData(grid, chartConfig.dataColumn, chartConfig.labelColumn);
+  }, [grid, chartConfig]);
+
+  // Format cell
+  const formatCell = (key: keyof CellFormat, value: string | boolean | undefined) => {
+    if (!selectedCell) return;
+    const newGrid = grid.map((row, ri) =>
+      row.map((cell, ci) => {
+        if (ri === selectedCell.r && ci === selectedCell.c) {
+          const format = { ...(cell.format || {}), [key]: value };
+          return { ...cell, format };
+        }
+        return cell;
+      })
+    );
+    setGrid(newGrid);
+  };
+
+  // Get cell style
+  const getCellStyle = (cell: Cell): React.CSSProperties => {
+    const format = cell.format || {};
+    return {
+      fontWeight: format.bold ? 'bold' : 'normal',
+      fontStyle: format.italic ? 'italic' : 'normal',
+      textDecoration: format.underline ? 'underline' : 'none',
+      backgroundColor: format.bgColor || undefined,
+      color: format.textColor || undefined,
+      textAlign: format.align || 'left',
+    };
+  };
+
+  // Fullscreen handling
+  const toggleFullscreen = useCallback(() => {
+    if (!spreadsheetRef.current) return;
+    if (!isFullscreen) {
+      spreadsheetRef.current.requestFullscreen?.();
+    } else {
+      document.exitFullscreen?.();
+    }
+  }, [isFullscreen]);
+
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
+
   const displayValue = (cell: Cell): string => {
     if (!cell.value) return '';
     if (cell.value.startsWith('=')) return evalFormula(cell.value.slice(1), grid);
@@ -168,6 +279,13 @@ export const SpreadsheetNode = memo(({ id, data, selected }: NodeProps) => {
       bodyClassName="p-2"
       headerExtra={
         <div className="flex items-center gap-1 opacity-0 group-hover/node:opacity-100 transition-opacity">
+          <button 
+            onClick={(e) => { e.stopPropagation(); setShowChartPanel(!showChartPanel); }} 
+            title="Charts" 
+            className={`rounded p-0.5 transition-colors ${showChartPanel ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-primary'}`}
+          >
+            <BarChart3 className="h-3.5 w-3.5" />
+          </button>
           <button onClick={(e) => { e.stopPropagation(); exportCSV(); }} title="Export CSV" className="rounded p-0.5 text-muted-foreground hover:text-primary transition-colors">
             <Download className="h-3.5 w-3.5" />
           </button>
@@ -178,11 +296,89 @@ export const SpreadsheetNode = memo(({ id, data, selected }: NodeProps) => {
           <button onClick={(e) => { e.stopPropagation(); clearGrid(); }} title="Clear Selection" className="rounded p-0.5 text-muted-foreground hover:text-destructive transition-colors">
             <Eraser className="h-3.5 w-3.5" />
           </button>
+          <button onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }} title="Fullscreen" className="rounded p-0.5 text-muted-foreground hover:text-primary transition-colors">
+            <Maximize2 className="h-3.5 w-3.5" />
+          </button>
         </div>
       }
       footerStats={`${rows} × ${cols}`}
     >
-      <div className="flex flex-col gap-1.5 overflow-auto">
+      {/* Chart Panel */}
+      {showChartPanel && (
+        <div className="bg-muted p-2 mb-2 rounded-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-xs font-semibold">Chart:</span>
+            <select 
+              value={chartConfig.type}
+              onChange={(e) => setChartConfig({ ...chartConfig, type: e.target.value as ChartType })}
+              className="text-xs bg-background border border-border rounded px-2 py-0.5"
+            >
+              <option value="none">None</option>
+              <option value="bar">Bar</option>
+              <option value="line">Line</option>
+              <option value="pie">Pie</option>
+            </select>
+          </div>
+          
+          {chartConfig.type !== 'none' && (
+            <>
+              <div className="flex gap-2 mb-2">
+                <label className="text-xs">
+                  Data Col:
+                  <select 
+                    value={chartConfig.dataColumn}
+                    onChange={(e) => setChartConfig({ ...chartConfig, dataColumn: Number(e.target.value) })}
+                    className="ml-1 text-xs bg-background border border-border rounded px-1"
+                  >
+                    {Array.from({ length: cols }, (_, i) => (
+                      <option key={i} value={i}>{colLabel(i)}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-xs">
+                  Labels:
+                  <select 
+                    value={chartConfig.labelColumn}
+                    onChange={(e) => setChartConfig({ ...chartConfig, labelColumn: Number(e.target.value) })}
+                    className="ml-1 text-xs bg-background border border-border rounded px-1"
+                  >
+                    {Array.from({ length: cols }, (_, i) => (
+                      <option key={i} value={i}>{colLabel(i)}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              
+              <div className="h-32 bg-background rounded border border-border p-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  {chartConfig.type === 'bar' ? (
+                    <BarChart data={chartData}>
+                      <Bar dataKey="value" fill={chartConfig.color} />
+                      <Tooltip />
+                    </BarChart>
+                  ) : chartConfig.type === 'line' ? (
+                    <ReLineChart data={chartData}>
+                      <Line dataKey="value" stroke={chartConfig.color} />
+                      <Tooltip />
+                    </ReLineChart>
+                  ) : (
+                    <RePieChart>
+                      <RePie data={chartData} dataKey="value" nameKey="name" outerRadius={40} fill={chartConfig.color}>
+                        {chartData.map((_, index) => (
+                          <ReCell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        ))}
+                      </RePie>
+                      <Tooltip />
+                    </RePieChart>
+                  )}
+                </ResponsiveContainer>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+      
+      <div ref={spreadsheetRef} className="flex flex-col gap-1.5 overflow-auto">
         <div className="overflow-auto">
           <table className="border-collapse text-[11px]">
             <thead>
@@ -202,13 +398,15 @@ export const SpreadsheetNode = memo(({ id, data, selected }: NodeProps) => {
                   <td className="border border-border bg-accent/30 px-1 text-center text-[9px] font-bold text-muted-foreground">{ri + 1}</td>
                   {row.map((cell, ci) => {
                     const isEditing = editing?.r === ri && editing.c === ci;
+                    const isSelected = selectedCell?.r === ri && selectedCell.c === ci;
                     const display = displayValue(cell);
                     return (
                       <td
                         key={ci}
-                        className={`border border-border px-0 py-0 cursor-cell relative ${display === '#ERR' ? 'bg-destructive/10' : ''}`}
+                        className={`border border-border px-0 py-0 cursor-cell relative ${display === '#ERR' ? 'bg-destructive/10' : ''} ${isSelected ? 'ring-1 ring-primary' : ''}`}
+                        style={getCellStyle(cell)}
                         onDoubleClick={(e) => { e.stopPropagation(); startEdit(ri, ci); }}
-                        onClick={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); setSelectedCell({ r: ri, c: ci }); }}
                       >
                         {isEditing ? (
                           <input
@@ -222,9 +420,13 @@ export const SpreadsheetNode = memo(({ id, data, selected }: NodeProps) => {
                               if (e.key === 'Escape') setEditing(null);
                             }}
                             className="w-full px-1 py-0.5 bg-primary/10 border-2 border-primary outline-none text-[11px] text-foreground"
+                            style={getCellStyle(cell)}
                           />
                         ) : (
-                          <span className={`block px-1 py-0.5 min-h-[20px] select-all whitespace-nowrap ${cell.value.startsWith('=') ? 'text-primary font-semibold' : 'text-foreground'} ${display === '#ERR' ? 'text-destructive' : ''}`}>
+                          <span 
+                            className={`block px-1 py-0.5 min-h-[20px] select-all whitespace-nowrap ${cell.value.startsWith('=') ? 'text-primary font-semibold' : 'text-foreground'} ${display === '#ERR' ? 'text-destructive' : ''}`}
+                            style={getCellStyle(cell)}
+                          >
                             {display}
                           </span>
                         )}
@@ -251,7 +453,10 @@ export const SpreadsheetNode = memo(({ id, data, selected }: NodeProps) => {
           <button onClick={(e) => { e.stopPropagation(); removeCol(); }} disabled={cols <= 1} className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-30">
             <Trash2 className="h-3 w-3" /> Col
           </button>
-          <span className="ml-auto text-[9px] text-muted-foreground italic">dbl-click to edit · =SUM(A1,B1)</span>
+          <span className="ml-auto text-[9px] text-muted-foreground italic">
+            {selectedCell && `Selected: ${colLabel(selectedCell.c)}${selectedCell.r + 1} | `}
+            dbl-click to edit · =SUM(A1,B1)
+          </span>
         </div>
       </div>
     </BaseNode>

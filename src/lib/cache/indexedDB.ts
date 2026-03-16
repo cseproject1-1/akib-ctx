@@ -1,6 +1,6 @@
 const DB_NAME = 'crxnote-cache';
-const DB_VERSION = 1;
-const STORES = ['canvas-nodes', 'canvas-edges', 'workspaces', 'node-counts', 'pending-ops'] as const;
+const DB_VERSION = 2;
+const STORES = ['canvas-nodes', 'canvas-edges', 'workspaces', 'node-counts', 'pending-ops', 'file-blobs'] as const;
 
 type StoreName = (typeof STORES)[number];
 
@@ -64,8 +64,8 @@ export async function cacheSet<T>(store: StoreName, key: string, data: T): Promi
         }
       };
     });
-  } catch (err: any) {
-    if (err?.name === 'QuotaExceededError') {
+  } catch (err) {
+    if (err && typeof err === 'object' && 'name' in err && err.name === 'QuotaExceededError') {
       console.warn('[DB] Quota exceeded, purging old caches...');
       await purgeOldCaches();
       // Optional: No retry for now to keep it safe, most apps just wait for next update
@@ -127,7 +127,7 @@ export async function clearAllCaches(): Promise<void> {
 // Pending ops for offline queue
 export interface PendingOp {
   id: string;
-  type: 'saveNode' | 'saveEdge' | 'deleteNode' | 'deleteEdge' | 'updatePosition' | 'updateData' | 'updateStyle' | 'updateEdgeData' | 'updateSettings';
+  type: 'saveNode' | 'saveEdge' | 'deleteNode' | 'deleteEdge' | 'updatePosition' | 'updateData' | 'updateStyle' | 'updateEdgeData' | 'updateSettings' | 'cacheFileBlob' | 'removeFileBlob';
   args: unknown[];
   createdAt: number;
 }
@@ -155,4 +155,67 @@ export async function getAllPendingOps(): Promise<PendingOp[]> {
 
 export async function removePendingOp(id: string): Promise<void> {
   await cacheDel('pending-ops', id);
+}
+
+// File blob caching for offline viewing
+export interface CachedBlob {
+  url: string;
+  blob: Blob;
+  mimeType: string;
+  fileName: string;
+  fileSize: number;
+  cachedAt: number;
+}
+
+export async function cacheFileBlob(url: string, blob: Blob, mimeType: string, fileName: string, fileSize: number): Promise<void> {
+  const entry: CachedBlob = {
+    url,
+    blob,
+    mimeType,
+    fileName,
+    fileSize,
+    cachedAt: Date.now(),
+  };
+  await cacheSet('file-blobs', url, entry);
+}
+
+export async function getFileBlob(url: string): Promise<CachedBlob | null> {
+  const entry = await cacheGet<CachedBlob>('file-blobs', url);
+  return entry?.data ?? null;
+}
+
+export async function removeFileBlob(url: string): Promise<void> {
+  await cacheDel('file-blobs', url);
+}
+
+export async function clearFileBlobs(): Promise<void> {
+  await cacheClear('file-blobs');
+}
+
+// Clean up old file blobs (older than 7 days)
+export async function cleanupOldFileBlobs(maxAgeDays = 7): Promise<void> {
+  try {
+    const db = await getDB();
+    const tx = db.transaction('file-blobs', 'readwrite');
+    const store = tx.objectStore('file-blobs');
+    const req = store.getAll();
+    
+    req.onsuccess = () => {
+      const entries = (req.result || []) as CachedEntry<CachedBlob>[];
+      const cutoffTime = Date.now() - (maxAgeDays * 24 * 60 * 60 * 1000);
+      
+      entries.forEach(entry => {
+        if (entry.cachedAt < cutoffTime) {
+          store.delete(entry.data.url);
+        }
+      });
+    };
+    
+    return new Promise((resolve) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+    });
+  } catch {
+    // silently fail
+  }
 }
