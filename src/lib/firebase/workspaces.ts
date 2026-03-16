@@ -14,6 +14,9 @@ export interface Workspace {
     folder?: string | null;
     is_deleted?: boolean;
     deleted_at?: string | null;
+    // Password protection (optional, backward compatible)
+    password_hash?: string;
+    is_password_protected?: boolean;
 }
 
 export async function getWorkspaces(): Promise<Workspace[]> {
@@ -29,7 +32,7 @@ export async function getWorkspaces(): Promise<Workspace[]> {
     return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Workspace));
 }
 
-export async function createWorkspace(name: string, color: string): Promise<Workspace> {
+export async function createWorkspace(name: string, color: string, passwordHash?: string): Promise<Workspace> {
     const user = auth.currentUser;
     if (!user) throw new Error('Not authenticated');
 
@@ -46,14 +49,17 @@ export async function createWorkspace(name: string, color: string): Promise<Work
         user_id: user.uid,
         tags: [],
         folder: null,
-        is_deleted: false
+        is_deleted: false,
+        // Password protection fields (optional, backward compatible)
+        password_hash: passwordHash,
+        is_password_protected: !!passwordHash
     };
 
     await setDoc(wsRef, newWs);
     return newWs;
 }
 
-export async function updateWorkspace(id: string, updates: { name?: string; color?: string; is_public?: boolean; tags?: string[]; folder?: string | null; is_deleted?: boolean; deleted_at?: string | null }) {
+export async function updateWorkspace(id: string, updates: { name?: string; color?: string; is_public?: boolean; tags?: string[]; folder?: string | null; is_deleted?: boolean; deleted_at?: string | null; password_hash?: string; is_password_protected?: boolean }) {
     const wsRef = doc(db, 'workspaces', id);
     await updateDoc(wsRef, {
         ...updates,

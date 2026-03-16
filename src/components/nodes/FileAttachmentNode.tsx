@@ -3,18 +3,12 @@ import { type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { toast } from 'sonner';
 import { BaseNode } from './BaseNode';
-import { Paperclip, Upload, X, FileText, FileImage, FileArchive, FileCode, FileAudio, FileVideo, Download, Loader2 } from 'lucide-react';
+import { Paperclip, Upload, X, FileText, FileImage, FileArchive, FileCode, FileAudio, FileVideo, Download, Loader2, Cloud, ExternalLink } from 'lucide-react';
 import { uploadCanvasFile } from '@/lib/r2/storage';
-import { FileAttachmentNodeData } from '@/types/canvas';
+import { FileAttachmentNodeData, AttachedFile } from '@/types/canvas';
+import { getGoogleDriveAuthUrl, isGoogleDriveConfigured } from '@/lib/googleDrive/service';
 
-interface AttachedFile {
-  id: string;
-  name: string;
-  size: number; // bytes
-  type: string; // MIME
-  url: string;  // object URL or R2 URL
-  path?: string; // R2 storage path
-}
+// AttachedFile interface is now imported from types/canvas
 
 /** Return a suitable icon for the file MIME type */
 function FileIcon({ type, className }: { type: string; className?: string }) {
@@ -51,7 +45,7 @@ export const FileAttachmentNode = memo(({ id, data, selected }: NodeProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const setFiles = useCallback(
-    (f: AttachedFile[]) => updateNodeData(id, { files: f as any }),
+    (f: AttachedFile[]) => updateNodeData(id, { files: f }),
     [id, updateNodeData]
   );
 
@@ -104,6 +98,35 @@ export const FileAttachmentNode = memo(({ id, data, selected }: NodeProps) => {
     setFiles(filesTyped.filter((f) => f.id !== fileId));
   };
 
+  const handleConnectGoogleDrive = async () => {
+    if (!isGoogleDriveConfigured()) {
+      toast.error('Google Drive integration is not configured. Please check environment variables.');
+      return;
+    }
+    
+    try {
+      const authUrl = getGoogleDriveAuthUrl();
+      // Open in new window for OAuth flow
+      const width = 500;
+      const height = 600;
+      const left = (window.screen.width - width) / 2;
+      const top = (window.screen.height - height) / 2;
+      
+      const authWindow = window.open(
+        authUrl,
+        'GoogleDriveAuth',
+        `width=${width},height=${height},top=${top},left=${left}`
+      );
+      
+      // Note: In a real implementation, you would handle the OAuth callback
+      // and store the access token securely. For this demo, we'll show a message.
+      toast.info('Google Drive authentication window opened. Complete the OAuth flow to connect your account.');
+    } catch (error) {
+      console.error('Failed to connect Google Drive:', error);
+      toast.error('Failed to connect to Google Drive');
+    }
+  };
+
   return (
     <BaseNode
       id={id}
@@ -154,28 +177,47 @@ export const FileAttachmentNode = memo(({ id, data, selected }: NodeProps) => {
             onChange={(e) => { if (e.target.files) processFiles(e.target.files); }}
           />
         </div>
+        
+        {/* Google Drive connection button */}
+        {isGoogleDriveConfigured() && (
+          <button
+            onClick={(e) => { e.stopPropagation(); handleConnectGoogleDrive(); }}
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-border bg-accent/10 py-2 text-xs font-semibold text-muted-foreground transition-all hover:border-primary/50 hover:bg-accent/20 hover:text-primary"
+          >
+            <Cloud className="h-4 w-4" />
+            Connect Google Drive
+          </button>
+        )}
 
         {/* File list */}
         {files.length > 0 && (
           <div className="flex flex-col gap-1">
             {(files as unknown as AttachedFile[]).map((f) => (
               <div key={f.id} className="group/file flex items-center gap-2 rounded-lg border border-border bg-card px-2 py-1.5 transition-all hover:border-primary/40 hover:shadow-sm">
-                <FileIcon type={f.type} className="h-4 w-4 flex-shrink-0 text-primary" />
+                {f.storageType === 'google_drive' ? (
+                  <Cloud className="h-4 w-4 flex-shrink-0 text-primary" />
+                ) : (
+                  <FileIcon type={f.type} className="h-4 w-4 flex-shrink-0 text-primary" />
+                )}
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold text-foreground truncate">{f.name}</p>
-                  <p className="text-[9px] text-muted-foreground">{formatBytes(f.size)}</p>
+                  {f.size && (
+                    <p className="text-[9px] text-muted-foreground">{formatBytes(f.size)}</p>
+                  )}
                 </div>
                 <div className="flex items-center gap-0.5 opacity-0 group-hover/file:opacity-100 transition-opacity">
                   <a
                     href={f.url}
-                    download={f.name}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    {...(f.storageType === 'google_drive' ? { target: '_blank', rel: 'noopener noreferrer' } : { download: f.name })}
                     onClick={(e) => e.stopPropagation()}
                     className="rounded p-0.5 text-muted-foreground hover:text-primary"
-                    title="Download/View"
+                    title={f.storageType === 'google_drive' ? 'Open in Google Drive' : 'Download/View'}
                   >
-                    <Download className="h-3.5 w-3.5" />
+                    {f.storageType === 'google_drive' ? (
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    ) : (
+                      <Download className="h-3.5 w-3.5" />
+                    )}
                   </a>
                   <button onClick={(e) => { e.stopPropagation(); removeFile(f.id); }} className="rounded p-0.5 text-muted-foreground hover:text-destructive" title="Remove">
                     <X className="h-3.5 w-3.5" />

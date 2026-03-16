@@ -23,10 +23,15 @@ import { deleteCanvasFile } from '@/lib/r2/storage';
 import { auth } from '@/lib/firebase/client';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { PasswordDialog } from '@/components/PasswordDialog';
+import { verifyPassword } from '@/lib/utils/password';
 
 const WorkspacePage = () => {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const [loading, setLoading] = useState(true);
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [workspacePasswordHash, setWorkspacePasswordHash] = useState<string | null>(null);
+  const [isUnlocked, setIsUnlocked] = useState(false);
   const loadCanvas = useCanvasStore((s) => s.loadCanvas);
   const setWorkspaceId = useCanvasStore((s) => s.setWorkspaceId);
   const setWorkspaceMeta = useCanvasStore((s) => s.setWorkspaceMeta);
@@ -51,9 +56,31 @@ const WorkspacePage = () => {
     loadComplete.current = false;
     setWorkspaceId(workspaceId);
 
-    let loadCompleteTimer: ReturnType<typeof setTimeout> | null = null;
+    const loadCompleteTimer: ReturnType<typeof setTimeout> | null = null;
 
     const load = async () => {
+      try {
+        // First, check if workspace is password protected
+        const workspaces = await getWorkspaces();
+        const ws = workspaces?.find(w => w.id === workspaceId);
+        
+        if (ws?.is_password_protected && ws.password_hash) {
+          setWorkspacePasswordHash(ws.password_hash);
+          setShowPasswordDialog(true);
+          setLoading(false);
+          return; // Stop loading until password is verified
+        }
+
+        // If no password protection, proceed with loading
+        await loadWorkspaceData();
+      } catch (err) {
+        console.error('Error checking workspace protection:', err);
+        // If error checking protection, try to load anyway
+        await loadWorkspaceData();
+      }
+    };
+
+    const loadWorkspaceData = async () => {
       try {
         // SWR: load cached data first for instant render
         const [nodesResult, edgesResult] = await Promise.all([
@@ -204,7 +231,7 @@ const WorkspacePage = () => {
       if (edgesUnsub) edgesUnsub();
       if (cursorsUnsub) cursorsUnsub();
     };
-  }, [workspaceId, updateCursorPosition]);
+  }, [workspaceId, updateCursorPosition, loadCanvas]);
 
   // Subscribe to store changes and persist (using cached write-through wrappers)
   useEffect(() => {
@@ -252,7 +279,7 @@ const WorkspacePage = () => {
       }
       deletedNodes.forEach(n => {
         trackSave(deleteCanvasNode(workspaceId, n.id));
-        const storageKey = (n.data as any)?.storageKey;
+        const storageKey = (n.data as { storageKey?: string })?.storageKey;
         if (storageKey) deleteCanvasFile(storageKey).catch(() => { });
         
         // Clean up pending timeouts
@@ -434,6 +461,108 @@ const WorkspacePage = () => {
     };
   }, [workspaceId]);
 
+  // Password verification handler
+  const handleVerifyPassword = async (password: string): Promise<boolean> => {
+    if (!workspacePasswordHash) return false;
+    
+    const isValid = await verifyPassword(password, workspacePasswordHash);
+    if (isValid) {
+      setIsUnlocked(true);
+      setShowPasswordDialog(false);
+      // Now load the workspace data
+      await loadWorkspaceData();
+      toast.success('Workspace unlocked');
+    }
+    return isValid;
+  };
+
+  const loadWorkspaceData = async () => {
+    if (!workspaceId) return;
+    
+    setLoading(true);
+    try {
+      // SWR: load cached data first for instant render
+      const [nodesResult, edgesResult] = await Promise.all([
+        cachedLoadCanvasNodes(workspaceId, (freshNodes) => {
+          // Background update when server data arrives
+          serverNodeIds.current = new Set(freshNodes.map(n => n.id));
+          const { nodes: currentNodes } = useCanvasStore.getState();
+          const nodesChanged = currentNodes.length !== freshNodes.length || 
+                             currentNodes.some((cn, i) => {
+                               const fn = freshNodes[i];
+                               if (!fn) return true;
+                               return cn.id !== fn.id || 
+                                      cn.position.x !== fn.position.x || 
+                                      cn.position.y !== fn.position.y ||
+                                      JSON.stringify(cn.data) !== JSON.stringify(fn.data) ||
+                                      JSON.stringify(cn.style) !== JSON.stringify(fn.style);
+                             });
+          
+          if (nodesChanged) {
+            loadCanvas(freshNodes, useCanvasStore.getState().edges);
+          }
+        }),
+        cachedLoadCanvasEdges(workspaceId, (freshEdges) => {
+          serverEdgeIds.current = new Set(freshEdges.map(e => e.id));
+          const { edges: currentEdges } = useCanvasStore.getState();
+          const edgesChanged = currentEdges.length !== freshEdges.length || 
+                             currentEdges.some((ce, i) => {
+                               const fe = freshEdges[i];
+                               if (!fe) return true;
+                               return ce.id !== fe.id || 
+                                      ce.source !== fe.source ||
+                                      ce.target !== fe.target ||
+                                      ce.sourceHandle !== fe.sourceHandle ||
+                                      ce.targetHandle !== fe.targetHandle ||
+                                      JSON.stringify(ce.data) !== JSON.stringify(fe.data) ||
+                                      ce.label !== fe.label;
+                             });
+          
+          if (edgesChanged) {
+            const { nodes: latestNodes } = useCanvasStore.getState();
+            // Use a custom load that preserves history for real-time sync
+            loadCanvas(latestNodes, freshEdges, true);
+          }
+        }),
+      ]);
+
+      // If we have cached data, render immediately
+      if (nodesResult.cached && edgesResult.cached) {
+        loadCanvas(nodesResult.cached, edgesResult.cached);
+        setLoading(false);
+      }
+
+      // Load workspace meta
+      getWorkspaces().then((workspaces) => {
+        const ws = workspaces?.find(w => w.id === workspaceId);
+        if (ws) setWorkspaceMeta(ws.name, ws.color);
+      }).catch(() => toast.error('Failed to load workspace metadata'));
+
+      // Background sync: wait for fresh data to ensure source of truth before replaying ops
+      try {
+        const [nodes, edges] = await Promise.all([nodesResult.fresh, edgesResult.fresh]);
+        serverNodeIds.current = new Set(nodes.map(n => n.id));
+        serverEdgeIds.current = new Set(edges.map(e => e.id));
+        
+        // If we had no cache, we MUST load the fresh data now
+        if (!nodesResult.cached || !edgesResult.cached) {
+          loadCanvas(nodes, edges);
+        }
+      } catch (err) {
+        console.warn('[Workspace] Background update failed, continuing with cache', err);
+        if (!nodesResult.cached || !edgesResult.cached) throw err;
+      }
+
+      // Mark loading as complete — subscriber can now safely detect changes
+      loadComplete.current = true; 
+      setLoading(false);
+      await replayPendingOps();
+    } catch (err) {
+      toast.error('Failed to load canvas');
+      setLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex h-screen w-screen flex-col bg-canvas p-4 overflow-hidden relative">
@@ -467,9 +596,19 @@ const WorkspacePage = () => {
   }
 
   return (
-    <ReactFlowProvider>
-      <CanvasWrapper />
-    </ReactFlowProvider>
+    <>
+      <ReactFlowProvider>
+        <CanvasWrapper />
+      </ReactFlowProvider>
+      
+      <PasswordDialog
+        isOpen={showPasswordDialog}
+        onClose={() => setShowPasswordDialog(false)}
+        onVerify={handleVerifyPassword}
+        title="Password Protected Workspace"
+        message="This workspace is protected. Please enter the password to unlock it."
+      />
+    </>
   );
 };
 

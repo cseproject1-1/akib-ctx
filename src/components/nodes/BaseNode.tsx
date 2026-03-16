@@ -1,6 +1,6 @@
 import { Handle, Position, useNodeId, useStore, NodeResizer } from '@xyflow/react';
 import { memo, useMemo, useCallback, type ReactNode } from 'react';
-import { MoreHorizontal, Lock, ChevronDown, ChevronRight, Expand, Trash2 } from 'lucide-react';
+import { MoreHorizontal, Lock, ChevronDown, ChevronRight, Expand, Trash2, Copy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
@@ -8,6 +8,8 @@ import { useCanvasStore } from '@/store/canvasStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { HANDLE_IDS } from '@/lib/constants/canvas';
 import { useReactFlow } from '@xyflow/react';
+import { toast } from 'sonner';
+import { extractNodeContent } from '@/lib/utils/contentExtractor';
 
 const LOD_THRESHOLD = 0.45;
 const ULTIMATE_LOD_THRESHOLD = 0.2;
@@ -141,6 +143,34 @@ export const BaseNode = memo(({
   const isDeepWorkActive = useCanvasStore((s) => s.isDeepWorkActive);
   const edges = useStore(useCallback((s) => s.edges, []));
   const zoom = useStore(useCallback((s) => s.transform[2], []));
+  
+  const handleCopyNodeContent = useCallback(async () => {
+    if (!nodeId) return;
+    
+    try {
+      // Get the node from the store
+      const { nodes } = useCanvasStore.getState();
+      const node = nodes.find(n => n.id === nodeId);
+      
+      if (!node) {
+        toast.error('Node not found');
+        return;
+      }
+      
+      const content = extractNodeContent(node);
+      
+      if (!content) {
+        toast.info('No content to copy');
+        return;
+      }
+      
+      await navigator.clipboard.writeText(content);
+      toast.success('Node content copied to clipboard');
+    } catch (error) {
+      console.error('Failed to copy node content:', error);
+      toast.error('Failed to copy node content');
+    }
+  }, [nodeId]);
 
   const isRelevantInDeepWork = useMemo(() => {
     if (!isDeepWorkActive || !focusedNodeId || !nodeId) return true;
@@ -263,6 +293,15 @@ export const BaseNode = memo(({
               title="Fullscreen"
             >
               <Expand className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {id && (
+            <button
+              className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover/node:opacity-100"
+              onClick={(e) => { e.stopPropagation(); handleCopyNodeContent(); }}
+              title="Copy node content"
+            >
+              <Copy className="h-3.5 w-3.5" />
             </button>
           )}
           {id && canvasMode === 'edit' && !locked && (

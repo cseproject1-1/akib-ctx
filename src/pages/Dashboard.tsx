@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Plus, Brain, Trash2, LogOut, Loader2, Layers, Star, Search, SortAsc, LayoutGrid, List, Copy, BookOpen, Beaker, Briefcase, Code, Palette, Music, Lightbulb, GraduationCap, Rocket, Info, Calendar, Clock, FileText, Folder, FolderPlus, MoreVertical, MoreHorizontal, Edit2, ChevronRight, ChevronDown, RotateCcw, Trash, Check, X, Settings, FileUp, type LucideIcon } from 'lucide-react';
+import { Plus, Brain, Trash2, LogOut, Loader2, Layers, Star, Search, SortAsc, LayoutGrid, List, Copy, BookOpen, Beaker, Briefcase, Code, Palette, Music, Lightbulb, GraduationCap, Rocket, Info, Calendar, Clock, FileText, Folder, FolderPlus, MoreVertical, MoreHorizontal, Edit2, ChevronRight, ChevronDown, RotateCcw, Trash, Check, X, Settings, FileUp, Shield, Lock, type LucideIcon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Node } from '@xyflow/react';
 import { useEffect, useState, useMemo, useCallback } from 'react';
@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { canvasTemplates, instantiateTemplate } from '@/lib/canvasTemplates';
 import { HotkeySettingsModal } from '@/components/dashboard/HotkeySettingsModal';
 import { ImportModal } from '@/components/dashboard/ImportModal';
+import { PasswordManageDialog } from '@/components/PasswordManageDialog';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useCanvasStore } from '@/store/canvasStore';
 import { usePWAInstall } from '@/hooks/usePWAInstall';
@@ -72,6 +73,12 @@ const Dashboard = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [importFiles, setImportFiles] = useState<FileList | null>(null);
+  // Password protection state
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isPasswordProtected, setIsPasswordProtected] = useState(false);
+  const [showPasswordManageDialog, setShowPasswordManageDialog] = useState(false);
+  const [passwordManageWorkspaceId, setPasswordManageWorkspaceId] = useState<string | null>(null);
 
   const handleGlobalDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -193,16 +200,33 @@ const Dashboard = () => {
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
+    
+    // Validate password if protection is enabled
+    if (isPasswordProtected) {
+      if (!newPassword || newPassword.length < 4) {
+        toast.error('Password must be at least 4 characters long');
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        toast.error('Passwords do not match');
+        return;
+      }
+    }
+    
     setCreating(true);
     try {
-      const ws = await createWorkspace(newName.trim(), WORKSPACE_ICONS[newIcon].color);
+      // Import password hashing function
+      const { hashPassword } = await import('@/lib/utils/password');
+      const passwordHash = isPasswordProtected ? await hashPassword(newPassword) : undefined;
+      
+      const ws = await createWorkspace(newName.trim(), WORKSPACE_ICONS[newIcon].color, passwordHash);
       if (selectedTemplate) {
         const templateNodes = instantiateTemplate(selectedTemplate);
         if (templateNodes.length > 0) {
           // Immediately save template nodes to Firebase so they persist on refresh
-          await Promise.all(templateNodes.map(node => saveNode(ws.id, node as any)));
+          await Promise.all(templateNodes.map(node => saveNode(ws.id, node as Node)));
           const { loadCanvas } = useCanvasStore.getState();
-          loadCanvas(templateNodes as any[], []);
+          loadCanvas(templateNodes as Node[], []);
         }
       }
       navigate(`/workspace/${ws.id}${selectedTemplate ? `?template=${selectedTemplate}` : ''}`);
@@ -210,6 +234,10 @@ const Dashboard = () => {
       toast.error('Failed to create workspace');
     } finally {
       setCreating(false);
+      // Reset password fields
+      setNewPassword('');
+      setConfirmPassword('');
+      setIsPasswordProtected(false);
     }
   };
 
@@ -226,6 +254,24 @@ const Dashboard = () => {
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
+    
+    // Check if workspace is password protected
+    const workspace = workspaces.find(w => w.id === id);
+    if (workspace?.is_password_protected) {
+      // For now, we'll use a simple prompt as a fallback
+      // In a full implementation, we would use the PasswordDialog component
+      const password = prompt('This workspace is password protected. Please enter the password to delete it:');
+      if (!password) return; // User cancelled
+      
+      // Import password verification function
+      const { verifyPassword } = await import('@/lib/utils/password');
+      const isValid = await verifyPassword(password, workspace.password_hash || '');
+      if (!isValid) {
+        toast.error('Incorrect password');
+        return;
+      }
+    }
+    
     try {
       await deleteWorkspace(id);
       setWorkspaces((prev) => prev.map(w => w.id === id ? { ...w, is_deleted: true, deleted_at: new Date().toISOString() } : w));
@@ -251,6 +297,23 @@ const Dashboard = () => {
   };
 
   const handlePermanentDelete = async (id: string) => {
+    // Check if workspace is password protected
+    const workspace = workspaces.find(w => w.id === id);
+    if (workspace?.is_password_protected) {
+      // For now, we'll use a simple prompt as a fallback
+      // In a full implementation, we would use the PasswordDialog component
+      const password = prompt('This workspace is password protected. Please enter the password to permanently delete it:');
+      if (!password) return; // User cancelled
+      
+      // Import password verification function
+      const { verifyPassword } = await import('@/lib/utils/password');
+      const isValid = await verifyPassword(password, workspace.password_hash || '');
+      if (!isValid) {
+        toast.error('Incorrect password');
+        return;
+      }
+    }
+    
     if (!confirm('Permanently delete this workspace? This action CANNOT be undone.')) return;
     try {
       await permanentlyDeleteWorkspace(id);
@@ -260,6 +323,27 @@ const Dashboard = () => {
     } catch (err) {
       toast.error('Failed to delete workspace');
     }
+  };
+
+  const handleManagePassword = (id: string) => {
+    setPasswordManageWorkspaceId(id);
+    setShowPasswordManageDialog(true);
+  };
+
+  const handleSetPassword = async (password: string) => {
+    if (!passwordManageWorkspaceId) return;
+    
+    const { hashPassword } = await import('@/lib/utils/password');
+    const passwordHash = await hashPassword(password);
+    await updateWorkspace(passwordManageWorkspaceId, { password_hash: passwordHash, is_password_protected: true });
+    setWorkspaces(prev => prev.map(w => w.id === passwordManageWorkspaceId ? { ...w, password_hash: passwordHash, is_password_protected: true } : w));
+  };
+
+  const handleRemovePassword = async () => {
+    if (!passwordManageWorkspaceId) return;
+    
+    await updateWorkspace(passwordManageWorkspaceId, { password_hash: undefined, is_password_protected: false });
+    setWorkspaces(prev => prev.map(w => w.id === passwordManageWorkspaceId ? { ...w, password_hash: undefined, is_password_protected: false } : w));
   };
 
   const handleEmptyTrash = async () => {
@@ -764,6 +848,10 @@ const Dashboard = () => {
                           <FileDown className="mr-2 h-4 w-4 text-primary" />
                           <span className="font-bold text-primary">Export ZIP</span>
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleManagePassword(ws.id); }}>
+                          <Shield className="mr-2 h-4 w-4" />
+                          <span>{ws.is_password_protected ? 'Change Password' : 'Set Password'}</span>
+                        </DropdownMenuItem>
                         
                         <DropdownMenuSeparator />
                         <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest">Move to Folder</DropdownMenuLabel>
@@ -976,6 +1064,35 @@ const Dashboard = () => {
                   ))}
                 </div>
               </div>
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-foreground">
+                  <input
+                    type="checkbox"
+                    checked={isPasswordProtected}
+                    onChange={(e) => setIsPasswordProtected(e.target.checked)}
+                    className="rounded border-border"
+                  />
+                  Password Protect Workspace
+                </label>
+                {isPasswordProtected && (
+                  <div className="space-y-2 pl-6">
+                    <input
+                      type="password"
+                      className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-semibold text-foreground outline-none focus:border-primary"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Enter password"
+                    />
+                    <input
+                      type="password"
+                      className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-semibold text-foreground outline-none focus:border-primary"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Confirm password"
+                    />
+                  </div>
+                )}
+              </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button
                   onClick={() => { setShowCreate(false); setSelectedTemplate(null); }}
@@ -996,6 +1113,17 @@ const Dashboard = () => {
           </div>
         </div>
       )}
+      
+      <PasswordManageDialog
+        isOpen={showPasswordManageDialog}
+        onClose={() => {
+          setShowPasswordManageDialog(false);
+          setPasswordManageWorkspaceId(null);
+        }}
+        onSetPassword={handleSetPassword}
+        onRemovePassword={handleRemovePassword}
+        hasPassword={workspaces.find(w => w.id === passwordManageWorkspaceId)?.is_password_protected || false}
+      />
     </div>
   );
 };

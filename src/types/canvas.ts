@@ -167,9 +167,20 @@ export interface CalendarNodeData extends SharedNodeFields {
   events?: { id: string; date: string; label: string; color: string }[];
 }
 
+export interface AttachedFile {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  url: string;
+  path?: string; // For R2 storage path
+  storageType?: 'r2' | 'google_drive'; // Storage provider
+  driveFileId?: string; // Google Drive file ID
+}
+
 export interface FileAttachmentNodeData extends SharedNodeFields {
   title?: string;
-  files?: { id: string; name: string; size: number; type: string; url: string }[];
+  files?: AttachedFile[];
 }
 
 export interface SpreadsheetNodeData extends SharedNodeFields {
@@ -223,4 +234,7 @@ export interface Workspace {
   color: string;
   created_at: string;
   updated_at: string;
+  // Password protection (optional, backward compatible)
+  password_hash?: string;
+  is_password_protected?: boolean;
 }
