@@ -15,6 +15,8 @@ import {
   updateEdgeDataInDb as serverUpdateEdgeData,
   getNodeCount as serverGetNodeCount,
 } from '@/lib/firebase/canvasData';
+import { updateUserSettings as serverUpdateSettings } from '@/lib/firebase/settings';
+import type { UserSettings } from '@/lib/firebase/settings';
 import { getWorkspaces as serverGetWorkspaces } from '@/lib/firebase/workspaces';
 import type { Workspace } from '@/lib/firebase/workspaces';
 import { auth } from '@/lib/firebase/client';
@@ -22,7 +24,7 @@ import { toast } from 'sonner';
 
 const SWR_TTL = 30_000;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const STALE_MS = 24 * 60 * 60 * 1000; // 24h
+const STALE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const MAX_RETRY_INTERVAL = 60_000; // 1m
 let _retryDelay = 5000;
 
@@ -507,10 +509,11 @@ export async function replayPendingOps(isRetry = false) {
     let replayed = 0;
 
     for (const op of ops) {
-      // Purge stale ops (>24h)
+      // Purge stale ops (>30 days)
       if (now - op.createdAt > STALE_MS) {
         await removePendingOp(op.id);
         purged++;
+        toast.warning('An old unsynced change was removed (>30 days)', { id: `stale-purge-${op.id}` });
         continue;
       }
 
@@ -571,29 +574,35 @@ export async function replayPendingOps(isRetry = false) {
             await serverUpdateEdgeData(wsId, eId, op.args[2] as Record<string, unknown>, op.args[3] as string | undefined);
             break;
           }
+          case 'updateSettings': {
+            await serverUpdateSettings(op.args[0] as Partial<UserSettings>);
+            break;
+          }
         }
         await removePendingOp(op.id);
         replayed++;
         _retryDelay = 5000; // success, reset delay
       } catch (err: any) {
-        if (err?.code === 'invalid-argument' || err?.code === '22P02' || 
+        if (err?.code === 'invalid-argument' || err?.code === '22P02' ||
             err?.message?.includes('invalid-argument') || err?.message?.includes('invalid input syntax')) {
           console.warn('[sync] Removing permanently failed op:', op.type, err?.message);
           await removePendingOp(op.id);
           purged++;
+          toast.warning('A change could not be saved and was removed', { id: `perm-fail-${op.id}` });
           continue;
         }
-        
+
         if (isNetworkError(err) || isAuthError(err)) {
           console.warn('[sync] Stopping replay due to network/auth error');
           // Start/Increase exponential backoff
           _retryDelay = Math.min(_retryDelay * 1.5, MAX_RETRY_INTERVAL);
           break;
         }
-        
+
         console.error('[sync] Unknown error, removing op:', op.type, err);
         await removePendingOp(op.id);
         purged++;
+        toast.warning('A change could not be saved and was removed', { id: `unknown-fail-${op.id}` });
       }
     }
 
@@ -632,10 +641,12 @@ export { clearAllCaches };
 
 let _syncTimeout: any = null;
 let _onlineHandler: (() => void) | null = null;
+let _offlineHandler: (() => void) | null = null;
 let _startupTimeout: any = null;
 
 function scheduleReplay(delay: number) {
   if (_syncTimeout) clearTimeout(_syncTimeout);
+  if (!navigator.onLine) return;
   _syncTimeout = setTimeout(async () => {
     if (navigator.onLine && !_replaying) {
       await replayPendingOps();
@@ -666,6 +677,14 @@ export function startSyncManager() {
     setTimeout(() => replayPendingOps(), 2000);
   };
   window.addEventListener('online', _onlineHandler);
+
+  _offlineHandler = () => {
+    if (_syncTimeout) {
+      clearTimeout(_syncTimeout);
+      _syncTimeout = null;
+    }
+  };
+  window.addEventListener('offline', _offlineHandler);
 }
 
 /**
@@ -683,6 +702,10 @@ export function stopSyncManager() {
   if (_onlineHandler) {
     window.removeEventListener('online', _onlineHandler);
     _onlineHandler = null;
+  }
+  if (_offlineHandler) {
+    window.removeEventListener('offline', _offlineHandler);
+    _offlineHandler = null;
   }
   // Clear any active replay
   _replaying = false;

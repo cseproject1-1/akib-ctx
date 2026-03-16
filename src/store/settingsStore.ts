@@ -1,6 +1,18 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { getUserSettings, updateUserSettings, type UserSettings } from '@/lib/firebase/settings';
+import { addPendingOp } from '@/lib/cache/indexedDB';
+import { toast } from 'sonner';
+
+function queueSettingsOffline(partial: Partial<UserSettings>) {
+  const id = crypto.randomUUID();
+  addPendingOp({ id, type: 'updateSettings', args: [partial], createdAt: Date.now() }).then(() => {
+    window.dispatchEvent(new Event('pending-ops-changed'));
+  });
+  if (!navigator.onLine) {
+    toast.info('Settings saved locally — will sync when online', { id: 'offline-settings' });
+  }
+}
 
 interface SettingsState extends UserSettings {
   isLoading: boolean;
@@ -60,8 +72,8 @@ export const useSettingsStore = create<SettingsState>()(
         const timer = setTimeout(async () => {
           try {
             await updateUserSettings({ hotkeys: nextHotkeys });
-          } catch (err) {
-            set({ error: (err as Error).message });
+          } catch {
+            queueSettingsOffline({ hotkeys: nextHotkeys });
           }
         }, 1000);
         set({ _updateTimer: timer } as any);
@@ -75,8 +87,8 @@ export const useSettingsStore = create<SettingsState>()(
         const timer = setTimeout(async () => {
           try {
             await updateUserSettings({ theme });
-          } catch (err) {
-            set({ error: (err as Error).message });
+          } catch {
+            queueSettingsOffline({ theme });
           }
         }, 1000);
         set({ _updateTimer: timer } as any);
@@ -90,8 +102,8 @@ export const useSettingsStore = create<SettingsState>()(
         const timer = setTimeout(async () => {
           try {
             await updateUserSettings({ canvasTheme });
-          } catch (err) {
-            set({ error: (err as Error).message });
+          } catch {
+            queueSettingsOffline({ canvasTheme });
           }
         }, 1000);
         set({ _updateTimer: timer } as any);
@@ -105,8 +117,8 @@ export const useSettingsStore = create<SettingsState>()(
         const timer = setTimeout(async () => {
           try {
             await updateUserSettings({ enableHybridEditor });
-          } catch (err) {
-            set({ error: (err as Error).message });
+          } catch {
+            queueSettingsOffline({ enableHybridEditor });
           }
         }, 1000);
         set({ _updateTimer: timer } as any);

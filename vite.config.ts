@@ -34,6 +34,8 @@ export default defineConfig(({ mode }) => ({
       includeAssets: ['favicon.ico', 'favicon.png', 'favicon.svg', 'robots.txt', 'pwa-192x192.png', 'pwa-512x512.png'],
       workbox: {
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // Increase to 10MB for premium assets
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api/],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,

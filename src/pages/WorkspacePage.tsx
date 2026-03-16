@@ -1,7 +1,7 @@
 import { ReactFlowProvider } from '@xyflow/react';
 import { CanvasWrapper } from '@/components/canvas/CanvasWrapper';
 import { useParams } from 'react-router-dom';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useCanvasStore } from '@/store/canvasStore';
 import {
   cachedLoadCanvasNodes,
@@ -51,14 +51,104 @@ const WorkspacePage = () => {
   const styleTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const edgeTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
 
+  const loadWorkspaceData = useCallback(async () => {
+    if (!workspaceId) return;
+    
+    loadComplete.current = false;
+    setLoading(true);
+    try {
+      // SWR: load cached data first for instant render
+      const [nodesResult, edgesResult] = await Promise.all([
+        cachedLoadCanvasNodes(workspaceId, (freshNodes) => {
+          // Background update when server data arrives
+          if (freshNodes.length === 0 && !navigator.onLine) return; // Don't clear if offline and empty
+
+          serverNodeIds.current = new Set(freshNodes.map(n => n.id));
+          const { nodes: currentNodes } = useCanvasStore.getState();
+          const nodesChanged = currentNodes.length !== freshNodes.length || 
+                             currentNodes.some((cn, i) => {
+                               const fn = freshNodes[i];
+                               if (!fn) return true;
+                               return cn.id !== fn.id || 
+                                      cn.position.x !== fn.position.x || 
+                                      cn.position.y !== fn.position.y ||
+                                      JSON.stringify(cn.data) !== JSON.stringify(fn.data) ||
+                                      JSON.stringify(cn.style) !== JSON.stringify(fn.style);
+                             });
+          
+          if (nodesChanged) {
+            loadCanvas(freshNodes, useCanvasStore.getState().edges);
+          }
+        }),
+        cachedLoadCanvasEdges(workspaceId, (freshEdges) => {
+          if (freshEdges.length === 0 && !navigator.onLine) return; // Don't clear if offline and empty
+
+          serverEdgeIds.current = new Set(freshEdges.map(e => e.id));
+          const { edges: currentEdges } = useCanvasStore.getState();
+          const edgesChanged = currentEdges.length !== freshEdges.length || 
+                             currentEdges.some((ce, i) => {
+                               const fe = freshEdges[i];
+                               if (!fe) return true;
+                               return ce.id !== fe.id || 
+                                      ce.source !== fe.source ||
+                                      ce.target !== fe.target ||
+                                      ce.sourceHandle !== fe.sourceHandle ||
+                                      ce.targetHandle !== fe.targetHandle ||
+                                      JSON.stringify(ce.data) !== JSON.stringify(fe.data) ||
+                                      ce.label !== fe.label;
+                             });
+          
+          if (edgesChanged) {
+            const { nodes: latestNodes } = useCanvasStore.getState();
+            // Use a custom load that preserves history for real-time sync
+            loadCanvas(latestNodes, freshEdges, true);
+          }
+        }),
+      ]);
+
+      // If we have cached data, render immediately
+      if (nodesResult.cached && edgesResult.cached) {
+        loadCanvas(nodesResult.cached, edgesResult.cached);
+        setLoading(false);
+      }
+
+      // Load workspace meta
+      getWorkspaces().then((workspaces) => {
+        const ws = workspaces?.find(w => w.id === workspaceId);
+        if (ws) setWorkspaceMeta(ws.name, ws.color);
+      }).catch(() => toast.error('Failed to load workspace metadata'));
+
+      // Background sync: wait for fresh data to ensure source of truth before replaying ops
+      try {
+        const [nodes, edges] = await Promise.all([nodesResult.fresh, edgesResult.fresh]);
+        serverNodeIds.current = new Set(nodes.map(n => n.id));
+        serverEdgeIds.current = new Set(edges.map(e => e.id));
+        
+        // If we had no cache, we MUST load the fresh data now
+        if (!nodesResult.cached || !edgesResult.cached) {
+          loadCanvas(nodes, edges);
+        }
+      } catch (err) {
+        console.warn('[Workspace] Background update failed, continuing with cache', err);
+        if (!nodesResult.cached || !edgesResult.cached) throw err;
+      }
+
+      // Mark loading as complete — subscriber can now safely detect changes
+      loadComplete.current = true; 
+      setLoading(false);
+      await replayPendingOps();
+    } catch (err) {
+      toast.error('Failed to load canvas');
+      setLoading(false);
+    }
+  }, [workspaceId, loadCanvas, setWorkspaceMeta]);
+
   useEffect(() => {
     if (!workspaceId) return;
-    loadComplete.current = false;
     setWorkspaceId(workspaceId);
 
-    const loadCompleteTimer: ReturnType<typeof setTimeout> | null = null;
-
     const load = async () => {
+
       try {
         // First, check if workspace is password protected
         const workspaces = await getWorkspaces();
@@ -80,97 +170,12 @@ const WorkspacePage = () => {
       }
     };
 
-    const loadWorkspaceData = async () => {
-      try {
-        // SWR: load cached data first for instant render
-        const [nodesResult, edgesResult] = await Promise.all([
-          cachedLoadCanvasNodes(workspaceId, (freshNodes) => {
-            // Background update when server data arrives
-            serverNodeIds.current = new Set(freshNodes.map(n => n.id));
-            const { nodes: currentNodes } = useCanvasStore.getState();
-            const nodesChanged = currentNodes.length !== freshNodes.length || 
-                               currentNodes.some((cn, i) => {
-                                 const fn = freshNodes[i];
-                                 if (!fn) return true;
-                                 return cn.id !== fn.id || 
-                                        cn.position.x !== fn.position.x || 
-                                        cn.position.y !== fn.position.y ||
-                                        JSON.stringify(cn.data) !== JSON.stringify(fn.data) ||
-                                        JSON.stringify(cn.style) !== JSON.stringify(fn.style);
-                               });
-            
-            if (nodesChanged) {
-              loadCanvas(freshNodes, useCanvasStore.getState().edges);
-            }
-          }),
-          cachedLoadCanvasEdges(workspaceId, (freshEdges) => {
-            serverEdgeIds.current = new Set(freshEdges.map(e => e.id));
-            const { edges: currentEdges } = useCanvasStore.getState();
-            const edgesChanged = currentEdges.length !== freshEdges.length || 
-                               currentEdges.some((ce, i) => {
-                                 const fe = freshEdges[i];
-                                 if (!fe) return true;
-                                 return ce.id !== fe.id || 
-                                        ce.source !== fe.source ||
-                                        ce.target !== fe.target ||
-                                        ce.sourceHandle !== fe.sourceHandle ||
-                                        ce.targetHandle !== fe.targetHandle ||
-                                        JSON.stringify(ce.data) !== JSON.stringify(fe.data) ||
-                                        ce.label !== fe.label;
-                               });
-            
-            if (edgesChanged) {
-              const { nodes: latestNodes } = useCanvasStore.getState();
-              // Use a custom load that preserves history for real-time sync
-              loadCanvas(latestNodes, freshEdges, true);
-            }
-          }),
-        ]);
-
-        // If we have cached data, render immediately
-        if (nodesResult.cached && edgesResult.cached) {
-          loadCanvas(nodesResult.cached, edgesResult.cached);
-          setLoading(false);
-        }
-
-        // Load workspace meta
-        getWorkspaces().then((workspaces) => {
-          const ws = workspaces?.find(w => w.id === workspaceId);
-          if (ws) setWorkspaceMeta(ws.name, ws.color);
-        }).catch(() => toast.error('Failed to load workspace metadata'));
-
-        // Background sync: wait for fresh data to ensure source of truth before replaying ops
-        try {
-          const [nodes, edges] = await Promise.all([nodesResult.fresh, edgesResult.fresh]);
-          serverNodeIds.current = new Set(nodes.map(n => n.id));
-          serverEdgeIds.current = new Set(edges.map(e => e.id));
-          
-          // If we had no cache, we MUST load the fresh data now
-          if (!nodesResult.cached || !edgesResult.cached) {
-            loadCanvas(nodes, edges);
-          }
-        } catch (err) {
-          console.warn('[Workspace] Background update failed, continuing with cache', err);
-          if (!nodesResult.cached || !edgesResult.cached) throw err;
-        }
-
-        // Mark loading as complete — subscriber can now safely detect changes
-        loadComplete.current = true; 
-        setLoading(false);
-        await replayPendingOps();
-      } catch (err) {
-        toast.error('Failed to load canvas');
-        setLoading(false);
-      }
-    };
-
     load();
 
     return () => {
-      if (loadCompleteTimer) clearTimeout(loadCompleteTimer);
       resetState();
     };
-  }, [workspaceId, loadCanvas, setWorkspaceId, setWorkspaceMeta, resetState]);
+  }, [workspaceId, loadCanvas, setWorkspaceId, setWorkspaceMeta, resetState, loadWorkspaceData]);
 
   // ─── Real-time Sync ───
   useEffect(() => {
@@ -184,6 +189,13 @@ const WorkspacePage = () => {
       if (!loadComplete.current) return;
       
       const { nodes: currentNodes, edges: currentEdges } = useCanvasStore.getState(); // Get current edges here
+
+      // Hardening: If offline and we receive an empty list, it's likely a Firestore sync issue
+      // We should NOT clear the canvas in this case if we have current data.
+      if (freshNodes.length === 0 && currentNodes.length > 0 && !navigator.onLine) {
+        console.warn('[sync] Ignoring empty node update while offline');
+        return;
+      }
       
       // Deep compare to avoid unnecessary re-renders
       const nodesChanged = currentNodes.length !== freshNodes.length || 
@@ -191,9 +203,9 @@ const WorkspacePage = () => {
       
       if (nodesChanged) {
         console.log('[sync] Applying real-time node updates');
-       // Use a custom load that preserves history for real-time sync
-      // to avoid clearing the undo/redo stack on every remote change
-      loadCanvas(freshNodes, currentEdges, true);
+        // Use a custom load that preserves history for real-time sync
+        // to avoid clearing the undo/redo stack on every remote change
+        loadCanvas(freshNodes, currentEdges, true);
         // Also update local cache
         import('@/lib/cache/indexedDB').then(({ cacheSet }) => {
           cacheSet('canvas-nodes', workspaceId, freshNodes);
@@ -205,6 +217,12 @@ const WorkspacePage = () => {
       if (!loadComplete.current) return;
       
       const { edges: currentEdges, loadCanvas, nodes } = useCanvasStore.getState();
+
+      // Hardening: If offline and we receive an empty list, it's likely a Firestore sync issue
+      if (freshEdges.length === 0 && currentEdges.length > 0 && !navigator.onLine) {
+        console.warn('[sync] Ignoring empty edge update while offline');
+        return;
+      }
       
       const edgesChanged = currentEdges.length !== freshEdges.length || 
                          JSON.stringify(currentEdges) !== JSON.stringify(freshEdges);
@@ -474,93 +492,6 @@ const WorkspacePage = () => {
       toast.success('Workspace unlocked');
     }
     return isValid;
-  };
-
-  const loadWorkspaceData = async () => {
-    if (!workspaceId) return;
-    
-    setLoading(true);
-    try {
-      // SWR: load cached data first for instant render
-      const [nodesResult, edgesResult] = await Promise.all([
-        cachedLoadCanvasNodes(workspaceId, (freshNodes) => {
-          // Background update when server data arrives
-          serverNodeIds.current = new Set(freshNodes.map(n => n.id));
-          const { nodes: currentNodes } = useCanvasStore.getState();
-          const nodesChanged = currentNodes.length !== freshNodes.length || 
-                             currentNodes.some((cn, i) => {
-                               const fn = freshNodes[i];
-                               if (!fn) return true;
-                               return cn.id !== fn.id || 
-                                      cn.position.x !== fn.position.x || 
-                                      cn.position.y !== fn.position.y ||
-                                      JSON.stringify(cn.data) !== JSON.stringify(fn.data) ||
-                                      JSON.stringify(cn.style) !== JSON.stringify(fn.style);
-                             });
-          
-          if (nodesChanged) {
-            loadCanvas(freshNodes, useCanvasStore.getState().edges);
-          }
-        }),
-        cachedLoadCanvasEdges(workspaceId, (freshEdges) => {
-          serverEdgeIds.current = new Set(freshEdges.map(e => e.id));
-          const { edges: currentEdges } = useCanvasStore.getState();
-          const edgesChanged = currentEdges.length !== freshEdges.length || 
-                             currentEdges.some((ce, i) => {
-                               const fe = freshEdges[i];
-                               if (!fe) return true;
-                               return ce.id !== fe.id || 
-                                      ce.source !== fe.source ||
-                                      ce.target !== fe.target ||
-                                      ce.sourceHandle !== fe.sourceHandle ||
-                                      ce.targetHandle !== fe.targetHandle ||
-                                      JSON.stringify(ce.data) !== JSON.stringify(fe.data) ||
-                                      ce.label !== fe.label;
-                             });
-          
-          if (edgesChanged) {
-            const { nodes: latestNodes } = useCanvasStore.getState();
-            // Use a custom load that preserves history for real-time sync
-            loadCanvas(latestNodes, freshEdges, true);
-          }
-        }),
-      ]);
-
-      // If we have cached data, render immediately
-      if (nodesResult.cached && edgesResult.cached) {
-        loadCanvas(nodesResult.cached, edgesResult.cached);
-        setLoading(false);
-      }
-
-      // Load workspace meta
-      getWorkspaces().then((workspaces) => {
-        const ws = workspaces?.find(w => w.id === workspaceId);
-        if (ws) setWorkspaceMeta(ws.name, ws.color);
-      }).catch(() => toast.error('Failed to load workspace metadata'));
-
-      // Background sync: wait for fresh data to ensure source of truth before replaying ops
-      try {
-        const [nodes, edges] = await Promise.all([nodesResult.fresh, edgesResult.fresh]);
-        serverNodeIds.current = new Set(nodes.map(n => n.id));
-        serverEdgeIds.current = new Set(edges.map(e => e.id));
-        
-        // If we had no cache, we MUST load the fresh data now
-        if (!nodesResult.cached || !edgesResult.cached) {
-          loadCanvas(nodes, edges);
-        }
-      } catch (err) {
-        console.warn('[Workspace] Background update failed, continuing with cache', err);
-        if (!nodesResult.cached || !edgesResult.cached) throw err;
-      }
-
-      // Mark loading as complete — subscriber can now safely detect changes
-      loadComplete.current = true; 
-      setLoading(false);
-      await replayPendingOps();
-    } catch (err) {
-      toast.error('Failed to load canvas');
-      setLoading(false);
-    }
   };
 
   if (loading) {

@@ -127,7 +127,7 @@ export async function clearAllCaches(): Promise<void> {
 // Pending ops for offline queue
 export interface PendingOp {
   id: string;
-  type: 'saveNode' | 'saveEdge' | 'deleteNode' | 'deleteEdge' | 'updatePosition' | 'updateData' | 'updateStyle' | 'updateEdgeData';
+  type: 'saveNode' | 'saveEdge' | 'deleteNode' | 'deleteEdge' | 'updatePosition' | 'updateData' | 'updateStyle' | 'updateEdgeData' | 'updateSettings';
   args: unknown[];
   createdAt: number;
 }

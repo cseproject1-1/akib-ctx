@@ -1,5 +1,5 @@
 import { useReactFlow, Panel, useStore, useNodes, useEdges } from '@xyflow/react';
-import { ZoomIn, ZoomOut, Maximize, Undo2, Redo2, ArrowLeft, Save, CheckCircle, AlertCircle, FileDown, Paintbrush, Share2, Eye, EyeOff, MousePointerClick, Presentation, Crosshair, LayoutDashboard, Grid3X3, Lock, Unlock, Trash2, Magnet, Cable, FileText, FileJson, Clock, GitBranch, CloudOff, Sparkles, Upload, Network, Orbit, LayoutGrid, Search, Map as MapIcon, BookmarkPlus, X, History, Pen, Edit2, Maximize2, Minimize2, Keyboard, Zap, ZapOff } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize, Undo2, Redo2, ArrowLeft, Save, CheckCircle, AlertCircle, FileDown, Paintbrush, Share2, Eye, EyeOff, MousePointerClick, Presentation, Crosshair, LayoutDashboard, Grid3X3, Lock, Unlock, Trash2, Magnet, Cable, FileText, FileJson, Clock, GitBranch, CloudOff, Sparkles, Upload, Network, Orbit, LayoutGrid, Search, Map as MapIcon, BookmarkPlus, X, History, Pen, Edit2, Maximize2, Minimize2, Keyboard, Zap, ZapOff, WifiOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { getTreeLayout, getCircularLayout } from '@/lib/canvas/layoutUtils';
@@ -26,6 +26,7 @@ import { TemplateGallery } from './TemplateGallery';
 import { HistoryPanel, openHistory } from './HistoryPanel';
 import { PresenceList } from './PresenceList';
 import { ShortcutsDialog } from './ShortcutsDialog';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 
 export function CanvasToolbar() {
   const { zoomIn, zoomOut, fitView } = useReactFlow();
@@ -86,6 +87,7 @@ export function CanvasToolbar() {
   const setAISynthesisOpen = useCanvasStore((s) => s.setAISynthesisOpen);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const { isOnline } = useNetworkStatus();
 
   // Sync fullscreen state
   useEffect(() => {
@@ -391,12 +393,14 @@ export function CanvasToolbar() {
           </TipBtn>
           <div className={cn(
             "flex items-center gap-2 rounded-xl border border-white/5 glass-effect px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.15em] transition-all",
+            !isOnline ? 'text-amber-500 border-amber-500/20 bg-amber-500/5' :
             saveStatus === 'saved' ? 'text-primary' : saveStatus === 'error' ? 'text-destructive' : 'text-muted-foreground/40'
-          )} title={lastSavedAt ? `Last saved ${lastSavedLabel}` : undefined}>
-            {saveStatus === 'saving' && <><Save className="h-3.5 w-3.5 animate-pulse text-primary" />{!isMobile && <span className="pt-0.5">Saving…</span>}</>}
-            {saveStatus === 'saved' && <><CheckCircle className="h-3.5 w-3.5 text-primary animate-scale-in" />{!isMobile && <span className="animate-fade-in pt-0.5">{lastSavedLabel || 'Synced'}</span>}</>}
-            {saveStatus === 'error' && <><AlertCircle className="h-3.5 w-3.5 text-destructive animate-bounce-in" />{!isMobile && <span className="pt-0.5">Error</span>}</>}
-            {saveStatus === 'idle' && <><Save className="h-3.5 w-3.5" /></>}
+          )} title={!isOnline ? 'You are offline — changes are saved locally' : lastSavedAt ? `Last saved ${lastSavedLabel}` : undefined}>
+            {!isOnline && <><WifiOff className="h-3.5 w-3.5 text-amber-500" />{!isMobile && <span className="pt-0.5">Offline</span>}</>}
+            {isOnline && saveStatus === 'saving' && <><Save className="h-3.5 w-3.5 animate-pulse text-primary" />{!isMobile && <span className="pt-0.5">Saving…</span>}</>}
+            {isOnline && saveStatus === 'saved' && <><CheckCircle className="h-3.5 w-3.5 text-primary animate-scale-in" />{!isMobile && <span className="animate-fade-in pt-0.5">{lastSavedLabel || 'Synced'}</span>}</>}
+            {isOnline && saveStatus === 'error' && <><AlertCircle className="h-3.5 w-3.5 text-destructive animate-bounce-in" />{!isMobile && <span className="pt-0.5">Error</span>}</>}
+            {isOnline && saveStatus === 'idle' && <><Save className="h-3.5 w-3.5" /></>}
           </div>
 
           <TipBtn

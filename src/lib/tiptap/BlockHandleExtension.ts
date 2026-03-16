@@ -36,7 +36,7 @@ export const BlockHandleExtension = Extension.create<BlockHandleOptions>({
 
               // Find the top-level block node at this position
               const resolved = view.state.doc.resolve(pos.pos);
-              let nodePos = resolved.before(1);
+              const nodePos = resolved.before(1);
               if (nodePos === undefined) return false;
 
               const node = view.state.doc.nodeAt(nodePos);

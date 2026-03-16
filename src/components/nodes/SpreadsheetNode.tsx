@@ -43,7 +43,7 @@ function evalFormula(formula: string, grid: Grid): string {
       .replace(/MIN\(([^)]+)\)/g, (_: string, args: string) => `Math.min(${args})`)
       .replace(/MAX\(([^)]+)\)/g, (_: string, args: string) => `Math.max(${args})`);
 
-    // eslint-disable-next-line no-new-func
+     
     const result = new Function(`return (${withFns})`)();
     return isNaN(result) ? '#ERR' : String(parseFloat(result.toFixed(6)));
   } catch {

@@ -1,6 +1,7 @@
+
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { initializeFirestore } from 'firebase/firestore';
+import { initializeFirestore, enableIndexedDbPersistence } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
 
 const firebaseConfig = {
@@ -18,6 +19,18 @@ export const auth = getAuth(app);
 export const db = initializeFirestore(app, {
     ignoreUndefinedProperties: true
 }, '(default)');
+
+// Enable offline persistence for Firestore
+if (typeof window !== 'undefined') {
+    enableIndexedDbPersistence(db).catch((err) => {
+        if (err.code === 'failed-precondition') {
+            console.warn('[Firestore] Persistence failed: Multiple tabs open');
+        } else if (err.code === 'unimplemented') {
+            console.warn('[Firestore] Persistence not supported by browser');
+        }
+    });
+}
+
 export const functions = getFunctions(app);
 
 // Cloudflare Worker URL for AI and Metadata
