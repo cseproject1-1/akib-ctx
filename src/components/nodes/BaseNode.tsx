@@ -168,14 +168,15 @@ export const BaseNode = memo(({
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.15, ease: 'easeOut' }}
       className={cn(
-        'animate-node-appear transition-all duration-300 group/node flex flex-col h-full overflow-hidden',
-        'bg-card border-2 border-border/80 relative',
+        'animate-node-appear group/node flex flex-col h-full overflow-hidden',
+        'bg-card relative',
+        'rounded-lg',
         selected
-          ? 'border-primary shadow-[6px_6px_0px_rgba(0,0,0,0.2)] scale-[1.01] z-50'
-          : 'shadow-[4px_4px_0px_rgba(0,0,0,0.1)] hover:scale-[1.005] hover:border-primary/50 hover:shadow-[6px_6px_0px_rgba(0,0,0,0.15)]',
-        isFocused && 'ring-4 ring-primary ring-opacity-30 shadow-[0_0_20px_rgba(var(--primary-rgb),0.3)] animate-pulse border-primary',
-        isHighlighted && 'ring-4 ring-yellow-400 ring-opacity-50 shadow-[0_0_25px_rgba(250,204,21,0.4)] animate-pulse border-yellow-400 z-[100]',
-        userColor ? `${userColor.bg}` : accent && !selected ? `border-l-4 ${accent.border}` : '',
+          ? 'shadow-[var(--premium-shadow-md)] scale-[1.02] z-50'
+          : 'shadow-[var(--premium-shadow-sm)] hover:scale-[1.02] hover:shadow-[var(--premium-shadow-md)]',
+        isFocused && 'ring-2 ring-primary ring-opacity-40 shadow-[0_0_30px_hsla(var(--primary),0.3)] animate-pulse',
+        isHighlighted && 'ring-2 ring-yellow-400 ring-opacity-50 shadow-[0_0_30px_rgba(250,204,21,0.4)] animate-pulse z-[100]',
+        userColor ? `${userColor.bg}` : '',
         className
       )}
     >

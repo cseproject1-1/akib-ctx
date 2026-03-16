@@ -174,10 +174,10 @@ export function AddNodeToolbar() {
           whileTap={{ scale: 0.95 }}
           onClick={() => setExpanded(!expanded)}
           className={cn(
-            "flex h-12 w-12 items-center justify-center rounded-2xl transition-all duration-300 z-50",
+            "flex h-12 w-12 items-center justify-center rounded-2xl transition-all duration-200 z-50",
             expanded 
-              ? "bg-primary text-primary-foreground shadow-[0_0_30px_hsl(var(--primary)/0.4)]" 
-              : "toolbar-glass text-foreground"
+              ? "bg-primary text-primary-foreground shadow-[var(--premium-shadow-md),0_0_30px_hsla(var(--primary),0.4)]" 
+              : "toolbar-glass text-foreground hover:shadow-[var(--premium-shadow-md)]"
           )}
           title="Add content"
         >
@@ -191,12 +191,12 @@ export function AddNodeToolbar() {
 
         <AnimatePresence>
           {expanded && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: -20, x: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: -20, x: 20 }}
-              className="flex flex-col gap-6 rounded-2xl glass-morphism-strong p-6 pro-shadow origin-top-right min-w-[360px]"
-            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: -20, x: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: -20, x: 20 }}
+                className="flex flex-col gap-6 rounded-2xl glass-morphism-strong p-6 shadow-[var(--premium-shadow-lg)] origin-top-right min-w-[360px]"
+              >
               <div className="grid grid-cols-2 gap-x-8 gap-y-6">
                 {categories.map((cat) => (
                   <div key={cat.label} className="space-y-3">

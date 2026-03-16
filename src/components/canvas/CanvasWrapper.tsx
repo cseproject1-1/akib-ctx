@@ -983,14 +983,18 @@ export function CanvasWrapper() {
   return (
     <div
       className={cn(
-        "h-screen w-screen bg-canvas-bg transition-colors",
+        "h-screen w-screen transition-colors relative",
         connectMode ? 'cursor-crosshair' : '',
         isShaking && "shake-canvas"
       )}
+      style={{ background: 'var(--canvas-bg-gradient)' }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
+      {/* Subtle gradient overlay for depth */}
+      <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-transparent to-black/20" />
+      { /* Drag overlay */ }
       {/* Drag overlay */}
       <AnimatePresence>
         {dragOver && (

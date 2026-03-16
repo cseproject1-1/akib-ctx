@@ -49,7 +49,7 @@ export function ThemeToggle() {
   return (
     <button
       onClick={handleToggle}
-      className="p-2.5 text-muted-foreground transition-colors hover:bg-accent hover:text-primary"
+      className="p-2.5 text-muted-foreground rounded-lg transition-all duration-200 hover:bg-accent hover:text-primary hover:shadow-[var(--premium-shadow-sm)]"
       title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
     >
       <div
