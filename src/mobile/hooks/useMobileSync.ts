@@ -1,0 +1,129 @@
+import { useCallback } from 'react';
+import { useCanvasStore } from '@/store/canvasStore';
+import {
+  cachedLoadCanvasNodes,
+  cachedLoadCanvasEdges,
+  saveNode,
+  saveEdge,
+  deleteCanvasNode,
+  deleteCanvasEdge,
+  updateNodePosition,
+  updateNodeDataInDb,
+  updateEdgeDataInDb,
+  replayPendingOps,
+} from '@/lib/cache/canvasCache';
+import { getWorkspaces } from '@/lib/firebase/workspaces';
+import { toast } from 'sonner';
+
+// Reuse existing sync infrastructure to ensure mobile works identically to desktop
+// This ensures data integrity and no corruption - uses the same IndexedDB and Firebase logic
+export function useMobileSync() {
+  const workspaceId = useCanvasStore((s) => s.workspaceId);
+  const loadCanvas = useCanvasStore((s) => s.loadCanvas);
+  const setWorkspaceMeta = useCanvasStore((s) => s.setWorkspaceMeta);
+
+  const loadWorkspaceData = useCallback(async (id: string) => {
+    try {
+      // Use existing cache system - identical to desktop
+      const [nodesResult, edgesResult] = await Promise.all([
+        cachedLoadCanvasNodes(id, (freshNodes) => {
+          // Background sync callback - same as desktop
+          const { nodes: currentNodes } = useCanvasStore.getState();
+          const nodesChanged = currentNodes.length !== freshNodes.length;
+          if (nodesChanged) {
+            loadCanvas(freshNodes, useCanvasStore.getState().edges);
+          }
+        }),
+        cachedLoadCanvasEdges(id, (freshEdges) => {
+          const { edges: currentEdges } = useCanvasStore.getState();
+          const edgesChanged = currentEdges.length !== freshEdges.length;
+          if (edgesChanged) {
+            const { nodes: latestNodes } = useCanvasStore.getState();
+            loadCanvas(latestNodes, freshEdges, true);
+          }
+        }),
+      ]);
+
+      // Load from cache first for instant render
+      if (nodesResult.cached && edgesResult.cached) {
+        loadCanvas(nodesResult.cached, edgesResult.cached);
+      }
+
+      // Wait for fresh data and replay pending operations
+      const [nodes, edges] = await Promise.all([nodesResult.fresh, edgesResult.fresh]);
+      if (!nodesResult.cached || !edgesResult.cached) {
+        loadCanvas(nodes, edges);
+      }
+
+      // Replay any pending operations - ensures data consistency
+      await replayPendingOps();
+
+      // Load workspace meta
+      getWorkspaces().then((workspaces) => {
+        const ws = workspaces?.find(w => w.id === id);
+        if (ws) setWorkspaceMeta(ws.name, ws.color);
+      }).catch(() => {});
+
+      toast.success('Workspace loaded successfully');
+    } catch (err) {
+      console.error('[MobileSync] Failed to load workspace:', err);
+      toast.error('Failed to load workspace');
+    }
+  }, [loadCanvas, workspaceId]);
+
+  const saveNodeToCloud = useCallback(async (node: any) => {
+    try {
+      if (!workspaceId) return;
+      await saveNode(workspaceId, node);
+      return true;
+    } catch (err) {
+      console.error('[MobileSync] Failed to save node:', err);
+      toast.error('Failed to save - will retry when online');
+      return false;
+    }
+  }, [workspaceId]);
+
+  const saveEdgeToCloud = useCallback(async (edge: any) => {
+    try {
+      if (!workspaceId) return;
+      await saveEdge(workspaceId, edge);
+      return true;
+    } catch (err) {
+      console.error('[MobileSync] Failed to save edge:', err);
+      toast.error('Failed to save - will retry when online');
+      return false;
+    }
+  }, [workspaceId]);
+
+  const deleteNodeFromCloud = useCallback(async (nodeId: string) => {
+    try {
+      if (!workspaceId) return;
+      await deleteCanvasNode(workspaceId, nodeId);
+      return true;
+    } catch (err) {
+      console.error('[MobileSync] Failed to delete node:', err);
+      toast.error('Failed to delete - will retry when online');
+      return false;
+    }
+  }, [workspaceId]);
+
+  const deleteEdgeFromCloud = useCallback(async (edgeId: string) => {
+    try {
+      if (!workspaceId) return;
+      await deleteCanvasEdge(workspaceId, edgeId);
+      return true;
+    } catch (err) {
+      console.error('[MobileSync] Failed to delete edge:', err);
+      toast.error('Failed to delete - will retry when online');
+      return false;
+    }
+  }, [workspaceId]);
+
+  return {
+    loadWorkspaceData,
+    saveNodeToCloud,
+    saveEdgeToCloud,
+    deleteNodeFromCloud,
+    deleteEdgeFromCloud,
+  };
+}

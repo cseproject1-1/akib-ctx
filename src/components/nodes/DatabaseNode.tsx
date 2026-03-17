@@ -22,7 +22,6 @@ import {
   createColumnHelper,
   SortingState,
 } from '@tanstack/react-table';
-import { cn } from '@/lib/utils';
 import { DatabaseNodeData } from '@/types/canvas';
 
 interface DatabaseRow extends Record<string, any> {
@@ -167,10 +166,9 @@ export const DatabaseNode = memo(({ id, data, selected }: NodeProps) => {
                       className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-white/5"
                     >
                       <div 
-                        className={cn(
-                          "flex items-center gap-1 select-none",
-                          header.column.getCanSort() && "cursor-pointer hover:text-foreground"
-                        )}
+                        className={`flex items-center gap-1 select-none ${
+                          header.column.getCanSort() ? "cursor-pointer hover:text-foreground" : ""
+                        }`}
                         onClick={header.column.getToggleSortingHandler()}
                       >
                         {flexRender(header.column.columnDef.header, header.getContext())}

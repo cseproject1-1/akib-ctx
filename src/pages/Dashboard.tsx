@@ -496,9 +496,8 @@ const Dashboard = () => {
         className="relative flex flex-col border-r border-border bg-card overflow-hidden"
       >
         <div className="flex h-full flex-col p-4 w-[260px]">
-          <div className="mb-8 flex items-center gap-3">
-             <img src="/favicon.svg" alt="ctxnote" className="h-8 w-8 rounded-lg border border-border shadow-[var(--clay-shadow-sm)] object-cover" />
-             <h1 className="text-lg font-black uppercase tracking-tighter">ctxnote</h1>
+          <div className="mb-8 flex items-center">
+             <img src="/logo.png" alt="ctxnote" className="h-6 w-auto object-contain" />
           </div>
 
           <nav className="flex-1 space-y-6">

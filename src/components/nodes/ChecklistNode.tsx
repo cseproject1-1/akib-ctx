@@ -4,7 +4,6 @@ import { useCanvasStore } from '@/store/canvasStore';
 import { BaseNode } from './BaseNode';
 import { CheckSquare, Plus, X, GripVertical } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
-import { cn } from '@/lib/utils';
 import { ChecklistNodeData } from '@/types/canvas';
 
 export const ChecklistNode = memo(({ id, data, selected }: NodeProps) => {
@@ -136,10 +135,9 @@ export const ChecklistNode = memo(({ id, data, selected }: NodeProps) => {
         <button
           onClick={(e) => { e.stopPropagation(); addItem(); }}
           disabled={!selected}
-          className={cn(
-            "mt-1 flex items-center gap-1.5 rounded px-1 py-1 text-xs font-semibold text-muted-foreground transition-colors",
-            selected ? "hover:bg-accent hover:text-foreground" : "opacity-50 cursor-default"
-          )}
+          className={`mt-4 rounded-lg border-2 border-border bg-accent/30 p-2 text-center text-[10px] font-black uppercase tracking-widest text-muted-foreground transition-all hover:bg-accent/50 ${
+            progress === 100 ? 'border-green/30 bg-green/10 text-green animate-bounce-subtle' : ''
+          }`}
         >
           <Plus className="h-3 w-3" /> Add item
         </button>

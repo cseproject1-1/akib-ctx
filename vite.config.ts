@@ -31,7 +31,7 @@ export default defineConfig(({ mode }) => ({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'favicon.png', 'favicon.svg', 'robots.txt', 'pwa-192x192.png', 'pwa-512x512.png'],
+      includeAssets: ['favicon.png', 'logo.png', 'robots.txt', 'pwa-192x192.png', 'pwa-512x512.png', 'apple-touch-icon.png'],
       workbox: {
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // Increase to 10MB for premium assets
         navigateFallback: '/index.html',
@@ -91,14 +91,21 @@ export default defineConfig(({ mode }) => ({
             short_name: 'New',
             description: 'Create a new node quickly',
             url: '/?action=new-node',
-            icons: [{ src: 'pwa-192x192.png', sizes: '192x192' }]
+            icons: [{ src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' }]
           },
           {
             name: 'View Workspaces',
             short_name: 'Dashboard',
             description: 'Back to your dashboard',
             url: '/',
-            icons: [{ src: 'pwa-192x192.png', sizes: '192x192' }]
+            icons: [{ src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' }]
+          },
+          {
+            name: 'Mobile Dashboard',
+            short_name: 'Mobile',
+            description: 'Mobile-optimized dashboard',
+            url: '/mobile-mode',
+            icons: [{ src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' }]
           }
         ],
         screenshots: [
@@ -133,6 +140,12 @@ export default defineConfig(({ mode }) => ({
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable'
+          },
+          {
+            src: 'apple-touch-icon.png',
+            sizes: '180x180',
+            type: 'image/png',
+            purpose: 'any'
           }
         ]
       }

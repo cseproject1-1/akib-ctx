@@ -57,7 +57,7 @@ function sendNotification(mode: TimerMode) {
   if (Notification.permission === 'granted') {
     new Notification('Pomodoro Timer', {
       body: mode === 'work' ? '🎉 Focus session complete! Time for a break.' : '☕ Break over! Ready to focus?',
-      icon: '/favicon.svg',
+      icon: '/favicon.png',
     });
   }
 }

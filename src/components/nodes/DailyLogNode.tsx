@@ -4,7 +4,6 @@ import { BaseNode } from './BaseNode';
 import { Clock, Plus, Trash2, CheckCircle2, Circle } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { motion, AnimatePresence } from 'framer-motion';
-import { cn } from '@/lib/utils';
 import { DailyLogNodeData } from '@/types/canvas';
 
 export const DailyLogNode = memo(({ id, data, selected }: NodeProps) => {
@@ -66,10 +65,9 @@ export const DailyLogNode = memo(({ id, data, selected }: NodeProps) => {
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  className={cn(
-                    "group flex items-start gap-3 p-2 rounded-xl transition-all hover:bg-white/5",
-                    entry.done && "opacity-50"
-                  )}
+                  className={`group/entry flex items-start gap-3 p-2 rounded-xl transition-all hover:bg-white/5 ${
+                    entry.done ? "opacity-50" : ""
+                  }`}
                 >
                   <button 
                     onClick={() => toggleEntry(entry.id)}
@@ -90,10 +88,9 @@ export const DailyLogNode = memo(({ id, data, selected }: NodeProps) => {
                         <Trash2 className="h-3 w-3" />
                       </button>
                     </div>
-                    <p className={cn(
-                      "text-[13px] font-medium leading-relaxed break-words",
-                      entry.done && "line-through"
-                    )}>
+                    <p className={`line-clamp-2 text-xs text-muted-foreground ${
+                      entry.done ? 'line-through opacity-50' : ''
+                    }`}>
                       {entry.text}
                     </p>
                   </div>

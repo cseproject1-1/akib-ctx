@@ -4,9 +4,10 @@ import { FileText, RefreshCw, Link2 } from 'lucide-react';
 import { BaseNode } from './BaseNode';
 import { HybridEditor, type NoteEditorHandle } from '@/components/editor/HybridEditor';
 import { useCanvasStore } from '@/store/canvasStore';
+import { useIsMobile } from '@/hooks/use-mobile';
 import type { JSONContent } from '@tiptap/react';
 import { AINoteNodeData } from '@/types/canvas';
-import { extractText } from '@/lib/utils/contentParser';
+import { extractText } from '../../lib/utils/contentParser';
 
 function countWords(content: JSONContent | null | string): { words: number; chars: number } {
   if (!content) return { words: 0, chars: 0 };
@@ -33,6 +34,7 @@ export const AINoteNode = memo(({ id, data, selected }: NodeProps) => {
   const backlinks = useCanvasStore((s) => s.backlinks[id] || []);
   const allNodes = useCanvasStore((s) => s.nodes);
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     return () => {
@@ -82,7 +84,9 @@ export const AINoteNode = memo(({ id, data, selected }: NodeProps) => {
       isSyncing={false} // Placeholder for real sync state
       headerExtra={
         <button
-          className="rounded-md p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover/header:opacity-100"
+          className={`rounded-md p-0.5 text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground ${
+            isMobile ? "opacity-100" : "opacity-0 group-hover/header:opacity-100"
+          }`}
           onClick={(e) => { e.stopPropagation(); editorRef.current?.reparseAsMarkdown(); }}
           title="Re-parse markdown"
         >

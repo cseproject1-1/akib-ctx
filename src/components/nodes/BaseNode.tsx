@@ -1,7 +1,6 @@
 import { Handle, Position, useNodeId, useStore, NodeResizer } from '@xyflow/react';
 import { memo, useMemo, useCallback, type ReactNode } from 'react';
 import { MoreHorizontal, Lock, ChevronDown, ChevronRight, Expand, Trash2, Copy } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { useCanvasStore } from '@/store/canvasStore';
@@ -9,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { HANDLE_IDS } from '@/lib/constants/canvas';
 import { useReactFlow } from '@xyflow/react';
 import { toast } from 'sonner';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { extractNodeContent } from '@/lib/utils/contentExtractor';
 
 const LOD_THRESHOLD = 0.45;
@@ -143,6 +143,7 @@ export const BaseNode = memo(({
   const isDeepWorkActive = useCanvasStore((s) => s.isDeepWorkActive);
   const edges = useStore(useCallback((s) => s.edges, []));
   const zoom = useStore(useCallback((s) => s.transform[2], []));
+  const isMobile = useIsMobile();
   
   const handleCopyNodeContent = useCallback(async () => {
     if (!nodeId) return;
@@ -197,18 +198,15 @@ export const BaseNode = memo(({
       }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.15, ease: 'easeOut' }}
-      className={cn(
-        'animate-node-appear group/node flex flex-col h-full overflow-hidden',
-        'bg-card relative',
-        'rounded-lg',
+      className={`animate-node-appear group/node flex flex-col h-full overflow-hidden bg-card relative rounded-lg ${
         selected
           ? 'shadow-[var(--premium-shadow-md)] scale-[1.02] z-50'
-          : 'shadow-[var(--premium-shadow-sm)] hover:scale-[1.02] hover:shadow-[var(--premium-shadow-md)]',
-        isFocused && 'ring-2 ring-primary ring-opacity-40 shadow-[0_0_30px_hsla(var(--primary),0.3)] animate-pulse',
-        isHighlighted && 'ring-2 ring-yellow-400 ring-opacity-50 shadow-[0_0_30px_rgba(250,204,21,0.4)] animate-pulse z-[100]',
-        userColor ? `${userColor.bg}` : '',
-        className
-      )}
+          : 'shadow-[var(--premium-shadow-sm)] hover:scale-[1.02] hover:shadow-[var(--premium-shadow-md)]'
+      } ${
+        isFocused ? 'ring-2 ring-primary ring-opacity-40 shadow-[0_0_30px_hsla(var(--primary),0.3)] animate-pulse' : ''
+      } ${
+        isHighlighted ? 'ring-2 ring-yellow-400 ring-opacity-50 shadow-[0_0_30px_rgba(250,204,21,0.4)] animate-pulse z-[100]' : ''
+      } ${userColor ? userColor.bg : ''} ${className || ''}`}
     >
       {locked && (
         <div className="absolute top-1.5 right-1.5 z-10 rounded bg-destructive/80 p-0.5">
@@ -242,11 +240,9 @@ export const BaseNode = memo(({
 
       {title !== undefined && (
         <div
-          className={cn(
-            'group/header flex flex-shrink-0 items-center gap-2 px-3 py-2.5 transition-colors',
-            locked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing',
-            headerClassName
-          )}
+          className={`group/header flex flex-shrink-0 items-center gap-2 px-3 py-2.5 transition-colors ${
+            locked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'
+          } ${headerClassName || ''}`}
         >
           {/* Collapse toggle */}
           {onToggleCollapse && (
@@ -277,10 +273,9 @@ export const BaseNode = memo(({
           {id && (
             <div className="flex items-center gap-1.5 px-1">
               <div 
-                className={cn(
-                  "h-1.5 w-1.5 rounded-full transition-all duration-500",
+                className={`h-1.5 w-1.5 rounded-full transition-all duration-500 ${
                   isSyncing ? "bg-yellow-400 animate-pulse shadow-[0_0_8px_rgba(250,204,21,0.5)]" : "bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.3)]"
-                )} 
+                }`} 
                 title={isSyncing ? "Syncing changes..." : "All changes saved"}
               />
             </div>
@@ -288,7 +283,7 @@ export const BaseNode = memo(({
           {headerExtra}
           {id && (
             <button
-              className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover/node:opacity-100"
+              className={`rounded p-0.5 text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground ${isMobile ? "opacity-100" : "opacity-0 group-hover/node:opacity-100"}`}
               onClick={(e) => { e.stopPropagation(); setExpandedNode(id); }}
               title="Fullscreen"
             >
@@ -297,7 +292,7 @@ export const BaseNode = memo(({
           )}
           {id && (
             <button
-              className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover/node:opacity-100"
+              className={`rounded p-0.5 text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground ${isMobile ? "opacity-100" : "opacity-0 group-hover/node:opacity-100"}`}
               onClick={(e) => { e.stopPropagation(); handleCopyNodeContent(); }}
               title="Copy node content"
             >
@@ -306,7 +301,7 @@ export const BaseNode = memo(({
           )}
           {id && canvasMode === 'edit' && !locked && (
             <button
-              className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-destructive hover:text-destructive-foreground group-hover/node:opacity-100"
+              className={`rounded p-0.5 text-muted-foreground transition-opacity hover:bg-destructive hover:text-destructive-foreground ${isMobile ? "opacity-100" : "opacity-0 group-hover/node:opacity-100"}`}
               onClick={(e) => { e.stopPropagation(); deleteNode(id); }}
               title="Delete node"
             >
@@ -314,7 +309,7 @@ export const BaseNode = memo(({
             </button>
           )}
           <button
-            className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover/node:opacity-100"
+            className={`rounded p-0.5 text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground ${isMobile ? "opacity-100" : "opacity-0 group-hover/node:opacity-100"}`}
             onClick={(e) => { e.stopPropagation(); onMenuClick?.(e); }}
             title="More options"
           >
@@ -351,7 +346,7 @@ export const BaseNode = memo(({
           )}
 
           {!collapsed && (
-            <div className={cn('flex-1 overflow-auto nodrag nowheel nopan', bodyClassName)} onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+            <div className={`flex-1 overflow-auto nodrag nowheel nopan ${bodyClassName || ''}`} onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
           {zoom < LOD_THRESHOLD ? (
             <div className="flex flex-col items-center justify-center h-full w-full p-4 opacity-40 select-none pointer-events-none gap-2">
               <div className="flex flex-col items-center gap-1">
@@ -368,7 +363,7 @@ export const BaseNode = memo(({
               </div>
               {zoom >= ULTIMATE_LOD_THRESHOLD && progress !== undefined && (
                 <div className="w-12 h-1 bg-muted rounded-full overflow-hidden border border-border/10">
-                  <div className={cn("h-full", accent?.indicator || "bg-primary")} style={{ width: `${progress}%` }} />
+                  <div className={`h-full ${accent?.indicator || "bg-primary"}`} style={{ width: `${progress}%` }} />
                 </div>
               )}
             </div>
@@ -385,7 +380,7 @@ export const BaseNode = memo(({
               <motion.div 
                 initial={{ width: 0 }}
                 animate={{ width: `${progress}%` }}
-                className={cn("h-full", accent?.indicator || "bg-primary")}
+                className={`h-full ${accent?.indicator || "bg-primary"}`}
               />
             </div>
           )}
@@ -403,15 +398,15 @@ export const BaseNode = memo(({
       {handles && (
         <>
           {/* Target handles (incoming) */}
-          <Handle type="target" position={Position.Top} id={HANDLE_IDS.TARGET.TOP} className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ left: '50%', transform: 'translateX(-50%)' }} />
-          <Handle type="target" position={Position.Bottom} id={HANDLE_IDS.TARGET.BOTTOM} className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ left: '50%', transform: 'translateX(-50%)' }} />
-          <Handle type="target" position={Position.Left} id={HANDLE_IDS.TARGET.LEFT} className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ top: '50%', transform: 'translateY(-50%)' }} />
-          <Handle type="target" position={Position.Right} id={HANDLE_IDS.TARGET.RIGHT} className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ top: '50%', transform: 'translateY(-50%)' }} />
+          <Handle type="target" position={Position.Top} id={HANDLE_IDS.TARGET.TOP} className={`!rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity ${isMobile ? "!w-4 !h-4" : "!w-2 !h-2"} ${selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100"}`} style={{ left: '50%', transform: 'translateX(-50%)' }} />
+          <Handle type="target" position={Position.Bottom} id={HANDLE_IDS.TARGET.BOTTOM} className={`!rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity ${isMobile ? "!w-4 !h-4" : "!w-2 !h-2"} ${selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100"}`} style={{ left: '50%', transform: 'translateX(-50%)' }} />
+          <Handle type="target" position={Position.Left} id={HANDLE_IDS.TARGET.LEFT} className={`!rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity ${isMobile ? "!w-4 !h-4" : "!w-2 !h-2"} ${selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100"}`} style={{ top: '50%', transform: 'translateY(-50%)' }} />
+          <Handle type="target" position={Position.Right} id={HANDLE_IDS.TARGET.RIGHT} className={`!rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity ${isMobile ? "!w-4 !h-4" : "!w-2 !h-2"} ${selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100"}`} style={{ top: '50%', transform: 'translateY(-50%)' }} />
           {/* Source handles (outgoing) */}
-          <Handle type="source" position={Position.Top} id={HANDLE_IDS.SOURCE.TOP} className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ left: '50%', transform: 'translateX(-50%)' }} />
-          <Handle type="source" position={Position.Bottom} id={HANDLE_IDS.SOURCE.BOTTOM} className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ left: '50%', transform: 'translateX(-50%)' }} />
-          <Handle type="source" position={Position.Left} id={HANDLE_IDS.SOURCE.LEFT} className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ top: '50%', transform: 'translateY(-50%)' }} />
-          <Handle type="source" position={Position.Right} id={HANDLE_IDS.SOURCE.RIGHT} className={cn("!w-2 !h-2 !rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ top: '50%', transform: 'translateY(-50%)' }} />
+          <Handle type="source" position={Position.Top} id={HANDLE_IDS.SOURCE.TOP} className={`!rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity ${isMobile ? "!w-4 !h-4" : "!w-2 !h-2"} ${selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100"}`} style={{ left: '50%', transform: 'translateX(-50%)' }} />
+          <Handle type="source" position={Position.Bottom} id={HANDLE_IDS.SOURCE.BOTTOM} className={`!rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity ${isMobile ? "!w-4 !h-4" : "!w-2 !h-2"} ${selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100"}`} style={{ left: '50%', transform: 'translateX(-50%)' }} />
+          <Handle type="source" position={Position.Left} id={HANDLE_IDS.SOURCE.LEFT} className={`!rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity ${isMobile ? "!w-4 !h-4" : "!w-2 !h-2"} ${selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100"}`} style={{ top: '50%', transform: 'translateY(-50%)' }} />
+          <Handle type="source" position={Position.Right} id={HANDLE_IDS.SOURCE.RIGHT} className={`!rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity ${isMobile ? "!w-4 !h-4" : "!w-2 !h-2"} ${selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100"}`} style={{ top: '50%', transform: 'translateY(-50%)' }} />
         </>
       )}
     </Wrapper>
