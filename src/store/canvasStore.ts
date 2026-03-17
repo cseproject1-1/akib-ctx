@@ -901,8 +901,17 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   addBookmark: (name, viewport) => set({ bookmarks: [...get().bookmarks, { id: crypto.randomUUID(), name, viewport }] }),
   removeBookmark: (id) => set({ bookmarks: get().bookmarks.filter(b => b.id !== id) }),
   addOpenWorkspace: (ws) => {
-    const exists = get().openWorkspaces.find(w => w.id === ws.id);
-    if (!exists) set({ openWorkspaces: [...get().openWorkspaces, ws] });
+    const list = get().openWorkspaces;
+    const existingIndex = list.findIndex(w => w.id === ws.id);
+    if (existingIndex > -1) {
+      if (list[existingIndex].name !== ws.name || list[existingIndex].color !== ws.color) {
+        const newList = [...list];
+        newList[existingIndex] = ws;
+        set({ openWorkspaces: newList });
+      }
+    } else {
+      set({ openWorkspaces: [...list, ws] });
+    }
   },
   removeOpenWorkspace: (id) => set({ openWorkspaces: get().openWorkspaces.filter(w => w.id !== id) }),
   toggleBlockEditorMode: () => set({ isBlockEditorMode: !get().isBlockEditorMode }),

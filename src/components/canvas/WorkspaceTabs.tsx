@@ -24,7 +24,7 @@ export function WorkspaceTabs() {
   if (openWorkspaces.length <= 1) return null;
 
   return (
-    <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-1.5 px-2 py-1 bg-background/80 backdrop-blur-md rounded-full border border-border shadow-[var(--clay-shadow-sm)] pointer-events-auto">
+    <div className="absolute top-14 left-1/2 -translate-x-1/2 z-[50] flex items-center gap-1.5 px-2 py-1 bg-background/60 backdrop-blur-md rounded-full border border-border shadow-[var(--clay-shadow-sm)] pointer-events-auto">
       <AnimatePresence mode="popLayout" initial={false}>
         {openWorkspaces.map((ws) => (
           <motion.div

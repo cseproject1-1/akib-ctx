@@ -19,6 +19,7 @@ import { usePWAInstall } from '@/hooks/usePWAInstall';
 import { Download, FileDown } from 'lucide-react';
 import { loadCanvasNodes, loadCanvasEdges } from '@/lib/firebase/canvasData';
 import { exportToZip } from '@/lib/exportCanvas';
+import { BrandingBanner } from '@/components/dashboard/BrandingBanner';
 
 const WORKSPACE_ICONS: { icon: LucideIcon; label: string; color: string }[] = [
   { icon: LayoutGrid, label: 'Grid', color: '#3b82f6' },
@@ -496,8 +497,9 @@ const Dashboard = () => {
         className="relative flex flex-col border-r border-border bg-card overflow-hidden"
       >
         <div className="flex h-full flex-col p-4 w-[260px]">
-          <div className="mb-8 flex items-center">
-             <img src="/logo.png" alt="ctxnote" className="h-6 w-auto object-contain" />
+          <div className="mb-8 flex items-center gap-2">
+             <img src="/favicon.png" alt="ctxnote" className="h-6 w-6 object-contain" />
+             <span className="text-xl font-black uppercase tracking-tighter text-foreground">CTXNOTE</span>
           </div>
 
           <nav className="flex-1 space-y-6">
@@ -703,6 +705,7 @@ const Dashboard = () => {
 
         <main className="flex-1 overflow-y-auto p-6 scroll-smooth">
           <div className="mx-auto max-w-7xl">
+            <BrandingBanner />
             {/* Tags Filter Bar */}
             {allTags.length > 0 && (
               <div className="mb-8 flex flex-wrap items-center gap-2 animate-fade-in">
