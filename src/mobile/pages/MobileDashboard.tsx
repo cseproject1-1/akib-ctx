@@ -22,7 +22,6 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { cachedGetWorkspaces, invalidateWorkspaceList } from '@/lib/cache/canvasCache';
 import { createWorkspace, deleteWorkspace, type Workspace } from '@/lib/firebase/workspaces';
-import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { MobileLayout } from '@/mobile/layout/MobileLayout';
 import { useMobileTheme } from '@/mobile/layout/MobileDrawer';
@@ -82,7 +81,7 @@ export function MobileDashboard() {
       setWorkspaces(ws || []);
     } catch (error) {
       console.error('Failed to load workspaces:', error);
-      toast.error('Failed to load workspaces');
+      // Silent mode - error is logged, retry possible
     } finally {
       setLoading(false);
     }
@@ -97,9 +96,9 @@ export function MobileDashboard() {
     try {
       await invalidateWorkspaceList();
       await loadWorkspaces();
-      toast.success('Refreshed');
+      // Silent mode - visual feedback shows refresh
     } catch (error) {
-      toast.error('Failed to refresh');
+      console.error('Failed to refresh:', error);
     } finally {
       setIsRefreshing(false);
       setRefreshY(0);
@@ -140,7 +139,7 @@ export function MobileDashboard() {
 
   const handleCreateWorkspace = async () => {
     if (!newWorkspaceName.trim()) {
-      toast.error('Please enter a workspace name');
+      // Silent mode - validation handled by UI
       return;
     }
 
@@ -151,10 +150,10 @@ export function MobileDashboard() {
       setShowCreateModal(false);
       triggerHaptic('medium');
       navigate(`/mobile-mode/workspace/${workspace.id}`);
-      toast.success('Workspace created');
+      // Silent mode - navigation shows success
     } catch (error) {
       console.error('Failed to create workspace:', error);
-      toast.error('Failed to create workspace');
+      // Silent mode - error is logged, user can retry
     }
   };
 
@@ -163,10 +162,10 @@ export function MobileDashboard() {
       await deleteWorkspace(workspace.id);
       setWorkspaces(prev => prev.filter(w => w.id !== workspace.id));
       triggerHaptic('heavy');
-      toast.success('Workspace deleted');
+      // Silent mode - visual feedback shows deletion
     } catch (error) {
       console.error('Failed to delete workspace:', error);
-      toast.error('Failed to delete workspace');
+      // Silent mode - error is logged
     }
   };
 

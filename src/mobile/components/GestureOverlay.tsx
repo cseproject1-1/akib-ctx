@@ -42,16 +42,18 @@ export function GestureOverlay({ onGesture, children }: GestureOverlayProps) {
     };
   };
 
+  // Only handle gestures for specific cases (not blocking normal interactions)
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     const touches = e.touches;
-    touchStartRef.current.touches = touches.length;
-
+    
+    // Only handle 1-finger gestures, let ReactFlow handle 2+ fingers
     if (touches.length === 1) {
+      touchStartRef.current.touches = touches.length;
       touchStartRef.current.x = touches[0].clientX;
       touchStartRef.current.y = touches[0].clientY;
       touchStartRef.current.time = Date.now();
 
-      // Long press timer
+      // Long press timer (only for non-interactive areas)
       longPressTimer.current = setTimeout(() => {
         onGesture({
           type: 'longPress',
@@ -65,8 +67,8 @@ export function GestureOverlay({ onGesture, children }: GestureOverlayProps) {
         setTimeout(() => setGestureVisual(null), 300);
       }, 500);
     } else if (touches.length === 2) {
+      // Let ReactFlow handle pinches
       pinchStartDistance.current = getDistance(touches[0], touches[1]);
-      pinchStartCenter.current = getCenter(touches[0], touches[1]);
     }
   }, [onGesture]);
 
@@ -78,30 +80,11 @@ export function GestureOverlay({ onGesture, children }: GestureOverlayProps) {
       const dy = touches[0].clientY - touchStartRef.current.y;
       const distance = Math.sqrt(dx * dx + dy * dy);
 
-      // Cancel long press if moved
+      // Cancel long press if moved significantly
       if (longPressTimer.current && distance > 10) {
         clearTimeout(longPressTimer.current);
         longPressTimer.current = null;
       }
-
-      // Show swipe preview
-      if (distance > 20) {
-        setGestureVisual({
-          type: 'swipe',
-          x: touches[0].clientX,
-          y: touches[0].clientY,
-        });
-      }
-    } else if (touches.length === 2 && pinchStartDistance.current) {
-      const currentDistance = getDistance(touches[0], touches[1]);
-      const scale = currentDistance / pinchStartDistance.current;
-      const center = getCenter(touches[0], touches[1]);
-
-      setGestureVisual({
-        type: 'pinch',
-        x: center.x,
-        y: center.y,
-      });
     }
   }, []);
 
@@ -121,14 +104,8 @@ export function GestureOverlay({ onGesture, children }: GestureOverlayProps) {
       const distance = Math.sqrt(dx * dx + dy * dy);
       const velocity = distance / duration;
 
-      if (distance < 10 && duration < 200) {
-        // Simple tap
-        onGesture({
-          type: 'tap',
-          touches: 1,
-        });
-      } else if (distance > 30 && duration < 500) {
-        // Swipe
+      // Only detect swipes with significant movement
+      if (distance > 30 && duration < 500) {
         const direction = Math.abs(dx) > Math.abs(dy) 
           ? (dx > 0 ? 'right' : 'left')
           : (dy > 0 ? 'down' : 'up');
@@ -142,12 +119,6 @@ export function GestureOverlay({ onGesture, children }: GestureOverlayProps) {
           touches: 1,
         });
       }
-    } else if (touchStartRef.current.touches === 2) {
-      // Pinch end
-      onGesture({
-        type: 'pinch',
-        touches: 2,
-      });
     }
 
     setGestureVisual(null);

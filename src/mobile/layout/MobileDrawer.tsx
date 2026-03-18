@@ -16,7 +16,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCanvasStore } from '@/store/canvasStore';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 // Theme context that extends the desktop ThemeProvider
@@ -87,11 +86,12 @@ export function MobileDrawer({ onClose }: MobileDrawerProps) {
   const handleSignOut = async () => {
     try {
       await signOut();
-      toast.success('Signed out successfully');
+      // Silent mode - navigation shows sign out
       navigate('/login');
       onClose();
     } catch (error) {
-      toast.error('Failed to sign out');
+      console.error('Failed to sign out:', error);
+      // Silent mode - error is logged
     }
   };
 

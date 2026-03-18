@@ -1,7 +1,6 @@
 import { useCallback } from 'react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { useReactFlow, useNodes } from '@xyflow/react';
-import { toast } from 'sonner';
 
 export function useBatchOperations() {
   const deleteNode = useCanvasStore((s) => s.deleteNode);
@@ -12,7 +11,7 @@ export function useBatchOperations() {
 
   const deleteNodes = useCallback((nodeIds: string[]) => {
     nodeIds.forEach(id => deleteNode(id));
-    toast.success(`Deleted ${nodeIds.length} node(s)`);
+    // Silent mode - visual feedback shows deletion
   }, [deleteNode]);
 
   const duplicateNodes = useCallback((nodeIds: string[]) => {
@@ -24,7 +23,7 @@ export function useBatchOperations() {
         duplicated.push(id);
       }
     });
-    toast.success(`Duplicated ${duplicated.length} node(s)`);
+    // Silent mode - visual feedback shows duplication
   }, [duplicateNode, nodes]);
 
   const moveNodes = useCallback((nodeIds: string[], deltaX: number, deltaY: number) => {
@@ -35,7 +34,7 @@ export function useBatchOperations() {
           : n
       )
     );
-    toast.info(`Moved ${nodeIds.length} node(s)`);
+    // Silent mode - visual feedback shows movement
   }, [setNodes]);
 
   const groupNodes = useCallback((nodeIds: string[]) => {
@@ -44,10 +43,8 @@ export function useBatchOperations() {
 
     const minX = Math.min(...selectedNodes.map(n => n.position.x));
     const minY = Math.min(...selectedNodes.map(n => n.position.y));
-    const width = 200; // Default width
-    const height = 100; // Default height
-    const maxX = Math.max(...selectedNodes.map(n => n.position.x + width));
-    const maxY = Math.max(...selectedNodes.map(n => n.position.y + height));
+    const maxX = Math.max(...selectedNodes.map(n => n.position.x + (n.style?.width as number || 200)));
+    const maxY = Math.max(...selectedNodes.map(n => n.position.y + (n.style?.height as number || 100)));
 
     const groupNode = {
       id: crypto.randomUUID(),
@@ -64,7 +61,7 @@ export function useBatchOperations() {
     };
 
     addNode(groupNode);
-    toast.success('Group created');
+    // Silent mode - visual feedback shows group created
   }, [nodes, addNode]);
 
   const alignNodes = useCallback((nodeIds: string[], direction: 'left' | 'right' | 'top' | 'bottom' | 'center') => {
@@ -131,7 +128,7 @@ export function useBatchOperations() {
         break;
       }
     }
-    toast.success(`Aligned ${selectedNodes.length} node(s)`);
+    // Silent mode - visual feedback shows alignment
   }, [nodes, setNodes]);
 
   return {

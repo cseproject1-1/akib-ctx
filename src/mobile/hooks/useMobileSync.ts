@@ -13,7 +13,6 @@ import {
   replayPendingOps,
 } from '@/lib/cache/canvasCache';
 import { getWorkspaces } from '@/lib/firebase/workspaces';
-import { toast } from 'sonner';
 
 // Reuse existing sync infrastructure to ensure mobile works identically to desktop
 // This ensures data integrity and no corruption - uses the same IndexedDB and Firebase logic
@@ -64,10 +63,10 @@ export function useMobileSync() {
         if (ws) setWorkspaceMeta(ws.name, ws.color);
       }).catch(() => {});
 
-      toast.success('Workspace loaded successfully');
+      // Silent mode - workspace loaded, no toast needed
     } catch (err) {
       console.error('[MobileSync] Failed to load workspace:', err);
-      toast.error('Failed to load workspace');
+      // Silent mode - error is logged
     }
   }, [loadCanvas, workspaceId]);
 
@@ -78,7 +77,7 @@ export function useMobileSync() {
       return true;
     } catch (err) {
       console.error('[MobileSync] Failed to save node:', err);
-      toast.error('Failed to save - will retry when online');
+      // Silent mode - error is logged, retry happens automatically
       return false;
     }
   }, [workspaceId]);
@@ -90,7 +89,7 @@ export function useMobileSync() {
       return true;
     } catch (err) {
       console.error('[MobileSync] Failed to save edge:', err);
-      toast.error('Failed to save - will retry when online');
+      // Silent mode - error is logged, retry happens automatically
       return false;
     }
   }, [workspaceId]);
@@ -102,7 +101,7 @@ export function useMobileSync() {
       return true;
     } catch (err) {
       console.error('[MobileSync] Failed to delete node:', err);
-      toast.error('Failed to delete - will retry when online');
+      // Silent mode - error is logged, retry happens automatically
       return false;
     }
   }, [workspaceId]);
@@ -114,7 +113,7 @@ export function useMobileSync() {
       return true;
     } catch (err) {
       console.error('[MobileSync] Failed to delete edge:', err);
-      toast.error('Failed to delete - will retry when online');
+      // Silent mode - error is logged, retry happens automatically
       return false;
     }
   }, [workspaceId]);

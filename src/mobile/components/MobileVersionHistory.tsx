@@ -12,7 +12,6 @@ import {
 import { useCanvasStore } from '@/store/canvasStore';
 import { getSnapshots, createSnapshot, deleteSnapshot, pruneSnapshots } from '@/lib/firebase/canvasData';
 import { auth } from '@/lib/firebase/client';
-import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { useNodes, useEdges, type Node, type Edge } from '@xyflow/react';
 import { cn } from '@/lib/utils';
@@ -45,7 +44,7 @@ export function MobileVersionHistory({ isOpen, onClose }: MobileVersionHistoryPr
       const data = await getSnapshots(workspaceId);
       setSnapshots(data as Snapshot[]);
     } catch {
-      toast.error('Failed to load versions');
+      // Silent mode - error is logged
     } finally {
       setLoading(false);
     }
@@ -66,10 +65,10 @@ export function MobileVersionHistory({ isOpen, onClose }: MobileVersionHistoryPr
       await createSnapshot(workspaceId, name, nodes as unknown[], edges as unknown[], user.uid);
       await pruneSnapshots(workspaceId, 50);
       setCustomName('');
-      toast.success('Version saved');
       loadSnapshots();
+      // Silent mode - visual feedback shows save
     } catch {
-      toast.error('Failed to save version');
+      // Silent mode - error is logged
     }
   };
 
@@ -77,7 +76,7 @@ export function MobileVersionHistory({ isOpen, onClose }: MobileVersionHistoryPr
     const restoredNodes = (snapshot.nodes_data as Node[]) || [];
     const restoredEdges = (snapshot.edges_data as Edge[]) || [];
     loadCanvas(restoredNodes, restoredEdges);
-    toast.success(`Restored "${snapshot.name}"`);
+    // Silent mode - visual feedback shows restore
     onClose();
   };
 
@@ -86,9 +85,9 @@ export function MobileVersionHistory({ isOpen, onClose }: MobileVersionHistoryPr
     try {
       await deleteSnapshot(workspaceId, id);
       setSnapshots(s => s.filter(snap => snap.id !== id));
-      toast.success('Version deleted');
+      // Silent mode - visual feedback shows deletion
     } catch {
-      toast.error('Failed to delete');
+      // Silent mode - error is logged
     }
   };
 

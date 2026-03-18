@@ -43,6 +43,7 @@ import { MobileNodeContextMenu } from '@/mobile/components/MobileNodeContextMenu
 import { GestureOverlay } from '@/mobile/components/GestureOverlay';
 import { MobileBatchOperations } from '@/mobile/components/MobileBatchOperations';
 import { useToastManager, useBasicToast } from '@/mobile/hooks/useToastManager';
+import { PremiumFeatures } from '@/mobile/components/PremiumFeatures';
 
 // Custom hook for haptic feedback
 const useHaptic = () => {
@@ -96,20 +97,23 @@ function MobileCanvasContent() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [showBatchOperations, setShowBatchOperations] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDarkMode, setIsDarkMode] = useState(false);
   
   // Long press timer
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartRef = useRef({ x: 0, y: 0, time: 0 });
+  const hasLoadedWorkspace = useRef(false);
 
-  // Load workspace data on mount
+  // Load workspace data on mount - only once per workspace
   useEffect(() => {
-    if (workspaceId) {
+    if (workspaceId && !hasLoadedWorkspace.current) {
       setIsLoading(true);
       loadWorkspaceData(workspaceId)
         .then(() => {
           setIsLoading(false);
+          hasLoadedWorkspace.current = true;
           // Automatically fit view once data is loaded
-          if (!fitViewCalled.current && nodes.length > 0) {
+          if (!fitViewCalled.current) {
             setTimeout(() => {
               fitView({ duration: 800, padding: 0.2 });
               fitViewCalled.current = true;
@@ -119,57 +123,13 @@ function MobileCanvasContent() {
         .catch((error) => {
           console.error('Failed to load workspace:', error);
           setIsLoading(false);
+          hasLoadedWorkspace.current = true;
           // Silent failure - let user continue working
         });
     } else {
       setIsLoading(false);
     }
-  }, [workspaceId, loadWorkspaceData, fitView, nodes.length]);
-
-  // Touch gesture handling for canvas
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    touchStartRef.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
-    
-    // Set up long press for context menu
-    longPressTimer.current = setTimeout(() => {
-      // Show context menu at touch position
-      const element = document.elementFromPoint(touch.clientX, touch.clientY);
-      const nodeElement = element?.closest('[data-node-id]');
-      if (nodeElement) {
-        const nodeId = nodeElement.getAttribute('data-node-id');
-        if (nodeId) {
-          useCanvasStore.getState().setNodeContextMenu({
-            x: touch.clientX,
-            y: touch.clientY,
-            nodeId
-          });
-          triggerHaptic('light');
-        }
-      }
-    }, 500);
-  }, [triggerHaptic]);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (longPressTimer.current) {
-      const touch = e.touches[0];
-      const dx = Math.abs(touch.clientX - touchStartRef.current.x);
-      const dy = Math.abs(touch.clientY - touchStartRef.current.y);
-      
-      // Cancel long press if moved significantly
-      if (dx > 10 || dy > 10) {
-        clearTimeout(longPressTimer.current);
-        longPressTimer.current = null;
-      }
-    }
-  }, []);
-
-  const handleTouchEnd = useCallback(() => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
-    }
-  }, []);
+  }, [workspaceId, loadWorkspaceData, fitView]);
 
   // Zoom controls with haptic feedback
   const handleZoomIn = useCallback(() => {
@@ -268,10 +228,10 @@ function MobileCanvasContent() {
     setNodeContextMenu(null);
     
     if (isAddingNode && reactFlowInstance) {
-      const position = reactFlowInstance.screenToFlowPosition({
-        x: 'clientX' in event ? event.clientX : (event as React.TouchEvent).touches[0].clientX,
-        y: 'clientY' in event ? event.clientY : (event as React.TouchEvent).touches[0].clientY,
-      });
+      // Get position from reactFlowInstance
+      const clientX = 'clientX' in event ? event.clientX : (event as React.TouchEvent).touches[0].clientX;
+      const clientY = 'clientY' in event ? event.clientY : (event as React.TouchEvent).touches[0].clientY;
+      const position = reactFlowInstance.screenToFlowPosition({ x: clientX, y: clientY });
 
       const newNode: any = {
         id: crypto.randomUUID(),
@@ -284,7 +244,6 @@ function MobileCanvasContent() {
       addNode(newNode);
       setIsAddingNode(false);
       triggerHaptic('medium');
-      // Silent mode - visual feedback shows node was added
     }
   }, [isAddingNode, reactFlowInstance, addNode, triggerHaptic, setNodeContextMenu]);
 
@@ -316,72 +275,60 @@ function MobileCanvasContent() {
       return;
     }
 
-    // Tap-to-Edit: If already selected, open expand modal
-    if (node.selected) {
-      setExpandedNode(node.id);
-      triggerHaptic('medium');
-    } else {
-      // Logic handled by ReactFlow for selection, but we can enhance it
-      setNodes((nds) => 
-        nds.map((n) => ({
-          ...n,
-          selected: n.id === node.id
-        }))
-      );
-    }
-  }, [selectionMode, handleNodeSelection, isConnectionMode, connectSourceId, onConnect, setExpandedNode, setNodes, triggerHaptic]);
+    // Open node editor on click
+    setExpandedNode(node.id);
+    triggerHaptic('medium');
+  }, [selectionMode, handleNodeSelection, isConnectionMode, connectSourceId, onConnect, setExpandedNode, triggerHaptic]);
 
   return (
     <GestureOverlay onGesture={handleGesture}>
       <div 
         className="h-full w-full bg-canvas-bg overflow-hidden relative"
         data-mobile-canvas
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchEnd}
       >
       {/* Loading Overlay */}
       {isLoading && (
-        <div className="absolute inset-0 z-50 bg-background/80 flex items-center justify-center">
+        <div className="absolute inset-0 z-50 bg-background/50 flex items-center justify-center">
           <div className="flex flex-col items-center gap-3">
             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
             <span className="text-sm text-muted-foreground">Loading workspace...</span>
           </div>
         </div>
       )}
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        fitView
-        minZoom={0.2}
-        maxZoom={4}
-        panOnDrag={!isConnectionMode}
-        panOnScroll={false}
-        zoomOnScroll={true}
-        zoomOnPinch={true}
-        nodeDragThreshold={8}
-        selectionOnDrag={false}
-        connectOnClick={false}
-        defaultEdgeOptions={{ type: 'custom', animated: false }}
-        onInit={(instance) => setReactFlowInstance(instance)}
-        onNodeDoubleClick={(_, node) => {
-          setExpandedNode(node.id);
-          triggerHaptic('medium');
-        }}
-        onNodeClick={handleNodeClick}
-        onPaneClick={handlePaneClick}
-        proOptions={{ hideAttribution: true }}
-      >
-        <Background
-          variant={BackgroundVariant.Dots}
-          gap={16}
-          size={1}
-          color="var(--border)"
-        />
-      </ReactFlow>
+      <div className="absolute inset-0">
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          fitView
+          minZoom={0.2}
+          maxZoom={4}
+          panOnDrag={!isConnectionMode}
+          panOnScroll={false}
+          zoomOnScroll={true}
+          zoomOnPinch={true}
+          nodeDragThreshold={8}
+          selectionOnDrag={false}
+          connectOnClick={false}
+          defaultEdgeOptions={{ type: 'custom', animated: false }}
+          onInit={(instance) => setReactFlowInstance(instance)}
+          onNodeDoubleClick={(_, node) => {
+            setExpandedNode(node.id);
+            triggerHaptic('medium');
+          }}
+          onNodeClick={handleNodeClick}
+          onPaneClick={handlePaneClick}
+          proOptions={{ hideAttribution: true }}
+        >
+          <Background
+            variant={BackgroundVariant.Dots}
+            gap={16}
+            size={1}
+            color="var(--border)"
+          />
+        </ReactFlow>
+      </div>
 
       {/* Sticky/Pinned Nodes Indicator */}
       <div className="absolute top-20 left-4 flex flex-col gap-1 z-10">
@@ -556,6 +503,15 @@ function MobileCanvasContent() {
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-background/80 backdrop-blur px-3 py-1 rounded-full text-xs text-muted-foreground">
         {Math.round(zoom * 100)}%
       </div>
+
+      {/* Premium Features */}
+      <PremiumFeatures
+        onDarkModeToggle={() => {
+          setIsDarkMode(!isDarkMode);
+          document.documentElement.classList.toggle('dark', !isDarkMode);
+        }}
+        isDarkMode={isDarkMode}
+      />
 
       {/* Selection Mode Indicator */}
       {selectionMode && (

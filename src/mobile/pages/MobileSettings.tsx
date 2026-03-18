@@ -19,7 +19,6 @@ import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
-import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { MobileLayout } from '@/mobile/layout/MobileLayout';
 import { MobileThemeProvider, useMobileTheme } from '@/mobile/layout/MobileDrawer';
@@ -35,10 +34,11 @@ function SettingsContent() {
   const handleSignOut = async () => {
     try {
       await signOut();
-      toast.success('Signed out successfully');
+      // Silent mode - navigation shows sign out
       navigate('/login');
     } catch (error) {
-      toast.error('Failed to sign out');
+      console.error('Failed to sign out:', error);
+      // Silent mode - error is logged
     }
   };
 
@@ -58,11 +58,11 @@ function SettingsContent() {
           }
         }
       }
-      toast.success('Cache cleared');
+      // Silent mode - visual feedback shows cache cleared
       window.location.reload();
     } catch (error) {
       console.error('Failed to clear cache:', error);
-      toast.error('Failed to clear cache');
+      // Silent mode - error is logged
     }
   };
 
