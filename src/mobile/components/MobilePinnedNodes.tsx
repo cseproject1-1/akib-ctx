@@ -10,7 +10,6 @@ import {
 } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { useNodes, type Node } from '@xyflow/react';
-import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 interface MobilePinnedNodesProps {
@@ -31,7 +30,7 @@ export function MobilePinnedNodes({ isOpen, onClose }: MobilePinnedNodesProps) {
 
   const handleGoToNode = (node: Node) => {
     setExpandedNode(node.id);
-    toast.success(`Opening "${node.data?.title || 'Node'}"`);
+    // Silent mode - visual feedback shows node is being opened
     onClose();
   };
 

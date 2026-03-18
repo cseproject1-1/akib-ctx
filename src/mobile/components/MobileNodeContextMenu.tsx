@@ -6,11 +6,15 @@ import {
   Trash2, 
   GripVertical,
   Pin,
+  PinOff,
   Link,
-  Share2
+  Share2,
+  StickyNote,
+  Star
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCanvasStore } from '@/store/canvasStore';
+import { useNodes } from '@xyflow/react';
 
 interface MobileNodeContextMenuProps {
   isOpen: boolean;
@@ -28,6 +32,12 @@ export function MobileNodeContextMenu({
   const deleteNode = useCanvasStore((s) => s.deleteNode);
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
   const setExpandedNode = useCanvasStore((s) => s.setExpandedNode);
+  const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const addNode = useCanvasStore((s) => s.addNode);
+  const nodes = useNodes();
+  
+  const node = nodes.find(n => n.id === nodeId);
+  const isPinned = (node?.data as { pinned?: boolean })?.pinned;
 
   const handleAction = (action: string) => {
     switch (action) {
@@ -44,7 +54,20 @@ export function MobileNodeContextMenu({
         navigator.clipboard.writeText(nodeId);
         break;
       case 'pin':
-        // Toggle pin functionality
+        updateNodeData(nodeId, { pinned: !isPinned });
+        break;
+      case 'sticky':
+        // Create a sticky note from this node's content
+        if (node) {
+          const text = (node.data as any).text || (node.data as any).title || '';
+          addNode({
+            id: crypto.randomUUID(),
+            type: 'stickyNote' as const,
+            position: { x: node.position.x + 50, y: node.position.y + 50 },
+            data: { text: text.slice(0, 200), color: 'yellow' },
+            style: { width: 200, height: 200 },
+          });
+        }
         break;
       case 'share':
         if (navigator.share) {
@@ -98,10 +121,21 @@ export function MobileNodeContextMenu({
               
               <button
                 onClick={() => handleAction('pin')}
+                className={cn(
+                  "w-full flex items-center gap-4 p-3 rounded-xl transition-colors",
+                  isPinned ? "bg-primary/10 text-primary" : "hover:bg-accent/50"
+                )}
+              >
+                {isPinned ? <Star className="h-5 w-5 fill-primary text-primary" /> : <Star className="h-5 w-5 text-muted-foreground" />}
+                <span>{isPinned ? 'Unpin' : 'Pin'}</span>
+              </button>
+              
+              <button
+                onClick={() => handleAction('sticky')}
                 className="w-full flex items-center gap-4 p-3 rounded-xl hover:bg-accent/50 transition-colors"
               >
-                <Pin className="h-5 w-5 text-muted-foreground" />
-                <span>Pin</span>
+                <StickyNote className="h-5 w-5 text-muted-foreground" />
+                <span>Convert to Sticky Note</span>
               </button>
               
               <button

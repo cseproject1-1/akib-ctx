@@ -9,7 +9,6 @@ import {
 } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { useReactFlow, type Viewport } from '@xyflow/react';
-import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 interface MobileBookmarksProps {
@@ -25,14 +24,13 @@ export function MobileBookmarks({ isOpen, onClose }: MobileBookmarksProps) {
   const handleGoToBookmark = (bookmark: typeof bookmarks[0]) => {
     const { x, y, zoom } = bookmark.viewport;
     setViewport({ x, y, zoom }, { duration: 300 });
-    toast.success(`Gone to "${bookmark.name}"`);
     onClose();
   };
 
   const handleDeleteBookmark = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     removeBookmark(id);
-    toast.success('Bookmark deleted');
+    // Silent mode - visual feedback shows deletion
   };
 
   if (!isOpen) return null;
