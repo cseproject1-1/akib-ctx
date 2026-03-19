@@ -39,7 +39,7 @@ export function ColorPickerDropdown({ icon, title, currentColor, onSelect }: {
         {icon}
       </button>
       {open && (
-        <div className="absolute left-0 top-full z-[999] mt-1 grid grid-cols-7 gap-1 rounded-lg border-2 border-primary bg-card p-2 shadow-[4px_4px_0px_rgba(0,0,0,1)]">
+        <div className="absolute left-0 top-full z-[500] mt-1 grid grid-cols-7 gap-1 rounded-lg border-2 border-primary bg-card p-2 shadow-[4px_4px_0px_rgba(0,0,0,1)]">
           <button
             onMouseDown={(e) => { e.preventDefault(); onSelect(''); setOpen(false); }}
             className="col-span-7 mb-1 rounded px-2 py-0.5 text-[10px] font-semibold text-muted-foreground hover:bg-accent"

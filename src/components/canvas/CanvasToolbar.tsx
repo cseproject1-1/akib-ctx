@@ -12,7 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSettingsStore } from '@/store/settingsStore';
 import { exportToMarkdown, exportToPlainText, exportToJSON, exportToZip, importFromMarkdown, importFromZip } from '@/lib/exportCanvas';
 import { toast } from 'sonner';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ShareWorkspaceModal } from './ShareWorkspaceModal';
 import { VersionHistoryPanel } from './VersionHistoryPanel';
 import { BranchDialog } from './BranchDialog';
@@ -84,10 +84,43 @@ export function CanvasToolbar() {
   const removeBookmark = useCanvasStore((s) => s.removeBookmark);
   const { getViewport, setViewport } = useReactFlow();
   const [showBookmarks, setShowBookmarks] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showLayoutMenu, setShowLayoutMenu] = useState(false);
   const setAISynthesisOpen = useCanvasStore((s) => s.setAISynthesisOpen);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const { isOnline } = useNetworkStatus();
+  const enableHybridEditor = useSettingsStore((s) => s.enableHybridEditor);
+  const setHybridEditorEnabled = useSettingsStore((s) => s.setHybridEditorEnabled);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menus when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowExportMenu(false);
+        setShowLayoutMenu(false);
+        setShowBookmarks(false);
+      }
+    };
+    if (showExportMenu || showLayoutMenu || showBookmarks) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showExportMenu, showLayoutMenu, showBookmarks]);
+
+  // Keyboard shortcut to close menus
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setShowExportMenu(false);
+        setShowLayoutMenu(false);
+        setShowBookmarks(false);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Sync fullscreen state
   useEffect(() => {
@@ -122,9 +155,6 @@ export function CanvasToolbar() {
   const zoomPercent = Math.round(zoom * 100);
 
   const selectedCount = nodes.filter((n) => n.selected).length;
-
-  const [showExportMenu, setShowExportMenu] = useState(false);
-  const [showLayoutMenu, setShowLayoutMenu] = useState(false);
 
   const handleRenameWorkspace = async () => {
     if (!workspaceId) return;
@@ -377,8 +407,8 @@ export function CanvasToolbar() {
 
   return (
     <TooltipProvider delayDuration={300}>
-      <Panel position="top-left" className="!max-w-[calc(100vw-60px)]">
-        <div className="flex flex-wrap items-center gap-2 animate-slide-down">
+      <Panel position="top-left" className="w-full sm:max-w-[calc(100%-60px)]">
+        <div ref={menuRef} className="flex flex-wrap items-center gap-2 animate-slide-down">
           <TipBtn tip="Back to Dashboard" onClick={() => { setShowExportMenu(false); navigate('/'); }} className="pro-btn rounded-xl glass-effect p-2.5 text-foreground/60 transition-all hover:text-primary hover:border-primary/20 hover:bg-primary/5">
             <ArrowLeft className="h-4 w-4" />
           </TipBtn>
@@ -455,7 +485,7 @@ export function CanvasToolbar() {
         />
       )}
 
-      <Panel position="bottom-center" className="mb-6 !max-w-[calc(100vw-24px)]">
+      <Panel position="bottom-center" className="mb-6 !max-w-[calc(100%-24px)]">
         <div id="canvas-toolbar" className="flex items-center gap-1 rounded-2xl toolbar-glass p-2 overflow-x-auto overflow-y-hidden scrollbar-none animate-toolbar-appear">
           <ToolbarBtn onClick={() => undo()} disabled={past.length === 0} tip="Undo (⌘Z)">
             <Undo2 className="h-4 w-4" />
@@ -526,7 +556,11 @@ export function CanvasToolbar() {
           )}
           <Divider />
           <div className="relative">
-            <ToolbarBtn onClick={() => { setShowLayoutMenu(!showLayoutMenu); setShowExportMenu(false); setShowBookmarks(false); }} tip="Layout Options (A)" className={cn(showLayoutMenu && "text-primary bg-primary/5")}>
+            <ToolbarBtn 
+              onClick={() => { setShowLayoutMenu(!showLayoutMenu); setShowExportMenu(false); setShowBookmarks(false); }} 
+              tip="Layout Options (A)" 
+              className={cn(showLayoutMenu && "text-primary bg-primary/5")}
+            >
               <LayoutDashboard className="h-4 w-4" />
             </ToolbarBtn>
             <AnimatePresence>
@@ -564,7 +598,11 @@ export function CanvasToolbar() {
             <Sparkles className="h-4 w-4" />
           </ToolbarBtn>
           <div className="relative">
-            <ToolbarBtn onClick={() => { setShowExportMenu(!showExportMenu); setShowLayoutMenu(false); setShowBookmarks(false); }} tip="Export" className={cn(showExportMenu && "text-primary bg-primary/5")}>
+            <ToolbarBtn 
+              onClick={() => { setShowExportMenu(!showExportMenu); setShowLayoutMenu(false); setShowBookmarks(false); }} 
+              tip="Export" 
+              className={cn(showExportMenu && "text-primary bg-primary/5")}
+            >
               <FileDown className="h-4 w-4" />
             </ToolbarBtn>
             <AnimatePresence>
@@ -615,7 +653,11 @@ export function CanvasToolbar() {
           </ToolbarBtn>
           <Divider />
           <div className="relative">
-            <ToolbarBtn onClick={() => { setShowBookmarks(!showBookmarks); setShowLayoutMenu(false); setShowExportMenu(false); }} tip="Viewport Bookmarks (B)" className={cn(showBookmarks ? 'bg-primary/10 text-primary border border-primary/20' : 'hover:bg-primary/10')}>
+            <ToolbarBtn 
+              onClick={() => { setShowBookmarks(!showBookmarks); setShowLayoutMenu(false); setShowExportMenu(false); }} 
+              tip="Viewport Bookmarks (B)" 
+              className={cn(showBookmarks ? 'bg-primary/10 text-primary border border-primary/20' : 'hover:bg-primary/10')}
+            >
               <BookmarkPlus className="h-4 w-4" />
             </ToolbarBtn>
             <AnimatePresence>
@@ -624,7 +666,7 @@ export function CanvasToolbar() {
                   initial={{ opacity: 0, scale: 0.95, y: 10 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                  className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 min-w-[260px] rounded-2xl glass-morphism-strong pro-shadow p-4 z-[1000]"
+                  className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 min-w-[260px] rounded-2xl glass-morphism-strong pro-shadow p-4 z-[100]"
                 >
                   <div className="mb-4 flex items-center justify-between border-b border-white/5 pb-4">
                     <span className="text-[10px] font-black uppercase tracking-[2px] text-primary/40">Viewports</span>
@@ -665,14 +707,14 @@ export function CanvasToolbar() {
           </ToolbarBtn>
           <Divider />
           <TipBtn 
-            tip={`Hybrid Editor (Mantine + BlockNote): ${useSettingsStore.getState().enableHybridEditor ? 'ON' : 'OFF'}`} 
-            onClick={() => useSettingsStore.getState().setHybridEditorEnabled(!useSettingsStore.getState().enableHybridEditor)}
+            tip={`Hybrid Editor (Mantine + BlockNote): ${enableHybridEditor ? 'ON' : 'OFF'}`} 
+            onClick={() => setHybridEditorEnabled(!enableHybridEditor)}
             className={cn(
               "pro-btn rounded-xl px-2.5 py-2 transition-all glass-effect",
-              useSettingsStore((s) => s.enableHybridEditor) ? "text-yellow-400 border-yellow-400/20 bg-yellow-400/5" : "text-muted-foreground/40"
+              enableHybridEditor ? "text-yellow-400 border-yellow-400/20 bg-yellow-400/5" : "text-muted-foreground/40"
             )}
           >
-            {useSettingsStore((s) => s.enableHybridEditor) ? (
+            {enableHybridEditor ? (
               <Zap className="h-4 w-4 fill-yellow-400/20 animate-pulse" />
             ) : (
               <ZapOff className="h-4 w-4" />

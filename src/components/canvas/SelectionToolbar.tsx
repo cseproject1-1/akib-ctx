@@ -59,6 +59,7 @@ export function SelectionToolbar() {
   if (selectedNodes.length < 2 || expandedNode || isAISynthesisOpen) return null;
 
   const handleAlign = (type: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => {
+    if (selectedNodes.length === 0) return;
     pushSnapshot();
     const bounds = {
       minX: Math.min(...selectedNodes.map(n => n.position.x)),
@@ -91,6 +92,7 @@ export function SelectionToolbar() {
   };
 
   const handleDistribute = (axis: 'h' | 'v') => {
+    if (selectedNodes.length < 2) return;
     pushSnapshot();
     const sorted = [...selectedNodes].sort((a, b) => 
       axis === 'h' ? a.position.x - b.position.x : a.position.y - b.position.y
@@ -98,10 +100,12 @@ export function SelectionToolbar() {
 
     const first = sorted[0];
     const last = sorted[sorted.length - 1];
+    const firstWidth = first.measured?.width || 0;
+    const firstHeight = first.measured?.height || 0;
     
     if (axis === 'h') {
-      const totalWidth = last.position.x - first.position.x;
-      const step = totalWidth / (sorted.length - 1);
+      const totalSpan = last.position.x - first.position.x;
+      const step = totalSpan / (sorted.length - 1);
       const newNodes = nodes.map(n => {
         const idx = sorted.findIndex(s => s.id === n.id);
         if (idx === -1) return n;
@@ -109,8 +113,8 @@ export function SelectionToolbar() {
       });
       setNodes(newNodes);
     } else {
-      const totalHeight = last.position.y - first.position.y;
-      const step = totalHeight / (sorted.length - 1);
+      const totalSpan = last.position.y - first.position.y;
+      const step = totalSpan / (sorted.length - 1);
       const newNodes = nodes.map(n => {
         const idx = sorted.findIndex(s => s.id === n.id);
         if (idx === -1) return n;
@@ -132,14 +136,20 @@ export function SelectionToolbar() {
   };
 
   const handleExportSelection = async () => {
+    if (selectedNodes.length === 0) return;
     const selectedEdges = edges.filter(e => {
       const source = selectedNodes.find(n => n.id === e.source);
       const target = selectedNodes.find(n => n.id === e.target);
       return !!source && !!target;
     });
     
-    await exportToZip(selectedNodes, selectedEdges, useCanvasStore.getState().workspaceName);
-    toast.success(`Exported ${selectedNodes.length} nodes to ZIP`);
+    try {
+      await exportToZip(selectedNodes, selectedEdges, useCanvasStore.getState().workspaceName);
+      toast.success(`Exported ${selectedNodes.length} nodes to ZIP`);
+    } catch (err) {
+      console.error('Export failed:', err);
+      toast.error('Failed to export selection');
+    }
   };
 
   const handleApplyColor = (color: string) => {
@@ -151,7 +161,7 @@ export function SelectionToolbar() {
   };
 
   return (
-    <Panel position="top-center" className="mt-20">
+    <Panel position="top-center" className="mt-32">
       <TooltipProvider delayDuration={300}>
         <motion.div 
           initial={{ opacity: 0, y: -20 }}
@@ -215,9 +225,14 @@ export function SelectionToolbar() {
               <button
                 key={color}
                 onClick={() => handleApplyColor(color)}
-                className="w-5 h-5 rounded-md border border-white/10 transition-transform hover:scale-125 active:scale-95 shadow-sm"
+                className="w-5 h-5 rounded-md border border-white/10 transition-transform hover:scale-125 active:scale-95 shadow-sm relative"
                 style={{ backgroundColor: color }}
-              />
+                title={color === '#ffffff' ? 'Default' : `Color: ${color}`}
+              >
+                {color === '#ffffff' && (
+                  <span className="absolute inset-0 flex items-center justify-center text-[6px] font-bold text-muted-foreground/40">A</span>
+                )}
+              </button>
             ))}
           </div>
 
@@ -230,7 +245,7 @@ export function SelectionToolbar() {
 
           <Divider />
 
-          <ActionBtn onClick={() => { deleteSelected(); toast.success('Deleted selection'); }} tip="Delete Selection" className="hover:bg-destructive/10 hover:text-destructive">
+          <ActionBtn onClick={() => deleteSelected()} tip="Delete Selection" className="hover:bg-destructive/10 hover:text-destructive">
             <Trash2 className="h-4 w-4" />
           </ActionBtn>
 

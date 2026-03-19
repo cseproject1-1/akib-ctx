@@ -29,7 +29,16 @@ import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
 
 export function CommandPalette() {
-  const [open, setOpen] = useState(false);
+  const activePalette = useCanvasStore((s) => s.activePalette);
+  const setActivePalette = useCanvasStore((s) => s.setActivePalette);
+  const open = activePalette === 'command';
+  const setOpen = (val: boolean | ((prev: boolean) => boolean)) => {
+    if (typeof val === 'function') {
+      setActivePalette(val(open) ? 'command' : null);
+    } else {
+      setActivePalette(val ? 'command' : null);
+    }
+  };
   const [search, setSearch] = useState('');
   const nodes = useNodes();
   const reactFlow = useReactFlow();

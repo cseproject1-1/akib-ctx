@@ -54,6 +54,7 @@ interface CanvasState {
   mobileMode: boolean;
   backlinks: Record<string, string[]>; // targetId -> sourceIds[]
   hoveredLink: { url: string; x: number; y: number } | null;
+  activePalette: 'search' | 'command' | 'action' | null;
   _contentBacklinks: Record<string, string[]>;
   _syncAllBacklinks: () => void;
 
@@ -132,6 +133,7 @@ interface CanvasState {
   scanContentForLinks: (sourceId: string, content: any) => void;
   tidyUp: () => void;
   toggleZoomOnScroll: () => void;
+  setActivePalette: (palette: 'search' | 'command' | 'action' | null) => void;
 
 
 
@@ -190,6 +192,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   zoomOnScroll: true,
   backlinks: {},
   hoveredLink: null,
+  activePalette: null,
   _contentBacklinks: {},
   _syncAllBacklinks: () => {
     const { _contentBacklinks, edges } = get();
@@ -953,6 +956,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   setExportProgress: (p) => set({ exportProgress: p }),
+  setActivePalette: (palette) => set({ activePalette: palette }),
 }));
 
 // Custom Selector Hooks

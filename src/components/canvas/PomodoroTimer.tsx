@@ -148,7 +148,7 @@ export function PomodoroTimer() {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-[136px] left-6 z-[60] flex h-12 w-12 items-center justify-center rounded-xl border-2 border-border bg-card shadow-[4px_4px_0px_hsl(0,0%,15%)] transition-all hover:bg-accent active:scale-95"
+        className="fixed bottom-[200px] left-6 z-[60] flex h-12 w-12 items-center justify-center rounded-xl border-2 border-border bg-card shadow-[4px_4px_0px_hsl(0,0%,15%)] transition-all hover:bg-accent active:scale-95"
         title="Pomodoro Timer"
       >
         <Timer className="h-5 w-5 text-primary" />
@@ -160,7 +160,7 @@ export function PomodoroTimer() {
   }
 
   return (
-    <div className="fixed bottom-[136px] left-6 z-[60] w-64 rounded-xl border border-border bg-card shadow-[var(--clay-shadow-md)] animate-brutal-pop">
+    <div className="fixed bottom-[200px] left-6 z-[60] w-64 rounded-xl border border-border bg-card shadow-[var(--clay-shadow-md)] animate-brutal-pop">
       <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
         <div className="flex items-center gap-2">
           <Timer className="h-4 w-4 text-primary" />

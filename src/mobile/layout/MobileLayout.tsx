@@ -88,7 +88,7 @@ export function MobileLayout({
 
   return (
     <div 
-      className="h-screen w-screen bg-background flex flex-col overflow-hidden safe-area-pb" 
+      className="h-screen w-screen bg-background flex flex-col overflow-x-hidden safe-area-pb" 
       data-mobile-layout
     >
       {/* Offline Banner */}

@@ -494,7 +494,7 @@ const Dashboard = () => {
       <motion.aside 
         initial={false}
         animate={{ width: isSidebarOpen ? 260 : 0, opacity: isSidebarOpen ? 1 : 0 }}
-        className="relative flex flex-col border-r border-border bg-card overflow-hidden"
+        className="relative flex flex-col border-r border-border bg-card overflow-x-hidden"
       >
         <div className="flex h-full flex-col p-4 w-[260px]">
           <div className="mb-8 flex items-center gap-2">
@@ -574,7 +574,7 @@ const Dashboard = () => {
                       className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-bold transition-all ${selectedFolder === folder ? 'bg-primary text-primary-foreground shadow-[var(--clay-shadow-sm)]' : 'text-foreground hover:bg-accent'}`}
                     >
                       <Folder className="h-4 w-4 text-primary flex-shrink-0" />
-                      <span className="truncate flex-1 text-left">{folder}</span>
+                      <span className="truncate flex-1 text-left" title={folder}>{folder}</span>
                       <span className={`text-[10px] ${selectedFolder === folder ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{folderCounts[folder]}</span>
                     </button>
                     

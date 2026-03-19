@@ -27,7 +27,7 @@ export function PinnedNodesPanel() {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="fixed left-6 bottom-20 z-[60] flex h-10 items-center gap-1.5 rounded-lg border-2 border-border bg-card px-3 shadow-[3px_3px_0px_hsl(0,0%,15%)] transition-all hover:bg-accent active:scale-95"
+        className="fixed left-6 bottom-[120px] z-[60] flex h-10 items-center gap-1.5 rounded-lg border-2 border-border bg-card px-3 shadow-[3px_3px_0px_hsl(0,0%,15%)] transition-all hover:bg-accent active:scale-95"
         title="Pinned Nodes"
       >
         <Star className="h-4 w-4 text-primary" />
@@ -39,7 +39,7 @@ export function PinnedNodesPanel() {
   }
 
   return (
-    <div className="fixed left-6 bottom-20 z-[60] w-60 rounded-xl border border-border bg-card shadow-[var(--clay-shadow-md)] animate-brutal-pop">
+    <div className="fixed left-6 bottom-[120px] z-[60] w-60 rounded-xl border border-border bg-card shadow-[var(--clay-shadow-md)] animate-brutal-pop">
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <div className="flex items-center gap-2">
           <Star className="h-4 w-4 text-primary" />

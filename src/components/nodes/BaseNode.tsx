@@ -198,7 +198,7 @@ export const BaseNode = memo(({
       }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.15, ease: 'easeOut' }}
-      className={`animate-node-appear group/node flex flex-col h-full overflow-hidden bg-card relative rounded-lg ${
+      className={`animate-node-appear group/node flex flex-col h-full bg-card relative rounded-lg ${
         selected
           ? 'shadow-[var(--premium-shadow-md)] scale-[1.02] z-50'
           : 'shadow-[var(--premium-shadow-sm)] hover:scale-[1.02] hover:shadow-[var(--premium-shadow-md)]'
@@ -268,7 +268,7 @@ export const BaseNode = memo(({
               placeholder="Untitled"
             />
           ) : (
-            <span className="flex-1 truncate text-sm font-medium tracking-tight text-foreground">{title}</span>
+            <span className="flex-1 truncate text-sm font-medium tracking-tight text-foreground" title={title}>{title}</span>
           )}
           {id && (
             <div className="flex items-center gap-1.5 px-1">

@@ -467,7 +467,7 @@ export const CustomEdge = memo(({
         <EdgeLabelRenderer>
           <div
             className="absolute flex items-center gap-1 animate-scale-in"
-            style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`, pointerEvents: 'all', zIndex: 1000 }}
+            style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`, pointerEvents: 'all', zIndex: 600 }}
           >
             {/* Delete */}
             <button className="flex h-6 w-6 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-lg transition-all hover:scale-110 active:scale-95" onClick={handleDelete} title="Delete edge">

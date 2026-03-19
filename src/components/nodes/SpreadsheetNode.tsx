@@ -424,7 +424,7 @@ export const SpreadsheetNode = memo(({ id, data, selected }: NodeProps) => {
                           />
                         ) : (
                           <span 
-                            className={`block px-1 py-0.5 min-h-[20px] select-all whitespace-nowrap ${cell.value.startsWith('=') ? 'text-primary font-semibold' : 'text-foreground'} ${display === '#ERR' ? 'text-destructive' : ''}`}
+                            className={`block px-1 py-0.5 min-h-[20px] select-all truncate ${cell.value.startsWith('=') ? 'text-primary font-semibold' : 'text-foreground'} ${display === '#ERR' ? 'text-destructive' : ''}`}
                             style={getCellStyle(cell)}
                           >
                             {display}

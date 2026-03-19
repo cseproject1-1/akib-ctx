@@ -63,7 +63,6 @@ const typeLabels: Record<string, { label: string; icon: LucideIcon }> = {
 };
 
 export function SearchPalette() {
-  const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<'all' | 'viewport'>('all');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -72,6 +71,11 @@ export function SearchPalette() {
   const nodes = useNodes();
   const reactFlow = useReactFlow();
   const setHighlightedNodes = useCanvasStore((s) => s.setHighlightedNodes);
+  const activePalette = useCanvasStore((s) => s.activePalette);
+  const setActivePalette = useCanvasStore((s) => s.setActivePalette);
+
+  const open = activePalette === 'search';
+  const setOpen = (val: boolean) => setActivePalette(val ? 'search' : null);
 
   const fuse = useMemo(() => {
     return new Fuse(nodes, {
@@ -88,16 +92,16 @@ export function SearchPalette() {
   }, [nodes]);
 
   const toggle = useCallback(() => {
-    setOpen(prev => {
-      if (!prev) {
-        setQuery('');
-        setSelectedIndex(0);
-        setFilterType(null);
-        setTimeout(() => inputRef.current?.focus(), 50);
-      }
-      return !prev;
-    });
-  }, []);
+    if (!open) {
+      setQuery('');
+      setSelectedIndex(0);
+      setFilterType(null);
+      setTimeout(() => inputRef.current?.focus(), 50);
+      setOpen(true);
+    } else {
+      setOpen(false);
+    }
+  }, [open, setOpen]);
 
   // Power Actions logic
   const selectedNodes = nodes.filter(n => n.selected);
@@ -123,7 +127,7 @@ export function SearchPalette() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'p') {
         e.preventDefault();
         toggle();
       }

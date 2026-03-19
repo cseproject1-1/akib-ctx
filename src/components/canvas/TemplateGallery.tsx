@@ -60,7 +60,7 @@ export function TemplateGallery({ open, onClose }: { open: boolean; onClose: () 
   return (
     <>
       <div className="fixed inset-0 z-[70] bg-background/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed left-1/2 top-1/2 z-[71] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-card shadow-[var(--clay-shadow-lg)] animate-brutal-pop flex flex-col max-h-[85vh]">
+      <div className="fixed left-1/2 top-1/2 z-[71] w-full max-w-2xl -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-card shadow-[var(--clay-shadow-lg)] animate-brutal-pop flex flex-col max-h-[85vh] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between border-b-2 border-border p-4 bg-primary px-6 py-4">
           <div className="flex items-center gap-3">
@@ -74,7 +74,7 @@ export function TemplateGallery({ open, onClose }: { open: boolean; onClose: () 
 
         {/* Magic Generator */}
         <div className="p-6 border-b-2 border-border bg-muted/50 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 -mt-8 -mr-8 h-32 w-32 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors" />
+          <div className="absolute top-0 right-0 h-32 w-32 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors" />
           <div className="relative z-10">
             <label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-3 block italic">
               AI Manifestation Engine

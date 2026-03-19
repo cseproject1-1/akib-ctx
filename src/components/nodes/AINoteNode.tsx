@@ -123,7 +123,7 @@ export const AINoteNode = memo(({ id, data, selected }: NodeProps) => {
                   onClick={(e) => { e.stopPropagation(); setFocusedNodeId(sourceId); }}
                   className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-white/5 hover:bg-primary/20 transition-all border border-white/5"
                 >
-                  <span className="text-[9px] font-medium text-muted-foreground hover:text-primary transition-colors truncate max-w-[120px]">{title}</span>
+                  <span className="text-[9px] font-medium text-muted-foreground hover:text-primary transition-colors truncate max-w-[120px]" title={title}>{title}</span>
                 </button>
               );
             })}

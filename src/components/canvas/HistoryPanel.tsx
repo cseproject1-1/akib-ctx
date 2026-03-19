@@ -30,7 +30,7 @@ export function HistoryPanel() {
             initial={{ opacity: 0, x: 300 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 300 }}
-            className="fixed right-4 top-20 bottom-24 w-80 z-[1000] flex flex-col rounded-xl border border-border bg-card shadow-[var(--clay-shadow-lg)] overflow-hidden"
+            className="fixed right-4 top-20 bottom-24 w-80 z-[600] flex flex-col rounded-xl border border-border bg-card shadow-[var(--clay-shadow-lg)] overflow-hidden"
           >
             <div className="flex items-center justify-between border-b border-border p-4 bg-primary/5">
               <div className="flex items-center gap-2">

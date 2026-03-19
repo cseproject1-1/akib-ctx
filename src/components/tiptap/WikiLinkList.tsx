@@ -32,7 +32,7 @@ export const WikiLinkList = forwardRef((props: any, ref) => {
   }));
 
   return (
-    <div className="z-[999] flex flex-col gap-1 overflow-hidden rounded-lg border-2 border-primary bg-card p-1 shadow-[4px_4px_0px_rgba(0,0,0,1)] animate-in fade-in zoom-in duration-100">
+    <div className="z-[500] flex flex-col gap-1 overflow-hidden rounded-lg border-2 border-primary bg-card p-1 shadow-[4px_4px_0px_rgba(0,0,0,1)] animate-in fade-in zoom-in duration-100">
       {props.items.length > 0 ? (
         props.items.map((item: any, index: number) => (
           <button

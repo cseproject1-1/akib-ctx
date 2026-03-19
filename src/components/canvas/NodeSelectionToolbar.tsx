@@ -85,7 +85,7 @@ export function NodeSelectionToolbar() {
         position: 'fixed',
         left: leftPos,
         top: topPos,
-        zIndex: 1000,
+        zIndex: 600,
       }}
       className="pointer-events-auto"
     >

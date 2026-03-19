@@ -625,7 +625,7 @@ export const SlashMenuList = forwardRef<any, SlashMenuListProps>(
     });
 
     return (
-      <div className="z-[999] max-h-[320px] w-60 overflow-y-auto rounded-lg border border-primary bg-card p-1.5 shadow-[var(--clay-shadow-sm)] animate-brutal-pop">
+      <div className="z-[500] max-h-[320px] w-60 overflow-y-auto rounded-lg border border-primary bg-card p-1.5 shadow-[var(--clay-shadow-sm)] animate-brutal-pop">
         {groups.map((group) => (
           <div key={group.name}>
             <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">

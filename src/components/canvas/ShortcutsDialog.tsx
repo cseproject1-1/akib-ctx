@@ -40,7 +40,7 @@ export const ShortcutsDialog = ({ open, onClose }: { open: boolean; onClose: () 
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg glass-morphism-strong border-white/10 p-0 overflow-hidden rounded-3xl">
+      <DialogContent className="max-w-lg glass-morphism-strong border-white/10 p-0 rounded-3xl">
         <DialogHeader className="p-6 pb-2">
           <DialogTitle className="flex items-center gap-3 text-xl font-black uppercase tracking-widest text-foreground">
             <Keyboard className="h-6 w-6 text-primary" />

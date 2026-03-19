@@ -3,6 +3,7 @@ import { FileText, StickyNote, HelpCircle, BookOpen, FileUp, ImagePlus, Square, 
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import type { NodeType } from '@/types/canvas';
+import React, { useState, useEffect, useCallback } from 'react';
 
 const menuItems: { type: NodeType; label: string; icon: React.ElementType; separator?: boolean; category?: string }[] = [
   { type: 'aiNote', label: 'AI Note', icon: FileText, category: 'AI Tools' },
@@ -70,6 +71,28 @@ export function CanvasContextMenu() {
   const contextMenu = useCanvasStore((s) => s.contextMenu);
   const setContextMenu = useCanvasStore((s) => s.setContextMenu);
   const addNode = useCanvasStore((s) => s.addNode);
+  const [menuPos, setMenuPos] = useState({ left: 0, top: 0 });
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const { x, y } = contextMenu;
+    const menuWidth = 280;
+    const menuHeight = 550;
+    const left = x + menuWidth > window.innerWidth ? Math.max(0, x - menuWidth) : x;
+    const top = Math.min(y, window.innerHeight - menuHeight);
+    setMenuPos({ left: Math.max(0, left), top: Math.max(0, top) });
+  }, [contextMenu]);
+
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      setContextMenu(null);
+    }
+  }, [setContextMenu]);
+
+  useEffect(() => {
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
 
   if (!contextMenu) return null;
 
@@ -86,6 +109,8 @@ export function CanvasContextMenu() {
     setContextMenu(null);
   };
 
+  const closeMenu = () => setContextMenu(null);
+
   // Group items by category
   const categories = Array.from(new Set(menuItems.map(item => item.category)));
 
@@ -97,26 +122,26 @@ export function CanvasContextMenu() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-background/5 backdrop-blur-[1px]"
-            onClick={() => setContextMenu(null)}
-            onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }}
+            className="fixed inset-0 z-[90] bg-background/5 backdrop-blur-[1px]"
+            onClick={closeMenu}
+            onContextMenu={(e) => { e.preventDefault(); closeMenu(); }}
+            aria-hidden="true"
           />
           <motion.div
+            role="menu"
+            aria-label="Quick create node"
             initial={{ opacity: 0, scale: 0.95, y: -10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -10 }}
-            className="absolute z-50 min-w-[260px] max-h-[85vh] overflow-y-auto scrollbar-none rounded-[2rem] glass-morphism-strong p-2 pro-shadow border border-white/5"
-            style={{ 
-              left: contextMenu.x + 280 > window.innerWidth ? contextMenu.x - 280 : contextMenu.x, 
-              top: Math.min(contextMenu.y, window.innerHeight - 500) 
-            }}
+            className="absolute z-[95] min-w-[260px] max-h-[85vh] overflow-y-auto scrollbar-none rounded-[2rem] glass-morphism-strong p-2 pro-shadow border border-white/5"
+            style={{ left: menuPos.left, top: menuPos.top }}
           >
             <div className="px-4 py-3 border-b border-white/5 mb-1.5 flex items-center justify-between bg-white/5 rounded-t-[1.8rem]">
                <p className="text-[10px] font-black text-foreground/40 uppercase tracking-[3px]">Quick Create</p>
                <PlusCircle className="h-3.5 w-3.5 text-primary/60" />
             </div>
 
-            <div className="px-1.5 pb-2 space-y-4">
+            <div className="px-1.5 pb-2 space-y-4" role="group">
               {categories.map((cat) => (
                 <div key={cat} className="space-y-1">
                   <p className="px-3 text-[9px] font-black text-primary/60 uppercase tracking-[2px] mb-1.5">{cat}</p>
@@ -124,6 +149,7 @@ export function CanvasContextMenu() {
                     {menuItems.filter(i => i.category === cat).map((item) => (
                       <motion.button
                         key={item.type}
+                        role="menuitem"
                         whileHover={{ x: 4, backgroundColor: "rgba(255, 255, 255, 0.08)" }}
                         whileTap={{ scale: 0.98 }}
                         className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[11px] font-bold uppercase tracking-widest text-foreground/80 transition-all hover:text-foreground"

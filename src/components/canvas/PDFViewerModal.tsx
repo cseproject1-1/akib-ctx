@@ -349,7 +349,7 @@ export function PDFViewerModal({ url, fileName, fileSize, fileType, onClose }: P
               <iframe
                 src={viewerUrl || ''}
                 className="rounded-lg shadow-2xl border border-border"
-                style={{ width: '100%', height: 'calc(100vh - 120px)', maxWidth: '1200px', maxHeight: '1200px' }}
+                style={{ width: '100%', height: 'calc(100dvh - 120px)', maxWidth: '1200px', maxHeight: '1200px' }}
                 title={fileName}
                 allowFullScreen
               />

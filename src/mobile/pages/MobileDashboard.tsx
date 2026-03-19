@@ -313,7 +313,7 @@ export function MobileDashboard() {
             triggerHaptic('light');
             setShowCreateModal(true);
           }}
-          className="fixed bottom-20 right-4 h-14 w-14 rounded-full shadow-lg shadow-primary/30 bg-primary text-primary-foreground z-20 flex items-center justify-center"
+          className="fixed bottom-20 right-4 h-14 w-14 rounded-full shadow-lg shadow-primary/30 bg-primary text-primary-foreground z-50 flex items-center justify-center"
           aria-label="Create workspace"
         >
           <Plus className="h-6 w-6" />

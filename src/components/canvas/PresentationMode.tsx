@@ -83,7 +83,7 @@ export const PresentationMode = forwardRef<HTMLDivElement>(function Presentation
                    `Slide ${currentIndex + 1}`;
 
   return (
-    <div ref={ref} className="fixed inset-0 z-[80] flex flex-col bg-background">
+    <div ref={ref} className="fixed inset-0 z-[200] flex flex-col bg-background">
       {/* Top bar */}
       <div className="flex items-center justify-between border-b-2 border-border px-6 py-3">
         <span className="text-sm font-bold uppercase tracking-wider text-foreground">

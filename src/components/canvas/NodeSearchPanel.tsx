@@ -57,7 +57,7 @@ export function NodeSearchPanel() {
     <>
       <AnimatePresence>
         {isOpen && (
-          <div className="fixed inset-0 z-[1100] flex items-start justify-center pt-[10vh] px-4 pointer-events-none">
+          <div className="fixed inset-0 z-[700] flex items-start justify-center pt-[10vh] px-4 pointer-events-none">
              {/* Backdrop */}
             <motion.div 
               initial={{ opacity: 0 }}

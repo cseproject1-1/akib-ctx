@@ -40,7 +40,7 @@ export function PWABanner() {
   if (!needRefresh) return null;
 
   return (
-    <div className="fixed bottom-6 right-6 z-[9999] animate-in fade-in slide-in-from-bottom-10 duration-500">
+    <div className="fixed bottom-6 right-6 z-[170] animate-in fade-in slide-in-from-bottom-10 duration-500">
       <div className="group relative flex flex-col gap-4 overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80 p-6 backdrop-blur-xl shadow-2xl transition-all hover:bg-slate-950/90">
         {/* Animated accent line */}
         <div className="absolute top-0 left-0 h-1 w-full bg-gradient-to-r from-blue-600 via-violet-600 to-indigo-600" />

@@ -36,7 +36,7 @@ export const TypographyDropdown = ({ editor }: { editor: Editor }) => {
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-[999] mt-1 flex flex-col gap-2 rounded-lg border-2 border-primary bg-card p-3 shadow-[4px_4px_0px_rgba(0,0,0,1)] w-48">
+        <div className="absolute left-0 top-full z-[500] mt-1 flex flex-col gap-2 rounded-lg border-2 border-primary bg-card p-3 shadow-[4px_4px_0px_rgba(0,0,0,1)] w-48">
           <div className="space-y-1">
             <span className="text-[10px] font-bold text-muted-foreground uppercase">Font Family</span>
             <div className="grid grid-cols-2 gap-1">

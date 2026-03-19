@@ -10,6 +10,9 @@ import type { JSONContent } from '@tiptap/react';
 import katex from 'katex';
 import { cn } from '@/lib/utils';
 
+/* ─── Expandable node types ─── */
+const EXPANDABLE_TYPES = ['aiNote', 'lectureNotes', 'checklist', 'summary', 'codeSnippet', 'math', 'termQuestion', 'stickyNote', 'flashcard', 'table', 'image', 'embed', 'drawing', 'video', 'text', 'pdf'];
+
 /* ─── Checklist helpers ─── */
 interface CheckItem { id: string; text: string; done: boolean; }
 
@@ -238,39 +241,71 @@ export function NodeExpandModal() {
   const expandedNode = useCanvasStore((s) => s.expandedNode);
   const setExpandedNode = useCanvasStore((s) => s.setExpandedNode);
   const nodes = useNodes();
+  const edges = useCanvasStore((s) => s.edges);
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const canvasMode = useCanvasStore((s) => s.canvasMode);
   const isViewMode = canvasMode === 'view';
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showOutline, setShowOutline] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const editorRef = useRef<NoteEditorHandle>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
+  
+  const expandableNodes = useMemo(() => nodes.filter(n => EXPANDABLE_TYPES.includes(n.type || '')), [nodes]);
+  const expandableIndex = useMemo(() => expandableNodes.findIndex(n => n.id === expandedNode), [expandableNodes, expandedNode]);
 
   const node = nodes.find((n) => n.id === expandedNode);
 
-  // Compliance: Hooks must be called before early returns
+  // Cleanup debounce on unmount (NM1)
   useEffect(() => {
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
     };
+  }, []);
+
+  // Focus management when modal opens (NM9)
+  useEffect(() => {
+    if (expandedNode && titleInputRef.current) {
+      titleInputRef.current.focus();
+    }
   }, [expandedNode]);
 
+  // Batch state updates for handleClose (NM2)
   const handleClose = useCallback(() => { 
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      updateNodeData(expandedNode, {});
+    }
     setExpandedNode(null); 
     setIsFullscreen(false); 
-  }, [setExpandedNode]);
+    setShowOutline(false);
+  }, [setExpandedNode, expandedNode, updateNodeData]);
 
-  const edges = useCanvasStore((s) => s.edges);
   const activeIdx = useMemo(() => nodes.findIndex(n => n.id === expandedNode), [nodes, expandedNode]);
 
+  // Use refs for navigation to avoid stale closures (NM3)
+  const nodesRef = useRef(nodes);
+  const edgesRef = useRef(edges);
+  nodesRef.current = nodes;
+  edgesRef.current = edges;
+
   const handlePrev = useCallback(() => {
+    const currentNodes = nodesRef.current;
+    const currentEdges = edgesRef.current;
+    // Validate current node still exists
+    const currentNode = currentNodes.find(n => n.id === expandedNode);
+    if (!currentNode) return;
+    
     // Find edges where this node is the target (incoming edges)
-    const incomingEdges = edges.filter(e => e.target === expandedNode);
+    const incomingEdges = currentEdges.filter(e => e.target === expandedNode);
     if (incomingEdges.length > 0) {
       // Get all source nodes
-      const sourceNodes = nodes.filter(n => incomingEdges.some(e => e.source === n.id));
+      const sourceNodes = currentNodes.filter(n => incomingEdges.some(e => e.source === n.id));
       
       // Sort source nodes by position: bottom-to-top, then right-to-left (reverse of reading)
       sourceNodes.sort((a, b) => {
@@ -280,20 +315,28 @@ export function NodeExpandModal() {
         return b.position.x - a.position.x;
       });
       
-      setExpandedNode(sourceNodes[0].id);
+      if (sourceNodes[0]) setExpandedNode(sourceNodes[0].id);
     } else {
-      // Fallback to array order
-      const prev = nodes[activeIdx - 1];
-      if (prev) setExpandedNode(prev.id);
+      // Fallback to expandable array order (NM7, NM16)
+      const currentIdx = expandableNodes.findIndex(n => n.id === expandedNode);
+      if (currentIdx > 0) {
+        setExpandedNode(expandableNodes[currentIdx - 1].id);
+      }
     }
-  }, [expandedNode, edges, nodes, activeIdx, setExpandedNode]);
+  }, [expandedNode, expandableNodes, setExpandedNode]);
 
   const handleNext = useCallback(() => {
+    const currentNodes = nodesRef.current;
+    const currentEdges = edgesRef.current;
+    // Validate current node still exists
+    const currentNode = currentNodes.find(n => n.id === expandedNode);
+    if (!currentNode) return;
+    
     // Find edges where this node is the source (outgoing edges)
-    const outgoingEdges = edges.filter(e => e.source === expandedNode);
+    const outgoingEdges = currentEdges.filter(e => e.source === expandedNode);
     if (outgoingEdges.length > 0) {
       // Get all target nodes
-      const targetNodes = nodes.filter(n => outgoingEdges.some(e => e.target === n.id));
+      const targetNodes = currentNodes.filter(n => outgoingEdges.some(e => e.target === n.id));
       
       // Sort target nodes by position: top-to-bottom, then left-to-right
       targetNodes.sort((a, b) => {
@@ -303,38 +346,65 @@ export function NodeExpandModal() {
         return a.position.x - b.position.x;
       });
       
-      setExpandedNode(targetNodes[0].id);
+      if (targetNodes[0]) setExpandedNode(targetNodes[0].id);
     } else {
-      // Fallback to array order
-      const next = nodes[activeIdx + 1];
-      if (next) setExpandedNode(next.id);
+      // Fallback to expandable array order (NM7, NM16)
+      const currentIdx = expandableNodes.findIndex(n => n.id === expandedNode);
+      if (currentIdx < expandableNodes.length - 1) {
+        setExpandedNode(expandableNodes[currentIdx + 1].id);
+      }
     }
-  }, [expandedNode, edges, nodes, activeIdx, setExpandedNode]);
+  }, [expandedNode, expandableNodes, setExpandedNode]);
 
-  const handleShare = () => {
+  const handleShare = useCallback(() => {
+    const url = window.location.href;
+    const workspaceName = useCanvasStore.getState().workspaceName;
+    const title = node?.data && typeof node.data === 'object' && 'title' in node.data 
+      ? (node.data.title as string) 
+      : (node?.data && typeof node.data === 'object' && 'year' in node.data ? (node.data.year as string) : 'Untitled');
     if (navigator.share) {
       navigator.share({
-        title: getTitle(),
-        text: `Check out this note from ${useCanvasStore.getState().workspaceName}`,
-        url: window.location.href
+        title,
+        text: `Check out this note from ${workspaceName}`,
+        url
       }).catch((err) => {
         if (err.name !== 'AbortError') {
           console.error('Error sharing:', err);
         }
       });
+    } else {
+      navigator.clipboard.writeText(url);
     }
-  };
+  }, [node]);
+
+  // Better detection for Tiptap editor focus (NM5)
+  const isEditorFocused = useCallback(() => {
+    const activeEl = document.activeElement;
+    if (!activeEl) return false;
+    if (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') return true;
+    // Check for contenteditable (Tiptap uses this)
+    if (activeEl.getAttribute('contenteditable') === 'true') return true;
+    // Check if inside Tiptap editor
+    if (activeEl.closest('.ProseMirror, [data-type="editor"], .tiptap')) return true;
+    return false;
+  }, []);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') handleClose();
-      if (e.key === 'F11' || (e.ctrlKey && e.shiftKey && e.key === 'f')) { e.preventDefault(); setIsFullscreen(f => !f); }
+      // Don't handle if modal is not open
+      if (!expandedNode) return;
       
-      // Arrow key navigation (ignore if typing in an input/textarea)
-      const activeEl = document.activeElement;
-      const isTyping = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || (activeEl as HTMLElement).isContentEditable);
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        handleClose();
+      }
+      if (e.key === 'F11' || (e.ctrlKey && e.shiftKey && e.key === 'F')) { 
+        e.preventDefault(); 
+        setIsFullscreen(f => !f); 
+      }
       
-      if (!isTyping) {
+      // Arrow key navigation (ignore if typing in an input/textarea/editor) (NM5)
+      if (!isEditorFocused()) {
         if (e.key === 'ArrowLeft') { e.preventDefault(); handlePrev(); }
         if (e.key === 'ArrowRight') { e.preventDefault(); handleNext(); }
         if (e.key === 'f' || e.key === 'F') { e.preventDefault(); setIsFullscreen(f => !f); }
@@ -342,7 +412,7 @@ export function NodeExpandModal() {
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [handleClose, handlePrev, handleNext]);
+  }, [expandedNode, handleClose, handlePrev, handleNext, isEditorFocused]);
 
   if (!node || !expandedNode) return null;
 
@@ -371,14 +441,25 @@ export function NodeExpandModal() {
   };
   const nodeType = node.type || 'aiNote';
 
-  const handleContentChange = (json: any, extraData?: any) => {
+  const handleContentChange = (json: JSONContent, extraData?: Record<string, unknown>) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    setIsSaving(true);
     debounceRef.current = setTimeout(() => {
       updateNodeData(expandedNode, { content: json, ...extraData });
+      setIsSaving(false);
     }, 800);
   };
 
   const getTitle = () => nodeData.title || nodeData.year || 'Untitled';
+
+  // Format node type for display (NM12)
+  const formatNodeType = (type: string | undefined) => {
+    if (!type) return 'Note';
+    return type
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, str => str.toUpperCase())
+      .trim();
+  };
 
   const isShareView = typeof window !== 'undefined' && window.location.pathname.startsWith('/view/');
 
@@ -531,46 +612,65 @@ export function NodeExpandModal() {
     return (
       <Drawer.Root open={!!expandedNode} onOpenChange={(open) => !open && handleClose()}>
         <Drawer.Portal>
-          <Drawer.Overlay className="fixed inset-0 z-[150] bg-black/40 backdrop-blur-sm" />
-          <Drawer.Content className="fixed bottom-0 left-0 right-0 z-[160] flex h-[92vh] flex-col rounded-t-[20px] bg-card border-t shadow-2xl focus:outline-none">
+          <Drawer.Overlay 
+            className="fixed inset-0 z-[150] bg-black/40 backdrop-blur-sm" 
+            aria-hidden="true"
+          />
+          <Drawer.Content 
+            className="fixed bottom-0 left-0 right-0 z-[160] flex h-[92vh] flex-col rounded-t-[20px] bg-card border-t shadow-2xl focus:outline-none"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mobile-drawer-title"
+            aria-describedby="mobile-drawer-desc"
+          >
             <div className="mx-auto mt-4 h-1.5 w-12 shrink-0 rounded-full bg-border" />
             
             <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
               <div className="flex flex-col overflow-hidden mr-4">
-                 <h2 className="text-lg font-bold truncate tracking-tight">{getTitle()}</h2>
-                 <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest leading-none mt-1">
-                   {node.type?.replace(/([A-Z])/g, ' $1')}
+                 <h2 id="mobile-drawer-title" className="text-lg font-bold truncate tracking-tight">{getTitle()}</h2>
+                 <p id="mobile-drawer-desc" className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest leading-none mt-1">
+                   {formatNodeType(node.type)}
                  </p>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={handleShare} className="p-2 rounded-full bg-accent/50">
+                <button 
+                  onClick={handleShare} 
+                  className="p-2 rounded-full bg-accent/50"
+                  aria-label="Share note"
+                >
                   <Share2 className="h-4 w-4" />
                 </button>
-                <button onClick={handleClose} className="p-2 rounded-full bg-accent">
+                <button 
+                  onClick={handleClose} 
+                  className="p-2 rounded-full bg-accent"
+                  aria-label="Close"
+                >
                   <X className="h-4 w-4" />
                 </button>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 scrollbar-hide pb-24">
+            <div className="flex-1 overflow-y-auto p-6 scrollbar-hide pb-28">
               {renderContent()}
             </div>
 
-            <div className="absolute bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-md border-t flex justify-between items-center z-10">
+            <div className="absolute bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-md border-t flex justify-between items-center z-10 min-h-[56px]">
               <button 
                 onClick={handlePrev} 
-                disabled={activeIdx <= 0}
+                disabled={expandableIndex <= 0}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border bg-card text-xs font-bold disabled:opacity-30 active:scale-95 transition-transform"
+                aria-label="Previous node"
               >
                 <ChevronLeft className="h-4 w-4" /> Previous
               </button>
-              <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">
-                {activeIdx + 1} / {nodes.length}
+              <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest" aria-live="polite">
+                {expandableIndex + 1} / {expandableNodes.length}
               </span>
               <button 
                 onClick={handleNext}
-                disabled={activeIdx >= nodes.length - 1}
+                disabled={expandableIndex >= expandableNodes.length - 1}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border bg-card text-xs font-bold disabled:opacity-30 active:scale-95 transition-transform text-primary"
+                aria-label="Next node"
               >
                 Next <ChevronRight className="h-4 w-4" />
               </button>
@@ -582,30 +682,45 @@ export function NodeExpandModal() {
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/90 backdrop-blur-sm">
+    <div 
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-background/90 backdrop-blur-sm"
+      role="presentation"
+    >
       <div
         ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="node-modal-title"
+        aria-describedby="node-modal-desc"
         className={cn(
           "relative overflow-hidden rounded-xl border border-border bg-card shadow-[var(--clay-shadow-md)] animate-brutal-pop transition-all duration-200 flex flex-col",
+
           isFullscreen ? 'w-full h-full max-w-full max-h-full rounded-none' : 'w-full max-w-5xl max-h-[90vh]'
         )}
       >
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card px-6 py-4">
           <input
-            className="flex-1 bg-transparent text-lg font-bold uppercase tracking-wider text-foreground outline-none placeholder:text-muted-foreground"
+            ref={titleInputRef}
+            id="node-modal-title"
+            className="flex-1 bg-transparent text-lg font-bold tracking-tight text-foreground outline-none placeholder:text-muted-foreground"
             value={getTitle()}
             onChange={(e) => {
               const key = nodeType === 'termQuestion' ? 'year' : 'title';
               updateNodeData(expandedNode, { [key]: e.target.value });
             }}
             placeholder="Untitled"
+            aria-label="Node title"
           />
           <div className="flex items-center gap-1">
+            {isSaving && (
+              <span className="text-[10px] text-muted-foreground animate-pulse mr-2" aria-live="polite">Saving...</span>
+            )}
             <button
                onClick={handleShare}
                className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground hidden sm:block"
                title="Share Note"
+               aria-label="Share note"
             >
                <Share2 className="h-4 w-4" />
             </button>
@@ -617,6 +732,8 @@ export function NodeExpandModal() {
                   showOutline ? "bg-primary text-primary-foreground shadow-sm" : "hover:bg-accent hover:text-foreground"
                 )}
                 title="Toggle outline"
+                aria-label="Toggle outline"
+                aria-pressed={showOutline}
               >
                 <ListIcon className="h-4 w-4" />
               </button>
@@ -625,12 +742,14 @@ export function NodeExpandModal() {
               onClick={() => setIsFullscreen(f => !f)}
               className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
               title={isFullscreen ? 'Exit fullscreen (F11)' : 'Fullscreen (F11)'}
+              aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
             >
               {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
             </button>
             <button
               onClick={handleClose}
               className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+              aria-label="Close modal"
             >
               <X className="h-5 w-5" />
             </button>
@@ -658,16 +777,26 @@ export function NodeExpandModal() {
         {/* Desktop Footer Nav */}
         <div className="border-t-2 border-border px-6 py-3 flex items-center justify-between text-muted-foreground overflow-hidden">
            <div className="flex items-center gap-4">
-              <button onClick={handlePrev} disabled={activeIdx <= 0} className="hover:text-primary disabled:opacity-30 transition-colors uppercase text-[10px] font-black tracking-widest">
+              <button 
+                onClick={handlePrev} 
+                disabled={expandableIndex <= 0}
+                className="hover:text-primary disabled:opacity-30 transition-colors uppercase text-[10px] font-black tracking-widest focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded px-2 py-1"
+                aria-label="Previous node"
+              >
                 ← Previous
               </button>
               <div className="h-4 w-[1px] bg-border" />
-              <button onClick={handleNext} disabled={activeIdx >= nodes.length - 1} className="hover:text-primary disabled:opacity-30 transition-colors uppercase text-[10px] font-black tracking-widest text-primary">
+              <button 
+                onClick={handleNext} 
+                disabled={expandableIndex >= expandableNodes.length - 1}
+                className="hover:text-primary disabled:opacity-30 transition-colors uppercase text-[10px] font-black tracking-widest text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded px-2 py-1"
+                aria-label="Next node"
+              >
                 Next →
               </button>
            </div>
-           <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40">
-             {activeIdx + 1} / {nodes.length} Items in Workspace
+           <span id="node-modal-desc" className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40" aria-live="polite">
+             {expandableIndex + 1} / {expandableNodes.length}
            </span>
         </div>
       </div>

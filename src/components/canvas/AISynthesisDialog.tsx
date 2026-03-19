@@ -140,7 +140,7 @@ export function AISynthesisDialog({ selectedNodes, onClose }: AISynthesisDialogP
               animate={{ opacity: 1, y: 0 }}
               className="space-y-6"
             >
-              <div className="rounded-[24px] border border-white/5 bg-white/5 p-6 shadow-inner prose prose-sm prose-invert max-w-none font-medium leading-relaxed text-foreground/90 overflow-auto">
+              <div className="rounded-[24px] border border-white/5 bg-white/5 p-6 shadow-inner prose prose-sm prose-invert max-w-none font-medium leading-relaxed text-foreground/90">
                 <div className="whitespace-pre-wrap">
                   {response}
                 </div>

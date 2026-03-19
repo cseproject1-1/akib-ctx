@@ -353,7 +353,7 @@ function MobileCanvasContent() {
       </div>
 
       {/* Top Toolbar */}
-      <div className="absolute top-4 left-4 right-4 flex justify-between z-10">
+      <div className="absolute top-4 left-4 right-4 flex justify-between z-10 gap-2">
         <div className="flex gap-2">
           <motion.div whileTap={{ scale: 0.9 }}>
             <Button
@@ -489,7 +489,7 @@ function MobileCanvasContent() {
       >
         <Button
           className={cn(
-            "absolute bottom-4 right-4 h-14 w-14 rounded-full shadow-lg shadow-primary/30",
+            "absolute bottom-20 right-4 h-14 w-14 rounded-full shadow-lg shadow-primary/30",
             isAddingNode ? "bg-destructive hover:bg-destructive/90" : "bg-primary"
           )}
           onClick={isAddingNode ? () => setIsAddingNode(false) : handleAddNode}
@@ -500,7 +500,7 @@ function MobileCanvasContent() {
       </motion.div>
 
       {/* Zoom Level Indicator */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-background/80 backdrop-blur px-3 py-1 rounded-full text-xs text-muted-foreground">
+      <div className="absolute bottom-24 left-1/2 -translate-x-1/2 bg-background/80 backdrop-blur px-3 py-1 rounded-full text-xs text-muted-foreground">
         {Math.round(zoom * 100)}%
       </div>
 

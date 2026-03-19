@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useReactFlow, useNodes, type Node } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -31,26 +31,49 @@ interface Action {
   variant?: 'default' | 'destructive' | 'ai';
 }
 
-export function ActionPalette() {
-  const [isOpen, setIsOpen] = useState(false);
+interface ActionPaletteProps {
+  nodeWidth: number;
+  screenX: number;
+  screenY: number;
+}
+
+export function ActionPalette({ nodeWidth, screenX, screenY }: ActionPaletteProps) {
+  const activePalette = useCanvasStore((s) => s.activePalette);
+  const setActivePalette = useCanvasStore((s) => s.setActivePalette);
+  const isOpen = activePalette === 'action';
+  const setIsOpen = (val: boolean) => setActivePalette(val ? 'action' : null);
+
   const [search, setSearch] = useState('');
+  const [selectedIndex, setSelectedIndex] = useState(0);
   const nodes = useNodes();
   const selectedNode = nodes.find(n => n.selected);
-  const { flowToScreenPosition, setNodes } = useReactFlow();
+  const { setNodes } = useReactFlow();
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const deleteNode = useCanvasStore((s) => s.deleteNode);
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const isAnyNodeExpanded = useCanvasStore(s => s.nodes.some(n => (n.data as any)?.expanded));
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const toggleOpen = useCallback(() => setIsOpen(prev => !prev), []);
+  const toggleOpen = useCallback(() => setIsOpen(!isOpen), [isOpen, setIsOpen]);
+
+// Removed automatic trigger on selection to prevent opening during drag/resize/rename
+  // The palette should now only be opened via the Ctrl + / shortcut
+  
+  // Close the palette if the node is deselected
+  useEffect(() => {
+    if (!selectedNode && isOpen) {
+      setIsOpen(false);
+    }
+  }, [selectedNode, isOpen, setIsOpen]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === '/') {
         e.preventDefault();
-        if (selectedNode) toggleOpen();
+        if (selectedNode) {
+          toggleOpen();
+        }
       }
       if (e.key === 'Escape') setIsOpen(false);
     };
@@ -59,7 +82,7 @@ export function ActionPalette() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedNode, toggleOpen]);
 
-  const actions: Action[] = [
+  const actions: Action[] = useMemo(() => [
     {
       id: 'duplicate',
       label: 'Duplicate Node',
@@ -69,9 +92,12 @@ export function ActionPalette() {
     },
     {
       id: 'lock',
-      label: (selectedNode?.data as { locked?: boolean })?.locked ? 'Unlock Node' : 'Lock Node',
-      icon: (selectedNode?.data as { locked?: boolean })?.locked ? Unlock : Lock,
-      handler: (n) => updateNodeData(n.id, { locked: !(n.data as { locked?: boolean })?.locked }),
+      label: selectedNode?.data && typeof selectedNode.data === 'object' && 'locked' in selectedNode.data && selectedNode.data.locked ? 'Unlock Node' : 'Lock Node',
+      icon: selectedNode?.data && typeof selectedNode.data === 'object' && 'locked' in selectedNode.data && selectedNode.data.locked ? Unlock : Lock,
+      handler: (n) => {
+        const isLocked = n.data && typeof n.data === 'object' && 'locked' in n.data ? n.data.locked : false;
+        updateNodeData(n.id, { locked: !isLocked });
+      },
     },
     {
       id: 'copy-id',
@@ -89,7 +115,6 @@ export function ActionPalette() {
       variant: 'ai',
       handler: (n) => {
         toast.info('AI is analyzing the node content...');
-        // Mock AI logic
       },
     },
     {
@@ -126,37 +151,48 @@ export function ActionPalette() {
         setIsOpen(false);
       },
     },
-  ];
+  ], [selectedNode, updateNodeData, duplicateNode, deleteNode, setNodes]);
 
-  const filteredActions = actions.filter(a => 
-    a.label.toLowerCase().includes(search.toLowerCase())
+  const filteredActions = useMemo(() => 
+    actions.filter(a => a.label.toLowerCase().includes(search.toLowerCase())),
+    [actions, search]
   );
+
+  useEffect(() => {
+    setSelectedIndex(0);
+  }, [search]);
+
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isOpen]);
 
   if (!selectedNode) return null;
 
-  const nodeWidth = (selectedNode.measured?.width ?? selectedNode.width ?? 200) as number;
-  const screenPos = flowToScreenPosition({
-    x: selectedNode.position.x + nodeWidth / 2,
-    y: selectedNode.position.y + (selectedNode.measured?.height ?? selectedNode.height ?? 100),
-  });
+  const menuWidth = 400;
+  const menuLeft = Math.min(screenX, window.innerWidth - menuWidth);
+  const menuTop = Math.min(screenY, window.innerHeight - 400);
 
   return (
     <>
-      {/* Trigger in NodeSelectionToolbar would be better, but we can also have it here if needed */}
       <AnimatePresence>
         {isOpen && (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[2000] flex items-start justify-center pt-[15vh] bg-background/20 backdrop-blur-xl" 
+            className="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh] bg-background/20 backdrop-blur-xl" 
             onClick={() => setIsOpen(false)}
           >
             <motion.div
+              role="listbox"
+              aria-label="Node actions"
               initial={{ opacity: 0, scale: 0.95, y: -20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -20 }}
               className="w-full max-w-md overflow-hidden rounded-[28px] glass-effect pro-shadow border border-white/10"
+              style={{ left: menuLeft, top: menuTop }}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center gap-4 border-b border-white/5 p-5 bg-white/5">
@@ -164,6 +200,7 @@ export function ActionPalette() {
                   <Zap className="h-5 w-5 text-primary" />
                 </div>
                 <input
+                  ref={inputRef}
                   autoFocus
                   placeholder="Type an action..."
                   className="w-full bg-transparent text-[15px] font-medium outline-none placeholder:text-muted-foreground/40"
@@ -171,27 +208,39 @@ export function ActionPalette() {
                   onChange={(e) => setSearch(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && filteredActions.length > 0) {
-                      filteredActions[0].handler(selectedNode);
+                      filteredActions[selectedIndex]?.handler(selectedNode);
                       setIsOpen(false);
+                    } else if (e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      setSelectedIndex(prev => Math.min(prev + 1, filteredActions.length - 1));
+                    } else if (e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      setSelectedIndex(prev => Math.max(prev - 1, 0));
                     }
                   }}
+                  aria-activedescendant={filteredActions[selectedIndex]?.id}
                 />
               </div>
 
               <div className="max-h-[300px] overflow-y-auto p-2 scrollbar-none">
                 {filteredActions.length > 0 ? (
-                  <div className="space-y-0.5">
-                    {filteredActions.map((action) => (
+                  <div className="space-y-0.5" role="group">
+                    {filteredActions.map((action, index) => (
                       <motion.button
                         key={action.id}
+                        id={action.id}
+                        role="option"
+                        aria-selected={index === selectedIndex}
                         whileHover={{ x: 4 }}
                         whileTap={{ scale: 0.98 }}
                         onClick={() => {
                           action.handler(selectedNode);
                           setIsOpen(false);
                         }}
+                        onMouseEnter={() => setSelectedIndex(index)}
                         className={cn(
-                          "flex w-full items-center justify-between rounded-xl p-3 text-left transition-all hover:bg-white/10",
+                          "flex w-full items-center justify-between rounded-xl p-3 text-left transition-all",
+                          index === selectedIndex ? "bg-white/10" : "hover:bg-white/10",
                           action.variant === 'destructive' ? 'text-destructive' : 
                           action.variant === 'ai' ? 'text-primary' : 'text-foreground'
                         )}
@@ -228,7 +277,6 @@ export function ActionPalette() {
           </motion.div>
         )}
       </AnimatePresence>
-
     </>
   );
 }

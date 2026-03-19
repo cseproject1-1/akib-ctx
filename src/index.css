@@ -4,6 +4,33 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Z-Index Scale */
+:root {
+  --z-base: 0;
+  --z-anchor: 5;
+  --z-handle: 10;
+  --z-fab: 20;
+  --z-overlay: 30;
+  --z-nav: 40;
+  --z-drawing: 45;
+  --z-mobile-modal: 50;
+  --z-toolbar: 60;
+  --z-search: 70;
+  --z-presentation: 80;
+  --z-context-backdrop: 90;
+  --z-context-menu: 95;
+  --z-modal: 100;
+  --z-toast: 110;
+  --z-expand-backdrop: 150;
+  --z-expand-modal: 160;
+  --z-pwa: 170;
+  --z-synthesis: 200;
+  --z-peek: 300;
+  --z-dropdown: 500;
+  --z-history: 600;
+  --z-search-panel: 700;
+}
+
 @layer base {
   /* Dark theme (default) */
   :root,
@@ -494,7 +521,7 @@
   border-radius: 50% !important;
   opacity: 0;
   transition: opacity 0.2s ease, transform 0.2s cubic-bezier(0.2, 0, 0.2, 1), box-shadow 0.2s ease;
-  z-index: 10 !important;
+  z-index: 10;
 }
 
 .react-flow__handle:hover {
@@ -1043,6 +1070,8 @@
   color: hsl(var(--muted-foreground));
   background: hsl(var(--border) / 0.5);
   border-radius: 0 var(--radius) 0 var(--radius);
+  z-index: 1;
+  pointer-events: none;
 }
 
 .tiptap-editor pre {
@@ -1188,6 +1217,8 @@
   font-weight: 700;
   color: hsl(var(--foreground));
   font-family: 'Space Mono', monospace;
+  pointer-events: none;
+  white-space: nowrap;
 }
 
 /* Badge */

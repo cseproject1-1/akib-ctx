@@ -1166,7 +1166,7 @@ export function CanvasWrapper() {
         <AlignmentGuidesLayer guides={guides} />
         
         {/* Breadcrumbs HUD (Stacked above main toolbar) */}
-        <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-[10] flex flex-col items-center gap-2">
+        <div className="absolute bottom-32 left-1/2 -translate-x-1/2 z-[10] flex flex-col items-center gap-2">
           <Breadcrumbs 
             nodes={nodes}
             edges={edges}
@@ -1257,7 +1257,7 @@ export function CanvasWrapper() {
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
             onClick={toggleZenMode}
-            className="fixed bottom-6 right-6 z-[60] flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary shadow-xl backdrop-blur-md border border-primary/20 hover:bg-primary/20 transition-all duration-300 group"
+            className="fixed bottom-[180px] right-6 z-[60] flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary shadow-xl backdrop-blur-md border border-primary/20 hover:bg-primary/20 transition-all duration-300 group"
           >
             <Eye className="h-6 w-6 group-hover:scale-110 transition-transform" />
             <div className="absolute right-14 whitespace-nowrap rounded-lg bg-black/80 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-white opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">

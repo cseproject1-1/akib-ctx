@@ -34,7 +34,9 @@ export function KeyboardShortcutsPanel() {
       { keys: formatHotkey(hotkeys.fitView), label: 'Fit view' },
       { keys: formatHotkey(hotkeys.resetZoom), label: 'Reset zoom' },
       { keys: formatHotkey(hotkeys.toggleMinimap), label: 'Toggle minimap' },
-      { keys: formatHotkey(hotkeys.search), label: 'Search palette' },
+      { keys: formatHotkey(hotkeys.search), label: 'Node Search (Jump to Node)' },
+      { keys: [modLabel, 'K'], label: 'Command Center (Global Actions)' },
+      { keys: [modLabel, '/'], label: 'Quick Actions (Selected Node)' },
       { keys: ['?'], label: 'Keyboard shortcuts' },
     ]},
     { category: 'Tools', items: [

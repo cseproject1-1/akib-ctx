@@ -248,7 +248,7 @@ export const DrawingLayer = forwardRef<HTMLDivElement, DrawingLayerProps>(functi
   return (
     <div 
       ref={ref} 
-      className="fixed inset-0 z-[45]" 
+      className="fixed inset-0 z-[65]" 
       style={{ cursor: active ? (tool === 'eraser' ? 'none' : 'crosshair') : 'default' }}
     >
       <svg

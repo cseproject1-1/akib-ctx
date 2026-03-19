@@ -65,7 +65,7 @@ export function ThemeEditor() {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-[196px] left-6 z-[60] flex h-12 w-12 items-center justify-center rounded-xl border-2 border-border bg-card shadow-[4px_4px_0px_rgba(0,0,0,0.1)] transition-all hover:bg-accent active:scale-95"
+        className="fixed bottom-[340px] left-6 z-[60] flex h-12 w-12 items-center justify-center rounded-xl border-2 border-border bg-card shadow-[4px_4px_0px_rgba(0,0,0,0.1)] transition-all hover:bg-accent active:scale-95"
         title="Customization"
       >
         <Palette className="h-5 w-5 text-primary" />
@@ -74,7 +74,7 @@ export function ThemeEditor() {
   }
 
   return (
-    <div className="fixed bottom-[196px] left-6 z-[60] w-72 rounded-xl border border-border bg-card shadow-[var(--clay-shadow-lg)] animate-brutal-pop overflow-hidden">
+    <div className="fixed bottom-[340px] left-6 z-[60] w-72 rounded-xl border border-border bg-card shadow-[var(--clay-shadow-lg)] animate-brutal-pop overflow-hidden">
       <div className="flex items-center justify-between border-b border-border px-4 py-3 bg-muted/30">
         <div className="flex items-center gap-2">
           <Palette className="h-4 w-4 text-primary" />
