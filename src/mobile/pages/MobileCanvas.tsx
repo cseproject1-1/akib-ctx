@@ -98,11 +98,22 @@ function MobileCanvasContent() {
   const [showBatchOperations, setShowBatchOperations] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   
   // Long press timer
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartRef = useRef({ x: 0, y: 0, time: 0 });
   const hasLoadedWorkspace = useRef(false);
+
+  // Cleanup long press timer on unmount
+  useEffect(() => {
+    return () => {
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
+      }
+    };
+  }, []);
 
   // Load workspace data on mount - only once per workspace
   useEffect(() => {
@@ -124,7 +135,7 @@ function MobileCanvasContent() {
           console.error('Failed to load workspace:', error);
           setIsLoading(false);
           hasLoadedWorkspace.current = true;
-          // Silent failure - let user continue working
+          setLoadError(error?.message || 'Failed to load workspace data');
         });
     } else {
       setIsLoading(false);
@@ -229,8 +240,8 @@ function MobileCanvasContent() {
     
     if (isAddingNode && reactFlowInstance) {
       // Get position from reactFlowInstance
-      const clientX = 'clientX' in event ? event.clientX : (event as React.TouchEvent).touches[0].clientX;
-      const clientY = 'clientY' in event ? event.clientY : (event as React.TouchEvent).touches[0].clientY;
+      const clientX = 'clientX' in event ? event.clientX : (event as React.TouchEvent).touches?.[0]?.clientX ?? 0;
+      const clientY = 'clientY' in event ? event.clientY : (event as React.TouchEvent).touches?.[0]?.clientY ?? 0;
       const position = reactFlowInstance.screenToFlowPosition({ x: clientX, y: clientY });
 
       const newNode: any = {
@@ -295,6 +306,35 @@ function MobileCanvasContent() {
           </div>
         </div>
       )}
+      {/* Error Overlay */}
+      {loadError && !isLoading && (
+        <div className="absolute inset-0 z-50 bg-background/80 flex items-center justify-center p-6">
+          <div className="flex flex-col items-center gap-4 max-w-sm text-center">
+            <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
+              <X className="w-6 h-6 text-destructive" />
+            </div>
+            <h3 className="text-lg font-bold">Failed to Load</h3>
+            <p className="text-sm text-muted-foreground">{loadError}</p>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => navigate('/mobile-mode')}>
+                Go Back
+              </Button>
+              <Button onClick={() => {
+                setLoadError(null);
+                hasLoadedWorkspace.current = false;
+                if (workspaceId) {
+                  setIsLoading(true);
+                  loadWorkspaceData(workspaceId)
+                    .then(() => { setIsLoading(false); hasLoadedWorkspace.current = true; })
+                    .catch((e) => { setIsLoading(false); hasLoadedWorkspace.current = true; setLoadError(e?.message || 'Retry failed'); });
+                }
+              }}>
+                Retry
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="absolute inset-0">
         <ReactFlow
           nodes={nodes}
@@ -308,7 +348,7 @@ function MobileCanvasContent() {
           panOnScroll={false}
           zoomOnScroll={true}
           zoomOnPinch={true}
-          nodeDragThreshold={8}
+          nodeDragThreshold={12}
           selectionOnDrag={false}
           connectOnClick={false}
           defaultEdgeOptions={{ type: 'custom', animated: false }}
@@ -507,8 +547,9 @@ function MobileCanvasContent() {
       {/* Premium Features */}
       <PremiumFeatures
         onDarkModeToggle={() => {
-          setIsDarkMode(!isDarkMode);
-          document.documentElement.classList.toggle('dark', !isDarkMode);
+          const next = !isDarkMode;
+          setIsDarkMode(next);
+          document.documentElement.setAttribute('data-theme', next ? 'dark' : 'light');
         }}
         isDarkMode={isDarkMode}
       />

@@ -7,7 +7,6 @@ import {
   SelectionMode,
   ConnectionMode,
   useReactFlow,
-  useViewport,
   type Node,
   type Edge,
   type NodeChange,
@@ -414,44 +413,20 @@ export function CanvasWrapper() {
     });
   }, [debouncedSyncToStore, setStoreNodes]);
 
-  // Viewport for virtualization
-  const { x: vx, y: vy, zoom } = useViewport();
-  // We need to determine the screen dimensions. Defaulting to standard sizes or window if available
-  const screenWidth = typeof window !== 'undefined' ? window.innerWidth : 1920;
-  const screenHeight = typeof window !== 'undefined' ? window.innerHeight : 1080;
-  
-  // Viewport bounds in graph coordinates (with a safe padding so things don't pop-in too obviously)
-  const padding = 500 / (zoom || 1); // Guard against zero/NaN zoom
-  const vLeft = -vx / (zoom || 1) - padding;
-  const vRight = (-vx + screenWidth) / (zoom || 1) + padding;
-  const vTop = -vy / (zoom || 1) - padding;
-  const vBottom = (-vy + screenHeight) / (zoom || 1) + padding;
-
-  // Apply locked state, view mode, focus mode and Virtualization filter
+  // Apply locked state, view mode, focus mode
   const processedNodes = useMemo(() => {
     return localNodes
       .map((n) => {
-        // Find rough bounds of node
-        const nw = (typeof n.style?.width === 'number' ? n.style.width : n.measured?.width) || 300;
-        const nh = (typeof n.style?.height === 'number' ? n.style.height : n.measured?.height) || 200;
-        const nx = n.position.x;
-        const ny = n.position.y;
-        
-        // Render window check: skip DOM rendering for nodes outside viewport + buffer
-        const isOutOfViewport = (nx + nw < vLeft || nx > vRight || ny + nh < vTop || ny > vBottom);
-        
         // Explicitly skip virtualization for heavy media or complex components that 
         // are expensive to reload or maintain internal state.
         const skipVirtualization = [
           'video', 'image', 'audio', 'embed', 'pdf', 'fileAttachment', 
           'spreadsheet', 'focusTimer', 'dailyLog', 'kanban'
         ].includes(n.type || '');
-        const shouldRender = skipVirtualization || !isOutOfViewport;
 
         return {
           ...n,
-          hidden: !shouldRender,
-          data: { ...n.data, shouldRender },
+          data: { ...n.data, shouldRender: true },
           draggable: !n.data?.locked,
           selectable: !n.data?.locked,
           connectable: !n.data?.locked,
@@ -462,7 +437,7 @@ export function CanvasWrapper() {
           },
         };
       }) as Node[];
-  }, [localNodes, focusMode, focusedNodeId, vLeft, vRight, vTop, vBottom]);
+  }, [localNodes, focusMode, focusedNodeId]);
 
   const throttledUpdateCursor = useMemo(() => 
     throttle((x: number, y: number) => {
@@ -991,6 +966,9 @@ export function CanvasWrapper() {
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
+      role="application"
+      aria-label="CtxNote infinite canvas"
+      aria-roledescription="knowledge graph canvas"
     >
       {/* Subtle gradient overlay for depth */}
       <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-transparent to-black/20" />
@@ -1002,7 +980,7 @@ export function CanvasWrapper() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="pointer-events-none fixed inset-0 z-[100] flex items-center justify-center bg-primary/5 backdrop-blur-[8px]"
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-primary/5 backdrop-blur-[8px]"
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
@@ -1024,9 +1002,6 @@ export function CanvasWrapper() {
         )}
       </AnimatePresence>
 
-      <TutorialSystem />
-      <ActionPalette />
-      
       {isAISynthesisOpen && (
         <AISynthesisDialog 
           selectedNodes={nodes.filter(n => n.selected)}
@@ -1048,7 +1023,7 @@ export function CanvasWrapper() {
           const targetNode = localNodes.find(n => n.id === e.target);
           const sourceZ = (sourceNode?.style?.zIndex as number) || 0;
           const targetZ = (targetNode?.style?.zIndex as number) || 0;
-          const edgeZ = Math.max(0, Math.min(sourceZ, targetZ) - 1);
+          const edgeZ = Math.max(0, Math.max(sourceZ, targetZ) - 1);
           return { ...e, zIndex: edgeZ };
         })}
         onNodesChange={isViewMode ? undefined : handleNodesChange}
@@ -1064,11 +1039,11 @@ export function CanvasWrapper() {
               const vy = parseFloat(y);
               const vz = parseFloat(z);
               
-              if (!isNaN(vx) && !isNaN(vy) && !isNaN(vz)) {
+              if (!isNaN(vx) && !isNaN(vy) && !isNaN(vz) && vz >= 0.1 && vz <= 4 && isFinite(vx) && isFinite(vy)) {
                 // use timeout to ensure nodes have rendered bounds
                 setTimeout(() => {
                   instance.setViewport({ x: vx, y: vy, zoom: vz });
-                }, 50);
+                }, 150);
               }
             }
           }
@@ -1122,6 +1097,7 @@ export function CanvasWrapper() {
         selectionOnDrag={!isViewMode && !connectMode}
         onlyRenderVisibleElements
         selectionMode={SelectionMode.Partial}
+        // Pan: view mode = any button, connect mode = middle only, edit mode = left+middle
         panOnDrag={isViewMode ? true : connectMode ? [2] : [1, 2]}
         zoomOnScroll={zoomOnScroll}
         panOnScroll={!zoomOnScroll}
@@ -1165,8 +1141,9 @@ export function CanvasWrapper() {
         )}
         <AlignmentGuidesLayer guides={guides} />
         
-        {/* Breadcrumbs HUD (Stacked above main toolbar) */}
-        <div className="absolute bottom-32 left-1/2 -translate-x-1/2 z-[10] flex flex-col items-center gap-2">
+        {/* Breadcrumbs HUD */}
+        <div className="absolute bottom-40 left-1/2 -translate-x-1/2 z-[10] flex flex-col items-center gap-2 pointer-events-none">
+          <div className="pointer-events-auto">
           <Breadcrumbs 
             nodes={nodes}
             edges={edges}
@@ -1193,6 +1170,7 @@ export function CanvasWrapper() {
               }
             }}
           />
+          </div>
         </div>
 
         <MagicCursorsLayer />

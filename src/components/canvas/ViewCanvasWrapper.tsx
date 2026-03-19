@@ -6,7 +6,7 @@ import {
   useReactFlow,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { useCanvasStore, useNodes, useEdges } from '@/store/canvasStore';
+import { useCanvasStore, useNodes, useEdges, useCursors } from '@/store/canvasStore';
 import { nodeTypes } from './nodeTypes';
 import { edgeTypes } from './edgeTypes';
 import { Eye, ArrowLeft, ZoomIn, ZoomOut, Maximize, Layout, List, LayoutGrid, Home, Smartphone, Share2, X, Pencil } from 'lucide-react';
@@ -22,6 +22,8 @@ export function ViewCanvasWrapper() {
   const navigate = useNavigate();
   const nodes = useNodes();
   const edges = useEdges();
+  const cursors = useCursors();
+  const activeViewerCount = Object.keys(cursors).length + 1; // +1 for current user
   const workspaceName = useCanvasStore((s) => s.workspaceName);
   const canvasMode = useCanvasStore((s) => s.canvasMode);
   const toggleCanvasMode = useCanvasStore((s) => s.toggleCanvasMode);
@@ -136,10 +138,10 @@ export function ViewCanvasWrapper() {
               <span className="text-sm font-bold text-foreground max-sm:max-w-[120px] truncate">{workspaceName}</span>
             </div>
 
-            {/* Active Viewers (Mocked for Round 5 presence exploration) */}
+            {/* Active Viewers */}
             <div className="flex items-center gap-1.5 rounded-full border-2 border-green/30 bg-green/10 px-2.5 py-1 shadow-sm">
               <div className="h-2 w-2 rounded-full bg-green animate-pulse" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-green">1 Active</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-green">{activeViewerCount} Active</span>
             </div>
           </div>
         </Panel>

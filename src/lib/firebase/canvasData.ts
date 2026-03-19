@@ -44,6 +44,7 @@ export async function loadCanvasEdges(workspaceId: string): Promise<Edge[]> {
  */
 function sanitizeForFirestore(data: any): any {
     if (data === null || data === undefined) return data;
+    if (typeof data === 'function' || typeof data === 'symbol') return undefined;
     if (Array.isArray(data)) {
         return data.map(v => {
             const result = sanitizeForFirestore(v);
@@ -51,9 +52,15 @@ function sanitizeForFirestore(data: any): any {
         });
     }
     if (typeof data === 'object') {
+        // Reject Date-like objects that aren't actual Dates, and prototype pollution attempts
+        if (data.constructor && data.constructor !== Object && data.constructor !== Array && !(data instanceof Date)) {
+            return undefined;
+        }
         const result: Record<string, any> = {};
         for (const key in data) {
             if (Object.prototype.hasOwnProperty.call(data, key)) {
+                // Skip __proto__, constructor, prototype to prevent prototype pollution
+                if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
                 const val = sanitizeForFirestore(data[key]);
                 if (val !== undefined) {
                     result[key] = val;
@@ -82,6 +89,7 @@ export async function saveNode(workspaceId: string, node: Node) {
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_LENIENT_RE = /^[{]?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[}]?$/i;
 
 export async function saveEdge(workspaceId: string, edge: Edge) {
     const edgeId = UUID_RE.test(edge.id) ? edge.id : crypto.randomUUID();
@@ -188,7 +196,7 @@ export async function pruneSnapshots(workspaceId: string, keepCount = 50) {
 
 // ─── Real-time Subscriptions ───
 
-export function subscribeCanvasNodes(workspaceId: string, onUpdate: (nodes: Node[]) => void) {
+export function subscribeCanvasNodes(workspaceId: string, onUpdate: (nodes: Node[]) => void, onError?: (err: Error) => void) {
     const q = query(collection(db, `workspaces/${workspaceId}/nodes`));
     return onSnapshot(q, (snapshot) => {
         // Skip updates that are pending local writes to avoid jitter
@@ -207,10 +215,11 @@ export function subscribeCanvasNodes(workspaceId: string, onUpdate: (nodes: Node
         onUpdate(nodes);
     }, (err) => {
         console.error('[sync] Nodes subscription error:', err);
+        onError?.(err);
     });
 }
 
-export function subscribeCanvasEdges(workspaceId: string, onUpdate: (edges: Edge[]) => void) {
+export function subscribeCanvasEdges(workspaceId: string, onUpdate: (edges: Edge[]) => void, onError?: (err: Error) => void) {
     const q = query(collection(db, `workspaces/${workspaceId}/edges`));
     return onSnapshot(q, (snapshot) => {
         if (snapshot.metadata.hasPendingWrites) return;
@@ -231,6 +240,7 @@ export function subscribeCanvasEdges(workspaceId: string, onUpdate: (edges: Edge
         onUpdate(edges);
     }, (err) => {
         console.error('[sync] Edges subscription error:', err);
+        onError?.(err);
     });
 }
 

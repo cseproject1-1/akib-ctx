@@ -31,7 +31,7 @@ export function EditorGhost({ content, className, placeholder }: EditorGhostProp
 function renderNodes(nodes: JSONContent[]): React.ReactNode[] {
   return nodes.map((node, i) => {
     const key = `${node.type}-${i}`;
-    
+
     switch (node.type) {
       case 'paragraph': {
         return <p key={key}>{renderNodes(node.content || [])}</p>;
@@ -43,13 +43,40 @@ function renderNodes(nodes: JSONContent[]): React.ReactNode[] {
       case 'text': {
         let text: React.ReactNode = node.text;
         if (node.marks) {
-          node.marks.forEach(mark => {
-            if (mark.type === 'bold') text = <strong key={`${key}-bold`}>{text}</strong>;
-            if (mark.type === 'italic') text = <em key={`${key}-italic`}>{text}</em>;
-            if (mark.type === 'strike') text = <s key={`${key}-strike`}>{text}</s>;
-            if (mark.type === 'code') text = <code key={`${key}-code`} className="bg-muted px-1 rounded text-xs">{text}</code>;
-            if (mark.type === 'highlight') {
-              text = <mark key={`${key}-highlight`} style={{ backgroundColor: mark.attrs?.color }}>{text}</mark>;
+          node.marks.forEach((mark, mi) => {
+            const mk = `${key}-m${mi}`;
+            switch (mark.type) {
+              case 'bold':
+                text = <strong key={mk}>{text}</strong>;
+                break;
+              case 'italic':
+                text = <em key={mk}>{text}</em>;
+                break;
+              case 'strike':
+                text = <s key={mk}>{text}</s>;
+                break;
+              case 'underline':
+                text = <u key={mk}>{text}</u>;
+                break;
+              case 'code':
+                text = <code key={mk} className="bg-muted px-1 rounded text-xs">{text}</code>;
+                break;
+              case 'highlight':
+                text = <mark key={mk} style={{ backgroundColor: mark.attrs?.color }}>{text}</mark>;
+                break;
+              case 'link':
+                text = (
+                  <a key={mk} href={mark.attrs?.href} className="text-primary underline" target="_blank" rel="noopener noreferrer">
+                    {text}
+                  </a>
+                );
+                break;
+              case 'superscript':
+                text = <sup key={mk}>{text}</sup>;
+                break;
+              case 'subscript':
+                text = <sub key={mk}>{text}</sub>;
+                break;
             }
           });
         }
@@ -73,7 +100,7 @@ function renderNodes(nodes: JSONContent[]): React.ReactNode[] {
           </li>
         );
       case 'blockquote': {
-        return <blockquote key={key}>{renderNodes(node.content || [])}</blockquote>;
+        return <blockquote key={key} className="border-l-2 border-primary/30 pl-3 italic">{renderNodes(node.content || [])}</blockquote>;
       }
       case 'codeBlock': {
         const language = node.attrs?.language || 'plaintext';
@@ -92,9 +119,42 @@ function renderNodes(nodes: JSONContent[]): React.ReactNode[] {
         );
       }
       case 'horizontalRule':
-        return <hr key={key} />;
+        return <hr key={key} className="border-border" />;
       case 'hardBreak':
         return <br key={key} />;
+      case 'table': {
+        return (
+          <div key={key} className="overflow-x-auto my-2">
+            <table className="border-collapse border border-border text-xs">
+              <tbody>{renderNodes(node.content || [])}</tbody>
+            </table>
+          </div>
+        );
+      }
+      case 'tableRow':
+        return <tr key={key}>{renderNodes(node.content || [])}</tr>;
+      case 'tableHeader':
+        return (
+          <th key={key} className="border border-border px-2 py-1 bg-muted/50 font-semibold text-left"
+              colSpan={node.attrs?.colspan || 1}
+              rowSpan={node.attrs?.rowspan || 1}>
+            {renderNodes(node.content || [])}
+          </th>
+        );
+      case 'tableCell':
+        return (
+          <td key={key} className="border border-border px-2 py-1"
+              colSpan={node.attrs?.colspan || 1}
+              rowSpan={node.attrs?.rowspan || 1}>
+            {renderNodes(node.content || [])}
+          </td>
+        );
+      case 'link':
+        return (
+          <a key={key} href={node.attrs?.href} className="text-primary underline" target="_blank" rel="noopener noreferrer">
+            {renderNodes(node.content || [])}
+          </a>
+        );
       default:
         return null;
     }

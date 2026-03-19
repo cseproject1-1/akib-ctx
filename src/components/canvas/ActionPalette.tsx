@@ -32,12 +32,12 @@ interface Action {
 }
 
 interface ActionPaletteProps {
-  nodeWidth: number;
-  screenX: number;
-  screenY: number;
+  nodeWidth?: number;
+  screenX?: number;
+  screenY?: number;
 }
 
-export function ActionPalette({ nodeWidth, screenX, screenY }: ActionPaletteProps) {
+export function ActionPalette({ nodeWidth = 0, screenX = 0, screenY = 0 }: ActionPaletteProps) {
   const activePalette = useCanvasStore((s) => s.activePalette);
   const setActivePalette = useCanvasStore((s) => s.setActivePalette);
   const isOpen = activePalette === 'action';

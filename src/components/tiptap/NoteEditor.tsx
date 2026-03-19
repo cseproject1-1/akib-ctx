@@ -236,11 +236,12 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
         }
 
         // 4. Handle URLs pasted inside editor — create clickable link
-        if (/^https?:\/\/[^\s]+$/.test(clipboardText.trim())) {
+        if (/^https?:\/\/[^\s<>]+$/.test(clipboardText.trim())) {
           event.preventDefault();
           const url = clipboardText.trim();
+          const sanitizedUrl = url.replace(/"/g, '&quot;');
           editor?.chain().focus().insertContent(
-            `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`
+            `<a href="${sanitizedUrl}" target="_blank" rel="noopener noreferrer">${sanitizedUrl}</a>`
           ).run();
           return true;
         }
@@ -305,6 +306,8 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
   useEffect(() => {
     return () => {
       if (backlinkTimeoutRef.current) clearTimeout(backlinkTimeoutRef.current);
+      if (pasteTimeoutRef.current) clearTimeout(pasteTimeoutRef.current);
+      if (reparseTimeoutRef.current) clearTimeout(reparseTimeoutRef.current);
     };
   }, []);
 
@@ -444,7 +447,14 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
     };
   }, [editor]);
 
-  if (!editor) return null;
+  if (!editor) return (
+    <div className="tiptap-wrapper relative nodrag nowheel nopan min-h-[80px] flex items-center justify-center">
+      <div className="flex flex-col items-center gap-2 text-muted-foreground">
+        <div className="h-5 w-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+        <span className="text-xs font-medium">Loading editor...</span>
+      </div>
+    </div>
+  );
 
   return (
     <div className="tiptap-wrapper relative nodrag nowheel nopan" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} ref={wrapperRef}>

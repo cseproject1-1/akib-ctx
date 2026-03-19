@@ -4,7 +4,7 @@ import { MantineProvider } from "@mantine/core";
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 import "@mantine/core/styles.css";
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import {
   BlockNoteSchema,
@@ -15,7 +15,7 @@ import {
 
 // Syntax highlighting
 import { createLowlight, all } from "lowlight";
-import "highlight.js/styles/github-dark.css"; 
+import "highlight.js/styles/github-dark.css";
 
 const lowlight = createLowlight(all);
 
@@ -23,11 +23,10 @@ const lowlight = createLowlight(all);
 const highlightCode = (code: string, language: string) => {
   try {
     const lang = language || 'plaintext';
-    // Check if language is registered, if not use plaintext
     const registered = lowlight.listLanguages();
     const targetLang = registered.includes(lang) ? lang : 'plaintext';
     return lowlight.highlight(targetLang, code);
-  } catch (e) {
+  } catch {
     return { type: 'root', children: [{ type: 'text', value: code }] } as any;
   }
 };
@@ -67,6 +66,9 @@ export const BlockNoteEditor = ({
 }: BlockNoteEditorProps) => {
   const isInitialMount = useRef(true);
   const lastEmittedContent = useRef<string>("");
+  const initialContentApplied = useRef(false);
+  const pasteAppliedRef = useRef<string | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
   // Create custom block specs with highlighting
   const customBlockSpecs = useMemo(() => {
@@ -85,31 +87,115 @@ export const BlockNoteEditor = ({
     blockSpecs: customBlockSpecs,
   }), [customBlockSpecs]);
 
-  // Configure the editor with memory-friendly settings
+  // Configure the editor
   const editor = useCreateBlockNote({
     schema,
-    initialContent: (Array.isArray(initialContent) && initialContent.length > 0) 
-      ? initialContent 
-      : undefined,
+    initialContent: undefined,
   });
 
-  // Handle initial paste/content injection
+  // Handle image paste from clipboard
+  const handlePaste = useCallback((e: ClipboardEvent) => {
+    if (!editor || !editable) return;
+
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (!file) continue;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const src = event.target?.result as string;
+          if (src) {
+            const imageBlock: any = {
+              type: 'image',
+              props: {
+                url: src,
+                caption: '',
+                name: file.name || 'pasted-image',
+                showPreview: true,
+                previewWidth: 512
+              }
+            };
+
+            const lastBlock = editor.document[editor.document.length - 1];
+            if (lastBlock) {
+              editor.insertBlocks([imageBlock], lastBlock, "after");
+            } else {
+              editor.insertBlocks([imageBlock], editor.document[0], "before");
+            }
+
+            lastEmittedContent.current = JSON.stringify(editor.document);
+            onChange?.(editor.document);
+          }
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+    }
+  }, [editor, editable, onChange]);
+
+  // Attach paste handler
   useEffect(() => {
-    if (editor && pasteContent) {
-      const handleInitialPaste = async () => {
+    if (!editor || !wrapperRef.current) return;
+
+    const wrapper = wrapperRef.current;
+    wrapper.addEventListener('paste', handlePaste as any);
+
+    return () => {
+      wrapper.removeEventListener('paste', handlePaste as any);
+    };
+  }, [editor, handlePaste]);
+
+  // Apply initial content once when editor is ready
+  useEffect(() => {
+    if (!editor || initialContentApplied.current) return;
+
+    const hasValidContent = Array.isArray(initialContent) && initialContent.length > 0;
+    if (!hasValidContent) {
+      initialContentApplied.current = true;
+      return;
+    }
+
+    editor.replaceBlocks(editor.document, initialContent);
+    initialContentApplied.current = true;
+    lastEmittedContent.current = JSON.stringify(editor.document);
+  }, [editor, initialContent]);
+
+  // Handle paste content separately - only once per unique paste
+  useEffect(() => {
+    if (!editor || !pasteContent) return;
+    if (pasteAppliedRef.current === pasteContent) return;
+    pasteAppliedRef.current = pasteContent;
+
+    const handlePasteContent = async () => {
+      try {
         let blocks: Block[] = [];
         if (pasteFormat === 'markdown') {
           blocks = await editor.tryParseMarkdownToBlocks(pasteContent);
         } else if (pasteFormat === 'html') {
           blocks = await editor.tryParseHTMLToBlocks(pasteContent);
         }
-        
+
         if (blocks.length > 0) {
-          editor.replaceBlocks(editor.document, blocks);
+          const lastBlock = editor.document[editor.document.length - 1];
+          if (lastBlock) {
+            editor.insertBlocks(blocks, lastBlock, "after");
+          } else {
+            editor.replaceBlocks(editor.document, blocks);
+          }
+          lastEmittedContent.current = JSON.stringify(editor.document);
         }
-      };
-      handleInitialPaste();
-    }
+      } catch (error) {
+        console.error('[BlockNote] Paste failed:', error);
+      }
+    };
+
+    handlePasteContent();
   }, [editor, pasteContent, pasteFormat]);
 
   // Handle content changes
@@ -122,11 +208,10 @@ export const BlockNoteEditor = ({
         return;
       }
 
-      // Check if actual content changed to avoid unnecessary re-renders in parent
       const currentJson = JSON.stringify(editor.document);
       if (currentJson === lastEmittedContent.current) return;
       lastEmittedContent.current = currentJson;
-      
+
       onChange(editor.document);
     });
 
@@ -135,7 +220,7 @@ export const BlockNoteEditor = ({
 
   return (
     <MantineProvider>
-      <div className={cn("blocknote-wrapper h-full", className)}>
+      <div ref={wrapperRef} className={cn("blocknote-wrapper h-full", className)}>
         <BlockNoteView
           editor={editor}
           editable={editable}
@@ -155,7 +240,6 @@ export const BlockNoteEditor = ({
           .bn-root {
             --bn-colors-editor-background: transparent;
           }
-          /* Premium Code Block Styling */
           .blocknote-wrapper .bn-block-content[data-content-type="codeBlock"] {
             margin: 1rem 0 !important;
           }
@@ -167,7 +251,6 @@ export const BlockNoteEditor = ({
             box-shadow: 0 4px 20px rgba(0,0,0,0.3) !important;
             font-family: 'Fira Code', 'Monaco', 'Consolas', monospace !important;
           }
-          /* Syntax Highlighting Colors - Match TipTap */
           .hljs-keyword { color: #569cd6 !important; font-weight: bold !important; }
           .hljs-string { color: #ce9178 !important; }
           .hljs-comment { color: #6a9955 !important; font-style: italic !important; }

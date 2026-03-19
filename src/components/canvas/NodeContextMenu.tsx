@@ -95,9 +95,9 @@ export function NodeContextMenu() {
     }
     const { x, y } = nodeContextMenu;
     const menuWidth = 260;
-    const menuHeight = 500;
+    const estimatedMenuHeight = Math.min(600, window.innerHeight * 0.8);
     const left = x + menuWidth > window.innerWidth ? Math.max(0, x - menuWidth) : x;
-    const top = Math.max(0, Math.min(y, window.innerHeight - menuHeight));
+    const top = Math.max(0, Math.min(y, window.innerHeight - estimatedMenuHeight));
     setMenuPos({
       left,
       top,

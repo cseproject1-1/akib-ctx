@@ -134,6 +134,8 @@ interface CanvasState {
   tidyUp: () => void;
   toggleZoomOnScroll: () => void;
   setActivePalette: (palette: 'search' | 'command' | 'action' | null) => void;
+  _skipSyncTimeout: ReturnType<typeof setTimeout> | null;
+  _loadCounter: number;
 
 
 
@@ -148,9 +150,6 @@ interface CanvasState {
   loadCanvas: (nodes: Node[], edges: Edge[], preserveHistory?: boolean) => void;
   addNodesAndEdges: (nodes: Node[], edges: Edge[]) => void;
 }
-
-let skipSyncTimeout: ReturnType<typeof setTimeout> | null = null;
-let loadCounter = 0;
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
   nodes: [],
@@ -244,7 +243,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   scanContentForLinks: (sourceId, content) => {
     const text = extractText(content);
-    if (!text) return;
+    if (!text) {
+      // Clear backlinks if no text content
+      get().updateBacklinks(sourceId, []);
+      return;
+    }
 
     const nodes = get().nodes;
     const targetIds: string[] = [];
@@ -264,9 +267,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       }
     });
 
-    if (targetIds.length > 0) {
-      get().updateBacklinks(sourceId, targetIds);
-    }
+    // Always update backlinks, even if empty, to clear orphaned references
+    get().updateBacklinks(sourceId, targetIds);
   },
 
 
@@ -296,6 +298,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   setHighlightedNodes: (ids) => set({ highlightedNodeIds: ids }),
   isDeepWorkActive: false,
   setDeepWorkActive: (active) => set({ isDeepWorkActive: active }),
+  _skipSyncTimeout: null,
+  _loadCounter: 0,
   
   onNodesChange: (changes) => {
     const nodes = get().nodes;
@@ -417,7 +421,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
             ...n, 
             data: nextData,
             draggable: !isLocked,
-            selectable: true, 
+            selectable: !isLocked, 
             deletable: !isLocked
           };
         }
@@ -472,6 +476,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   bringNodesToFront: (ids) => {
+    if (get()._skipSyncTimeout) {
+      clearTimeout(get()._skipSyncTimeout);
+    }
     set((state) => {
       const maxZ = Math.max(...state.nodes.map((n) => (n.style?.zIndex as number) || 0), 0);
       const idSet = new Set(ids);
@@ -486,7 +493,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       };
     });
     // Toggle sync back after a tick
-    setTimeout(() => set({ _skipSync: false }), 50);
+    const timeout = setTimeout(() => set({ _skipSync: false, _skipSyncTimeout: null }), 50);
+    set({ _skipSyncTimeout: timeout });
   },
 
   sendToBack: (id) => {
@@ -591,10 +599,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   loadCanvas: (nodes, edges, preserveHistory = false) => {
-    const currentLoadId = ++loadCounter;
-    if (skipSyncTimeout) {
-      clearTimeout(skipSyncTimeout);
-      skipSyncTimeout = null;
+    const currentLoadId = ++get()._loadCounter;
+    if (get()._skipSyncTimeout) {
+      clearTimeout(get()._skipSyncTimeout);
+      set({ _skipSyncTimeout: null });
     }
     
     // Sanitize incoming nodes to prevent NaN from corrupting the canvas
@@ -613,15 +621,16 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       past: preserveHistory ? get().past : [], 
       future: preserveHistory ? get().future : [], 
       _skipSync: true, 
-      _resyncNeeded: false 
+      _resyncNeeded: false,
+      _loadCounter: currentLoadId
     });
     
-    skipSyncTimeout = setTimeout(() => {
-      if (currentLoadId === loadCounter) {
-        set({ _skipSync: false });
-        skipSyncTimeout = null;
+    const timeout = setTimeout(() => {
+      if (currentLoadId === get()._loadCounter) {
+        set({ _skipSync: false, _skipSyncTimeout: null });
       }
     }, 200);
+    set({ _skipSyncTimeout: timeout });
   },
 
   addNodesAndEdges: (newNodes, newEdges) => {
@@ -895,6 +904,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     workspaceId: null,
     saveStatus: 'idle',
     _saveCounter: 0,
+    _skipSyncTimeout: null,
+    _loadCounter: 0,
     clipboard: [],
     bookmarks: [],
     isBlockEditorMode: false,

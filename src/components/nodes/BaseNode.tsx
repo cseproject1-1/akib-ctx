@@ -125,13 +125,18 @@ export const BaseNode = memo(({
   // Performance: Only listen to edge changes for this specific node
   const edgeCount = useStore(useCallback((s) => {
     if (!nodeId) return 0;
-    return s.edges.filter(e => e.source === nodeId || e.target === nodeId).length;
+    let count = 0;
+    for (let i = 0; i < s.edges.length; i++) {
+      if (s.edges[i].source === nodeId || s.edges[i].target === nodeId) count++;
+    }
+    return count;
   }, [nodeId]));
 
-  const detectedType = useStore((s) => {
+  const detectedType = useCanvasStore((s) => {
     const nid = id || reactFlowNodeId;
     if (!nid) return undefined;
-    return s.nodeLookup?.get(nid)?.type;
+    const node = s.nodes.find(n => n.id === nid);
+    return node?.type;
   });
   const setExpandedNode = useCanvasStore((s) => s.setExpandedNode);
   const deleteNode = useCanvasStore((s) => s.deleteNode);
@@ -144,6 +149,9 @@ export const BaseNode = memo(({
   const edges = useStore(useCallback((s) => s.edges, []));
   const zoom = useStore(useCallback((s) => s.transform[2], []));
   const isMobile = useIsMobile();
+  const saveStatus = useCanvasStore((s) => s.saveStatus);
+  const globalIsSyncing = saveStatus === 'saving';
+  const hasSyncError = saveStatus === 'error';
   
   const handleCopyNodeContent = useCallback(async () => {
     if (!nodeId) return;
@@ -198,7 +206,7 @@ export const BaseNode = memo(({
       }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.15, ease: 'easeOut' }}
-      className={`animate-node-appear group/node flex flex-col h-full bg-card relative rounded-lg ${
+      className={`animate-node-appear group/node flex flex-col h-full bg-card relative rounded-lg overflow-hidden ${
         selected
           ? 'shadow-[var(--premium-shadow-md)] scale-[1.02] z-50'
           : 'shadow-[var(--premium-shadow-sm)] hover:scale-[1.02] hover:shadow-[var(--premium-shadow-md)]'
@@ -261,22 +269,24 @@ export const BaseNode = memo(({
           )}
           {onTitleChange && !locked ? (
             <input
-              className="flex-1 bg-transparent text-sm font-medium tracking-tight text-foreground outline-none placeholder:text-muted-foreground/50"
+              className="flex-1 min-w-0 bg-transparent text-sm font-medium tracking-tight text-foreground outline-none placeholder:text-muted-foreground/50 overflow-hidden"
               value={title}
               onChange={(e) => onTitleChange(e.target.value)}
               onClick={(e) => e.stopPropagation()}
               placeholder="Untitled"
             />
           ) : (
-            <span className="flex-1 truncate text-sm font-medium tracking-tight text-foreground" title={title}>{title}</span>
+            <span className="flex-1 min-w-0 truncate text-sm font-medium tracking-tight text-foreground" title={title}>{title}</span>
           )}
           {id && (
             <div className="flex items-center gap-1.5 px-1">
               <div 
                 className={`h-1.5 w-1.5 rounded-full transition-all duration-500 ${
-                  isSyncing ? "bg-yellow-400 animate-pulse shadow-[0_0_8px_rgba(250,204,21,0.5)]" : "bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.3)]"
+                  hasSyncError ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" :
+                  globalIsSyncing ? "bg-yellow-400 animate-pulse shadow-[0_0_8px_rgba(250,204,21,0.5)]" : 
+                  "bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.3)]"
                 }`} 
-                title={isSyncing ? "Syncing changes..." : "All changes saved"}
+                title={hasSyncError ? "Sync error" : globalIsSyncing ? "Syncing changes..." : "All changes saved"}
               />
             </div>
           )}

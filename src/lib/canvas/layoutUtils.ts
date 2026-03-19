@@ -20,7 +20,19 @@ export function getTreeLayout(nodes: Node[], edges: Edge[]) {
   });
 
   const roots = nodes.filter(n => (inDegree.get(n.id) || 0) === 0);
-  if (roots.length === 0 && nodes.length > 0) roots.push(nodes[0]); // fallback for cycles
+  if (roots.length === 0 && nodes.length > 0) {
+    // No true roots: pick the node with minimum in-degree as fallback
+    let minInDegree = Infinity;
+    let fallbackRoot = nodes[0];
+    nodes.forEach(n => {
+      const deg = inDegree.get(n.id) || 0;
+      if (deg < minInDegree) {
+        minInDegree = deg;
+        fallbackRoot = n;
+      }
+    });
+    roots.push(fallbackRoot);
+  }
 
   const levels: Map<string, number> = new Map();
   const levelNodes: Map<number, string[]> = new Map();

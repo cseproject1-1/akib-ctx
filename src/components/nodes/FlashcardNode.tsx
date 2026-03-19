@@ -49,7 +49,7 @@ export const FlashcardNode = memo(({ id, data, selected }: NodeProps) => {
 
   return (
     <div
-      className={`group animate-node-appear rounded-xl border bg-card transition-all ${
+      className={`group animate-node-appear rounded-xl border bg-card overflow-hidden transition-all ${
         selected ? 'border-primary shadow-[var(--clay-shadow-md)]' : 'border-border shadow-[var(--clay-shadow-sm)]'
       }`}
       style={{ opacity: (nodeData.opacity ?? 100) / 100 }}
@@ -60,13 +60,13 @@ export const FlashcardNode = memo(({ id, data, selected }: NodeProps) => {
       }}
     >
       {/* Header */}
-      <div className="flex items-center gap-2 border-b-2 border-border px-3 py-2 cursor-grab active:cursor-grabbing">
-        <span className="text-lg">🃏</span>
-        <span className="text-xs font-bold uppercase tracking-wider text-primary">
+      <div className="flex items-center gap-2 border-b-2 border-border px-3 py-2 cursor-grab active:cursor-grabbing min-w-0">
+        <span className="text-lg flex-shrink-0">🃏</span>
+        <span className="text-xs font-bold uppercase tracking-wider text-primary flex-shrink-0">
           Flashcards
         </span>
         {nodeData.sourceTitle && (
-          <span className="ml-auto truncate text-[10px] text-muted-foreground">
+          <span className="ml-auto truncate min-w-0 text-[10px] text-muted-foreground">
             from {nodeData.sourceTitle}
           </span>
         )}

@@ -26,7 +26,14 @@ import { MobileSearch } from "@/mobile/pages/MobileSearch";
 import { MobileInstallBanner } from "@/mobile/components/MobileInstallBanner";
 import { MobileRouteGuard } from "@/mobile/components/MobileRouteGuard";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,
+      retry: 2,
+    },
+  },
+});
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
