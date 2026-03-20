@@ -42,6 +42,9 @@ export function MobileRouteGuard({ children }: MobileRouteGuardProps) {
       if (location.pathname.startsWith('/workspace/')) {
         const workspaceId = location.pathname.split('/')[2];
         mobilePath = `/mobile-mode/workspace/${workspaceId}`;
+      } else if (location.pathname.startsWith('/view/')) {
+        const workspaceId = location.pathname.split('/')[2];
+        mobilePath = `/mobile-mode/view/${workspaceId}`;
       } else if (location.pathname === '/admin') {
         mobilePath = '/mobile-mode/settings';
       } else if (location.pathname === '/import') {

@@ -113,6 +113,12 @@ export interface ShapeNodeData extends SharedNodeFields {
   label?: string;
 }
 
+/** Free-floating drawing overlay (not a node) */
+export interface DrawingOverlay {
+  id: string;
+  paths: { d: string; color: string; width: number; opacity?: number }[];
+}
+
 export interface DrawingNodeData extends SharedNodeFields {
   paths: { d: string; color: string; width: number; opacity?: number }[];
   width?: number;

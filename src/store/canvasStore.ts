@@ -11,10 +11,12 @@ import {
   addEdge,
 } from '@xyflow/react';
 import { extractText } from '@/lib/utils/contentParser';
+import type { DrawingOverlay } from '@/types/canvas';
 
 interface HistorySnapshot {
   nodes: Node[];
   edges: Edge[];
+  drawings: DrawingOverlay[];
   label: string;
   timestamp: number;
 }
@@ -63,6 +65,8 @@ interface CanvasState {
   past: HistorySnapshot[];
   future: HistorySnapshot[];
   drawingMode: boolean;
+  drawings: DrawingOverlay[];
+  viewport: { x: number; y: number; zoom: number };
   zenMode: boolean;
   zoomOnScroll: boolean;
 
@@ -84,6 +88,10 @@ interface CanvasState {
   updateNodeStyle: (id: string, style: Record<string, unknown>) => void;
   deleteEdge: (id: string) => void;
   setDrawingMode: (val: boolean) => void;
+  addDrawing: (drawing: DrawingOverlay) => void;
+  deleteDrawing: (id: string) => void;
+  setDrawings: (drawings: DrawingOverlay[]) => void;
+  setViewport: (vp: { x: number; y: number; zoom: number }) => void;
   setZenMode: (val: boolean) => void;
   toggleZenMode: () => void;
   setContextMenu: (menu: CanvasState['contextMenu']) => void;
@@ -147,7 +155,7 @@ interface CanvasState {
   setHoveredLink: (link: { url: string; x: number; y: number } | null) => void;
   setVersionHistoryOpen: (open: boolean) => void;
   resetState: () => void;
-  loadCanvas: (nodes: Node[], edges: Edge[], preserveHistory?: boolean) => void;
+  loadCanvas: (nodes: Node[], edges: Edge[], preserveHistory?: boolean, drawings?: DrawingOverlay[]) => void;
   addNodesAndEdges: (nodes: Node[], edges: Edge[]) => void;
 }
 
@@ -187,6 +195,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   past: [],
   future: [],
   drawingMode: false,
+  drawings: [],
+  viewport: { x: 0, y: 0, zoom: 1 },
   zenMode: false,
   zoomOnScroll: true,
   backlinks: {},
@@ -598,7 +608,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     });
   },
 
-  loadCanvas: (nodes, edges, preserveHistory = false) => {
+  loadCanvas: (nodes, edges, preserveHistory = false, drawings) => {
     const currentLoadId = ++get()._loadCounter;
     if (get()._skipSyncTimeout) {
       clearTimeout(get()._skipSyncTimeout);
@@ -618,6 +628,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set({ 
       nodes: structuredClone(safeNodes), 
       edges: structuredClone(edges || []), 
+      drawings: structuredClone(drawings || []),
       past: preserveHistory ? get().past : [], 
       future: preserveHistory ? get().future : [], 
       _skipSync: true, 
@@ -813,11 +824,21 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   setDrawingMode: (val) => set({ drawingMode: val }),
+  addDrawing: (drawing) => {
+    get().pushSnapshot('Add Drawing');
+    set({ drawings: [...get().drawings, drawing] });
+  },
+  deleteDrawing: (id) => {
+    get().pushSnapshot('Delete Drawing');
+    set({ drawings: get().drawings.filter(d => d.id !== id) });
+  },
+  setDrawings: (drawings) => set({ drawings }),
+  setViewport: (vp) => set({ viewport: vp }),
   setZenMode: (val) => set({ zenMode: val }),
   toggleZenMode: () => set((state) => ({ zenMode: !state.zenMode })),
 
   pushSnapshot: (label = 'Action') => {
-    const { nodes, edges, past } = get();
+    const { nodes, edges, drawings, past } = get();
     
     // Atomic/Smart History: If the last action was the same as this one and happened very recently,
     // we don't need a new snapshot (e.g., consecutive 'Move' actions while dragging)
@@ -834,6 +855,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const snapshot: HistorySnapshot = { 
       nodes: structuredClone(nodes), 
       edges: structuredClone(edges),
+      drawings: structuredClone(drawings),
       label,
       timestamp: Date.now()
     };
@@ -844,7 +866,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   undo: () => {
-    const { past, nodes, edges, future } = get();
+    const { past, nodes, edges, drawings, future } = get();
     if (past.length === 0) return;
     const prev = past[past.length - 1];
     
@@ -852,6 +874,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const currentSnapshot: HistorySnapshot = { 
       nodes: structuredClone(nodes), 
       edges: structuredClone(edges),
+      drawings: structuredClone(drawings),
       label: 'Undo Action',
       timestamp: Date.now()
     };
@@ -862,12 +885,13 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       future: [currentSnapshot, ...future],
       nodes: structuredClone(prev.nodes),
       edges: structuredClone(prev.edges),
+      drawings: structuredClone(prev.drawings),
     });
     queueMicrotask(() => set({ _skipSync: false, _resyncNeeded: true }));
   },
 
   redo: () => {
-    const { future, nodes, edges, past } = get();
+    const { future, nodes, edges, drawings, past } = get();
     if (future.length === 0) return;
     const next = future[0];
     
@@ -875,6 +899,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const currentSnapshot: HistorySnapshot = { 
       nodes: structuredClone(nodes), 
       edges: structuredClone(edges),
+      drawings: structuredClone(drawings),
       label: 'Redo Action',
       timestamp: Date.now()
     };
@@ -885,6 +910,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       past: [...past, currentSnapshot],
       nodes: structuredClone(next.nodes),
       edges: structuredClone(next.edges),
+      drawings: structuredClone(next.drawings),
     });
     queueMicrotask(() => set({ _skipSync: false, _resyncNeeded: true }));
   },
@@ -899,6 +925,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   resetState: () => set({
     nodes: [],
     edges: [],
+    drawings: [],
     past: [],
     future: [],
     workspaceId: null,
@@ -979,3 +1006,5 @@ export const useZenMode = () => useCanvasStore((s) => s.zenMode);
 export const useWorkspaceId = () => useCanvasStore((s) => s.workspaceId);
 export const useCursors = () => useCanvasStore((s) => s.cursors);
 export const useSaveStatus = () => useCanvasStore((s) => s.saveStatus);
+export const useDrawings = () => useCanvasStore(useShallow((s) => s.drawings));
+export const useViewport = () => useCanvasStore((s) => s.viewport);

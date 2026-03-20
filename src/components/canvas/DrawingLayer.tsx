@@ -180,63 +180,22 @@ export const DrawingLayer = forwardRef<HTMLDivElement, DrawingLayerProps>(functi
       return;
     }
 
-    const svgEl = svgRef.current;
-    if (!svgEl) { onFinish(); return; }
-
-    // Compute bounding box of all drawn paths
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const p of paths) {
-      for (const pt of p.points) {
-        if (pt.x < minX) minX = pt.x;
-        if (pt.y < minY) minY = pt.y;
-        if (pt.x > maxX) maxX = pt.x;
-        if (pt.y > maxY) maxY = pt.y;
-      }
-    }
-
-    // Add padding around the drawing
-    const pad = 20;
-    minX -= pad;
-    minY -= pad;
-    maxX += pad;
-    maxY += pad;
-
-    const bboxW = Math.max(maxX - minX, 100);
-    const bboxH = Math.max(maxY - minY, 80);
-
-    // Translate path points so they start from (pad, pad) within the node
-    const pathsForStorage = paths.map(p => ({
-      d: pointsToSmoothPath(p.points.map(pt => ({ x: pt.x - minX, y: pt.y - minY }))),
-      color: p.color,
-      width: p.width,
-      opacity: p.opacity,
-    }));
-
-    const position = screenToFlowPosition({
-      x: minX,
-      y: minY,
+    // Convert each path's points from screen coords to flow coords
+    const overlayPaths = paths.map(p => {
+      const flowPoints = p.points.map(pt => screenToFlowPosition({ x: pt.x, y: pt.y }));
+      return {
+        d: pointsToSmoothPath(flowPoints),
+        color: p.color,
+        width: p.width,
+        opacity: p.opacity,
+      };
     });
 
-    const nodeW = Math.round(bboxW);
-    const nodeH = Math.round(bboxH);
-
-    // Use setNodes directly to bypass cursor position override in addNode
-    const { nodes, pushSnapshot } = useCanvasStore.getState();
-    pushSnapshot();
-    const newNode = {
+    const { addDrawing } = useCanvasStore.getState();
+    addDrawing({
       id: crypto.randomUUID(),
-      type: 'drawing',
-      position,
-      data: { 
-        paths: pathsForStorage, 
-        width: nodeW, 
-        height: nodeH,
-        originalWidth: nodeW,
-        originalHeight: nodeH,
-      },
-      style: { width: nodeW, height: nodeH },
-    };
-    useCanvasStore.setState({ nodes: [...nodes, newNode] });
+      paths: overlayPaths,
+    });
 
     setPaths([]);
     setCurrentPoints([]);

@@ -23,6 +23,7 @@ import { MobileDashboard } from "@/mobile/pages/MobileDashboard";
 import { MobileCanvas } from "@/mobile/pages/MobileCanvas";
 import { MobileSettings } from "@/mobile/pages/MobileSettings";
 import { MobileSearch } from "@/mobile/pages/MobileSearch";
+import MobileShareView from "@/mobile/pages/MobileShareView";
 import { MobileInstallBanner } from "@/mobile/components/MobileInstallBanner";
 import { MobileRouteGuard } from "@/mobile/components/MobileRouteGuard";
 
@@ -75,6 +76,7 @@ function AppRoutes() {
         <Route path="/mobile-mode/workspace/:workspaceId" element={<ProtectedRoute><MobileCanvas /></ProtectedRoute>} />
         <Route path="/mobile-mode/settings" element={<ProtectedRoute><MobileSettings /></ProtectedRoute>} />
         <Route path="/mobile-mode/search" element={<ProtectedRoute><MobileSearch /></ProtectedRoute>} />
+        <Route path="/mobile-mode/view/:workspaceId" element={<MobileShareView />} />
         
         {/* Fallback */}
         <Route path="*" element={<NotFound />} />

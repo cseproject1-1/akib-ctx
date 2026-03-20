@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Brain, Loader2 } from 'lucide-react';
+import { AuthBackground } from '@/components/AuthBackground';
 
 const SignupPage = () => {
   const { signUp, signInWithGoogle, sendVerification } = useAuth();
@@ -48,8 +49,9 @@ const SignupPage = () => {
 
   if (success) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
-        <div className="w-full max-w-sm space-y-6 text-center">
+      <div className="flex min-h-screen items-center justify-center bg-background px-4 relative overflow-hidden">
+        <AuthBackground />
+        <div className="w-full max-w-sm space-y-6 text-center relative z-10">
           <img src="/logo.png" alt="ctxnote" className="mx-auto h-20 w-auto object-contain" />
           <h1 className="text-2xl font-bold uppercase tracking-wider text-foreground">Check Your Email</h1>
           <p className="text-sm text-muted-foreground">
@@ -71,8 +73,9 @@ const SignupPage = () => {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm space-y-8">
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 relative overflow-hidden">
+      <AuthBackground />
+      <div className="w-full max-w-sm space-y-8 relative z-10">
         <div className="flex flex-col items-center gap-3">
           <img src="/logo.png" alt="ctxnote" className="h-20 w-auto object-contain" />
           <p className="text-sm text-muted-foreground pt-2">Join AI Study Canvas</p>

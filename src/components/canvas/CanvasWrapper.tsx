@@ -44,6 +44,7 @@ import { CommandPalette } from './CommandPalette';
 import { ThemeEditor } from './ThemeEditor';
 import { NodeSelectionToolbar } from './NodeSelectionToolbar';
 import { DrawingLayer } from './DrawingLayer';
+import { DrawingOverlay } from './DrawingOverlay';
 import { SelectionToolbar } from './SelectionToolbar';
 import { TutorialSystem } from './TutorialSystem';
 import { ActionPalette } from './ActionPalette';
@@ -274,6 +275,7 @@ export function CanvasWrapper() {
   const [dragOver, setDragOver] = useState(false);
   const drawingMode = useCanvasStore((s) => s.drawingMode);
   const setDrawingMode = useCanvasStore((s) => s.setDrawingMode);
+  const setViewport = useCanvasStore((s) => s.setViewport);
   const [drawColor, setDrawColor] = useState('hsl(52, 100%, 50%)'); // kept for future use
   const [drawWidth, setDrawWidth] = useState(3); // kept for future use
 
@@ -1031,6 +1033,11 @@ export function CanvasWrapper() {
         onConnect={isViewMode ? undefined : onConnect}
         onInit={(instance) => { 
           reactFlowInstance.current = instance as ReactFlowInstance<Node, Edge>; 
+          // Sync initial viewport to store for DrawingOverlay
+          const vp = instance.getViewport();
+          if (!isNaN(vp.x) && !isNaN(vp.y) && !isNaN(vp.zoom)) {
+            setViewport({ x: vp.x, y: vp.y, zoom: vp.zoom });
+          }
           // Restore viewport from URL hash on load
           if (routerLocation.hash.startsWith('#viewport=')) {
             const [x, y, z] = routerLocation.hash.replace('#viewport=', '').split(',');
@@ -1043,6 +1050,7 @@ export function CanvasWrapper() {
                 // use timeout to ensure nodes have rendered bounds
                 setTimeout(() => {
                   instance.setViewport({ x: vx, y: vy, zoom: vz });
+                  setViewport({ x: vx, y: vy, zoom: vz });
                 }, 150);
               }
             }
@@ -1065,7 +1073,9 @@ export function CanvasWrapper() {
           if (viewport.zoom < 0.5 !== isZoomedOut) {
             setIsZoomedOut(viewport.zoom < 0.5);
           }
-        }, [isZoomedOut])}
+          // Sync viewport for DrawingOverlay
+          setViewport({ x: viewport.x, y: viewport.y, zoom: viewport.zoom });
+        }, [isZoomedOut, setViewport])}
         onMoveEnd={useCallback((_, viewport) => {
           // Update zoom-out state one last time to be sure
           setIsZoomedOut(viewport.zoom < 0.5);
@@ -1288,6 +1298,7 @@ export function CanvasWrapper() {
       <CanvasStats />
       <KeyboardShortcutsPanel />
       <PresentationMode />
+      <DrawingOverlay />
       <DrawingLayer
         active={drawingMode}
         onFinish={() => setDrawingMode(false)}

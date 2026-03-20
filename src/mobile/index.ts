@@ -20,6 +20,7 @@ export { MobileDashboard } from './pages/MobileDashboard';
 export { MobileCanvas } from './pages/MobileCanvas';
 export { MobileSettings } from './pages/MobileSettings';
 export { MobileSearch } from './pages/MobileSearch';
+export { default as MobileShareView } from './pages/MobileShareView';
 
 // Components
 export { MobileNodeContextMenu } from './components/MobileNodeContextMenu';
