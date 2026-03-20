@@ -26,6 +26,11 @@ export function MobileRouteGuard({ children }: MobileRouteGuardProps) {
       return;
     }
 
+    // Skip redirect for auth pages (login/signup) to avoid ProtectedRoute redirect loop
+    if (location.pathname.startsWith('/login') || location.pathname.startsWith('/signup')) {
+      return;
+    }
+
     // Auto-redirect to mobile mode on mobile/tablet devices
     // Check both screen width and user agent detection
     const shouldRedirect = device.isMobile || device.isTablet;
@@ -41,7 +46,7 @@ export function MobileRouteGuard({ children }: MobileRouteGuardProps) {
         mobilePath = '/mobile-mode/settings';
       } else if (location.pathname === '/import') {
         mobilePath = '/mobile-mode/settings';
-      } else if (location.pathname !== '/' && !location.pathname.startsWith('/login') && !location.pathname.startsWith('/signup')) {
+      } else if (location.pathname !== '/') {
         // For other routes, go to mobile dashboard
         mobilePath = '/mobile-mode';
       }
