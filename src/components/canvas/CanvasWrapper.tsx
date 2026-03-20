@@ -63,6 +63,7 @@ import { useSettingsStore } from '@/store/settingsStore';
 import { AISynthesisDialog } from './AISynthesisDialog';
 import { NodeErrorBoundary } from './NodeErrorBoundary';
 import { PredictiveLinkingLayer } from './PredictiveLinkingLayer';
+import { ActionDrawer } from './ActionDrawer';
 import React from 'react';
 
 const withErrorBoundary = (Component: React.ComponentType<Record<string, unknown>>) => {
@@ -1020,14 +1021,7 @@ export function CanvasWrapper() {
       <ReactFlow
         className={cn(isZoomedOut && 'zoom-out')}
         nodes={processedNodes}
-        edges={edges.map(e => {
-          const sourceNode = localNodes.find(n => n.id === e.source);
-          const targetNode = localNodes.find(n => n.id === e.target);
-          const sourceZ = (sourceNode?.style?.zIndex as number) || 0;
-          const targetZ = (targetNode?.style?.zIndex as number) || 0;
-          const edgeZ = Math.max(0, Math.max(sourceZ, targetZ) - 1);
-          return { ...e, zIndex: edgeZ };
-        })}
+        edges={edges.map(e => ({ ...e, zIndex: 0 }))}
         onNodesChange={isViewMode ? undefined : handleNodesChange}
         onEdgesChange={isViewMode ? undefined : onEdgesChange}
         onConnect={isViewMode ? undefined : onConnect}
@@ -1293,16 +1287,17 @@ export function CanvasWrapper() {
       <SelectionToolbar />
       <ActionPalette />
       <TutorialSystem />
+      <ActionDrawer />
       <PomodoroTimer />
       <PinnedNodesPanel />
       <CanvasStats />
       <KeyboardShortcutsPanel />
       <PresentationMode />
-      <DrawingOverlay />
       <DrawingLayer
         active={drawingMode}
         onFinish={() => setDrawingMode(false)}
       />
+      <DrawingOverlay />
 
       <AnimatePresence>
         {nodes.length === 0 && !dragOver && (

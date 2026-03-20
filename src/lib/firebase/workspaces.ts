@@ -196,6 +196,7 @@ export async function duplicateWorkspace(sourceId: string, name: string, color: 
     const newWsRef = doc(collection(db, 'workspaces'));
     const now = new Date().toISOString();
     const sourceWs = await getDoc(doc(db, 'workspaces', sourceId));
+    if (!sourceWs.exists()) throw new Error('Source workspace not found');
     const sourceData = sourceWs.data() as Workspace;
 
     const newWs: Workspace = {

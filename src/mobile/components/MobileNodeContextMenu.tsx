@@ -51,7 +51,7 @@ export function MobileNodeContextMenu({
         deleteNode(nodeId);
         break;
       case 'copy':
-        navigator.clipboard.writeText(nodeId);
+        navigator.clipboard.writeText(nodeId).catch(() => {});
         break;
       case 'pin':
         updateNodeData(nodeId, { pinned: !isPinned });

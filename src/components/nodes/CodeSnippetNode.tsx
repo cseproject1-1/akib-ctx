@@ -48,10 +48,13 @@ export const CodeSnippetNode = memo(({ id, data, selected }: NodeProps) => {
 
   const handleCopy = useCallback(() => {
     if (nodeData.code) {
-      navigator.clipboard.writeText(nodeData.code);
-      setCopied(true);
-      toast.success('Code copied');
-      setTimeout(() => setCopied(false), 2000);
+      navigator.clipboard.writeText(nodeData.code).then(() => {
+        setCopied(true);
+        toast.success('Code copied');
+        setTimeout(() => setCopied(false), 2000);
+      }).catch(() => {
+        toast.error('Failed to copy code');
+      });
     }
   }, [nodeData.code]);
 

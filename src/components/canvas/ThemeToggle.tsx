@@ -15,7 +15,7 @@ export function useTheme() {
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
     if (typeof window !== 'undefined') {
-      return (localStorage.getItem('crxnote-theme') as Theme) || 'dark';
+      try { return (localStorage.getItem('crxnote-theme') as Theme) || 'dark'; } catch { return 'dark'; }
     }
     return 'dark';
   });
@@ -24,7 +24,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const root = document.documentElement;
     root.classList.remove('light', 'dark');
     root.classList.add(theme);
-    localStorage.setItem('crxnote-theme', theme);
+    try { localStorage.setItem('crxnote-theme', theme); } catch { /* quota */ }
   }, [theme]);
 
   const toggle = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));

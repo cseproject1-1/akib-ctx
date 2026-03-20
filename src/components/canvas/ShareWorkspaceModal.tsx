@@ -97,10 +97,13 @@ export const ShareWorkspaceModal = forwardRef<HTMLDivElement, ShareWorkspaceModa
 
   const handleCopyLink = () => {
     const url = `${window.location.origin}/view/${workspaceId}`;
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-    toast.success('Link copied');
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast.success('Link copied');
+    }).catch(() => {
+      toast.error('Failed to copy link');
+    });
   };
 
   return (

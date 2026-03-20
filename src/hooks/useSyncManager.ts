@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { startSyncManager, stopSyncManager } from '@/lib/cache/canvasCache';
 
 /**
@@ -6,13 +6,15 @@ import { startSyncManager, stopSyncManager } from '@/lib/cache/canvasCache';
  * Should be called once at the top level of the app.
  */
 export function useSyncManager() {
+  const started = useRef(false);
   useEffect(() => {
-    // Start the sync manager on mount
+    if (started.current) return;
+    started.current = true;
     startSyncManager();
     
-    // Stop the sync manager on unmount
     return () => {
       stopSyncManager();
+      started.current = false;
     };
   }, []);
 }

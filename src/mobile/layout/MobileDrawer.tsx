@@ -4,19 +4,11 @@ import {
   Home, 
   LayoutGrid, 
   Settings, 
-  LogOut, 
-  Moon, 
-  Sun, 
-  Smartphone, 
-  Laptop,
   User,
   HelpCircle
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useCanvasStore } from '@/store/canvasStore';
-import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { cn } from '@/lib/utils';
 
 // Theme context that extends the desktop ThemeProvider
 // Uses the same localStorage key: 'crxnote-theme'
@@ -74,26 +66,7 @@ interface MobileDrawerProps {
 
 export function MobileDrawer({ onClose }: MobileDrawerProps) {
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
-  const { theme, setTheme } = useMobileTheme();
-  const workspaces = useCanvasStore((s) => s.openWorkspaces);
-
-  const handleSwitchToDesktop = () => {
-    localStorage.setItem('useDesktopMode', 'true');
-    window.location.href = '/';
-  };
-
-  const handleSignOut = async () => {
-    try {
-      await signOut();
-      // Silent mode - navigation shows sign out
-      navigate('/login');
-      onClose();
-    } catch (error) {
-      console.error('Failed to sign out:', error);
-      // Silent mode - error is logged
-    }
-  };
+  const { user } = useAuth();
 
   return (
     <div className="h-full flex flex-col bg-background" data-mobile-drawer>
@@ -144,53 +117,6 @@ export function MobileDrawer({ onClose }: MobileDrawerProps) {
 
         <Separator className="my-3" />
 
-        {/* Theme Toggle */}
-        <div className="px-3 py-2">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-            Appearance
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setTheme('light')}
-              className={cn(
-                "flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border transition-colors",
-                theme === 'light' ? "border-primary bg-primary/10" : "border-border hover:bg-accent/50"
-              )}
-            >
-              <Sun className="h-4 w-4" />
-              <span className="text-sm">Light</span>
-            </button>
-            <button
-              onClick={() => setTheme('dark')}
-              className={cn(
-                "flex-1 flex items-center justify-center gap-2 p-3 rounded-lg border transition-colors",
-                theme === 'dark' ? "border-primary bg-primary/10" : "border-border hover:bg-accent/50"
-              )}
-            >
-              <Moon className="h-4 w-4" />
-              <span className="text-sm">Dark</span>
-            </button>
-          </div>
-        </div>
-
-        <Separator className="my-3" />
-
-        {/* Desktop Mode Option (only visible on mobile) */}
-        <div className="px-3 py-2">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-            View Mode
-          </p>
-          <button
-            onClick={handleSwitchToDesktop}
-            className="w-full flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-accent/50 text-left transition-colors"
-          >
-            <Laptop className="h-5 w-5 text-muted-foreground" />
-            <span>Switch to Desktop</span>
-          </button>
-        </div>
-
-        <Separator className="my-3" />
-
         {/* Help */}
         <div className="px-3 py-2">
           <button
@@ -202,18 +128,6 @@ export function MobileDrawer({ onClose }: MobileDrawerProps) {
           </button>
         </div>
       </nav>
-
-      {/* Footer */}
-      <div className="p-4 border-t border-border/50">
-        <Button
-          variant="destructive"
-          className="w-full"
-          onClick={handleSignOut}
-        >
-          <LogOut className="h-4 w-4 mr-2" />
-          Sign Out
-        </Button>
-      </div>
     </div>
   );
 }

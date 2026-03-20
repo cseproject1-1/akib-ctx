@@ -342,7 +342,7 @@ function MobileCanvasContent() {
       <div className="absolute inset-0">
         <ReactFlow
           nodes={nodes}
-          edges={edges}
+          edges={edges.map(e => ({ ...e, zIndex: 0 }))}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           fitView

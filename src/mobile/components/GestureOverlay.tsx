@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
@@ -26,8 +26,17 @@ export function GestureOverlay({ onGesture, children }: GestureOverlayProps) {
 
   const touchStartRef = useRef({ x: 0, y: 0, time: 0, touches: 0 });
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+  const visualClearTimer = useRef<NodeJS.Timeout | null>(null);
   const pinchStartDistance = useRef<number | null>(null);
   const pinchStartCenter = useRef({ x: 0, y: 0 });
+
+  // Cleanup timers on unmount
+  useEffect(() => {
+    return () => {
+      if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+      if (visualClearTimer.current) { clearTimeout(visualClearTimer.current); visualClearTimer.current = null; }
+    };
+  }, []);
 
   const getDistance = (t1: React.Touch, t2: React.Touch): number => {
     const dx = t1.clientX - t2.clientX;
@@ -64,7 +73,8 @@ export function GestureOverlay({ onGesture, children }: GestureOverlayProps) {
           x: touches[0].clientX,
           y: touches[0].clientY,
         });
-        setTimeout(() => setGestureVisual(null), 300);
+        if (visualClearTimer.current) clearTimeout(visualClearTimer.current);
+        visualClearTimer.current = setTimeout(() => setGestureVisual(null), 300);
       }, 500);
     } else if (touches.length === 2) {
       // Let ReactFlow handle pinches

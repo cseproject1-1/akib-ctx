@@ -47,11 +47,13 @@ export function TutorialSystem() {
   const [coords, setCoords] = useState({ top: 0, left: 0 });
 
   useEffect(() => {
-    const hasSeen = localStorage.getItem('ctxnote-tutorial-complete');
-    if (!hasSeen) {
-      const timer = setTimeout(() => setIsVisible(true), 1500);
-      return () => clearTimeout(timer);
-    }
+    try {
+      const hasSeen = localStorage.getItem('ctxnote-tutorial-complete');
+      if (!hasSeen) {
+        const timer = setTimeout(() => setIsVisible(true), 1500);
+        return () => clearTimeout(timer);
+      }
+    } catch { /* localStorage unavailable */ }
   }, []);
 
   const step = steps[currentStep];
@@ -87,7 +89,7 @@ export function TutorialSystem() {
 
   const dismiss = () => {
     setIsVisible(false);
-    localStorage.setItem('ctxnote-tutorial-complete', 'true');
+    try { localStorage.setItem('ctxnote-tutorial-complete', 'true'); } catch { /* quota */ }
   };
 
   if (!isVisible) return null;

@@ -35,7 +35,7 @@ export function MobileSearch() {
     
     const updated = [newQuery, ...recentSearches.filter(s => s !== newQuery)].slice(0, 10);
     setRecentSearches(updated);
-    localStorage.setItem('crxnote-recent-searches', JSON.stringify(updated));
+    try { localStorage.setItem('crxnote-recent-searches', JSON.stringify(updated)); } catch { /* quota */ }
   };
 
   // Search results

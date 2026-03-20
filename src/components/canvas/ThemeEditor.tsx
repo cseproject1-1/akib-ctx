@@ -21,13 +21,17 @@ const GRID_STYLES: { label: string; value: 'dots' | 'lines' | 'cross' | 'graph' 
 ];
 
 export function ThemeEditor() {
-  const [open, setOpen] = useState(false);
+  const activePanel = useCanvasStore((s) => s.activePanel);
+  const setActivePanel = useCanvasStore((s) => s.setActivePanel);
+  const open = activePanel === 'theme';
+  const setOpen = (val: boolean) => setActivePanel(val ? 'theme' : null);
+  
   const gridStyle = useCanvasStore((s) => s.gridStyle);
   const cycleGridStyle = useCanvasStore((s) => s.cycleGridStyle);
   
   // Local state for UI refinement - real implementation would sync to CSS variables
-  const [accent, setAccent] = useState(() => localStorage.getItem('theme-accent') || '#3b82f6');
-  const [glass, setGlass] = useState(() => Number(localStorage.getItem('theme-glass')) || 0.8);
+  const [accent, setAccent] = useState(() => { try { return localStorage.getItem('theme-accent') || '#3b82f6'; } catch { return '#3b82f6'; } });
+  const [glass, setGlass] = useState(() => { try { return Number(localStorage.getItem('theme-glass')) || 0.8; } catch { return 0.8; } });
 
   useEffect(() => {
     // Convert Hex to HSL for index.css compatibility (hsl(var(--primary)))
@@ -53,25 +57,15 @@ export function ThemeEditor() {
     };
 
     document.documentElement.style.setProperty('--primary', hexToHsl(accent));
-    localStorage.setItem('theme-accent', accent);
+    try { localStorage.setItem('theme-accent', accent); } catch { /* quota */ }
   }, [accent]);
 
   useEffect(() => {
     document.documentElement.style.setProperty('--glass-opacity', String(glass));
-    localStorage.setItem('theme-glass', String(glass));
+    try { localStorage.setItem('theme-glass', String(glass)); } catch { /* quota */ }
   }, [glass]);
 
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed bottom-[340px] left-6 z-[60] flex h-12 w-12 items-center justify-center rounded-xl border-2 border-border bg-card shadow-[4px_4px_0px_rgba(0,0,0,0.1)] transition-all hover:bg-accent active:scale-95"
-        title="Customization"
-      >
-        <Palette className="h-5 w-5 text-primary" />
-      </button>
-    );
-  }
+  if (!open) return null;
 
   return (
     <div className="fixed bottom-[340px] left-6 z-[60] w-72 rounded-xl border border-border bg-card shadow-[var(--clay-shadow-lg)] animate-brutal-pop overflow-hidden">

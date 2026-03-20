@@ -26,21 +26,15 @@ function extractTiptapText(content: unknown): string {
 }
 
 export function CanvasStats() {
-  const [open, setOpen] = useState(false);
+  const activePanel = useCanvasStore((s) => s.activePanel);
+  const setActivePanel = useCanvasStore((s) => s.setActivePanel);
+  const open = activePanel === 'stats';
+  const setOpen = (val: boolean) => setActivePanel(val ? 'stats' : null);
+
   const nodes = useNodes();
   const edges = useEdges();
 
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed left-6 bottom-6 z-40 flex h-10 w-10 items-center justify-center rounded-lg border-2 border-border bg-card shadow-[3px_3px_0px_hsl(0,0%,15%)] transition-all hover:bg-accent"
-        title="Canvas Stats"
-      >
-        <BarChart3 className="h-4 w-4 text-muted-foreground" />
-      </button>
-    );
-  }
+  if (!open) return null;
 
   // Compute stats
   const selectedNodes = nodes.filter(n => n.selected);

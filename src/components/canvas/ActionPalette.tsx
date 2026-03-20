@@ -104,8 +104,11 @@ export function ActionPalette({ nodeWidth = 0, screenX = 0, screenY = 0 }: Actio
       label: 'Copy Node ID',
       icon: Anchor,
       handler: (n) => {
-        navigator.clipboard.writeText(n.id);
-        toast.success('Copied ID to clipboard');
+        navigator.clipboard.writeText(n.id).then(() => {
+          toast.success('Copied ID to clipboard');
+        }).catch(() => {
+          toast.error('Failed to copy');
+        });
       },
     },
     {

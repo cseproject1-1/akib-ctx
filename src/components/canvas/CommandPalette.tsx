@@ -161,7 +161,7 @@ export function CommandPalette() {
               <Command.Separator className="h-px bg-white/5 my-2" />
 
               <Command.Group heading={<span className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-primary/60">Navigation</span>}>
-                <Item onSelect={() => navigate('/dashboard')} icon={Layout} label="Go to Dashboard" />
+                <Item onSelect={() => navigate('/')} icon={Layout} label="Go to Dashboard" />
                 <Item onSelect={() => setOpen(false)} icon={Settings} label="Open Settings" />
               </Command.Group>
             </Command.List>

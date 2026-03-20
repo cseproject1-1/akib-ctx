@@ -6,8 +6,11 @@ import { useCanvasStore } from '@/store/canvasStore';
 import {
   cachedLoadCanvasNodes,
   cachedLoadCanvasEdges,
+  cachedLoadCanvasDrawings,
   saveNode,
   saveEdge,
+  saveDrawing,
+  deleteDrawing,
   deleteCanvasNode,
   deleteCanvasEdge,
   updateNodePosition,
@@ -17,7 +20,8 @@ import {
   replayPendingOps,
 } from '@/lib/cache/canvasCache';
 import { getWorkspaces } from '@/lib/firebase/workspaces';
-import { createSnapshot, pruneSnapshots, subscribeCanvasNodes, subscribeCanvasEdges, subscribeCursors } from '@/lib/firebase/canvasData';
+import { createSnapshot, pruneSnapshots, subscribeCanvasNodes, subscribeCanvasEdges, subscribeCursors, loadCanvasDrawings } from '@/lib/firebase/canvasData';
+import type { DrawingOverlay } from '@/types/canvas';
 // Note: deleteCanvasFile is not migrated yet; we'll keep the import or comment it out if not needed now
 import { deleteCanvasFile } from '@/lib/r2/storage';
 import { auth } from '@/lib/firebase/client';
@@ -58,7 +62,7 @@ const WorkspacePage = () => {
     setLoading(true);
     try {
       // SWR: load cached data first for instant render
-      const [nodesResult, edgesResult] = await Promise.all([
+      const [nodesResult, edgesResult, drawingsResult] = await Promise.all([
         cachedLoadCanvasNodes(workspaceId, (freshNodes) => {
           // Background update when server data arrives
           if (freshNodes.length === 0 && !navigator.onLine) return; // Don't clear if offline and empty
@@ -77,7 +81,7 @@ const WorkspacePage = () => {
                              });
           
           if (nodesChanged) {
-            loadCanvas(freshNodes, useCanvasStore.getState().edges);
+            loadCanvas(freshNodes, useCanvasStore.getState().edges, false, useCanvasStore.getState().drawings);
           }
         }),
         cachedLoadCanvasEdges(workspaceId, (freshEdges) => {
@@ -101,14 +105,19 @@ const WorkspacePage = () => {
           if (edgesChanged) {
             const { nodes: latestNodes } = useCanvasStore.getState();
             // Use a custom load that preserves history for real-time sync
-            loadCanvas(latestNodes, freshEdges, true);
+            loadCanvas(latestNodes, freshEdges, true, useCanvasStore.getState().drawings);
           }
+        }),
+        cachedLoadCanvasDrawings(workspaceId, (freshDrawings) => {
+          if (freshDrawings.length === 0 && !navigator.onLine) return;
+          const { nodes: latestNodes, edges: latestEdges } = useCanvasStore.getState();
+          loadCanvas(latestNodes, latestEdges, true, freshDrawings);
         }),
       ]);
 
       // If we have cached data, render immediately
       if (nodesResult.cached && edgesResult.cached) {
-        loadCanvas(nodesResult.cached, edgesResult.cached);
+        loadCanvas(nodesResult.cached, edgesResult.cached, false, drawingsResult.cached ?? []);
         setLoading(false);
       }
 
@@ -120,13 +129,13 @@ const WorkspacePage = () => {
 
       // Background sync: wait for fresh data to ensure source of truth before replaying ops
       try {
-        const [nodes, edges] = await Promise.all([nodesResult.fresh, edgesResult.fresh]);
+        const [nodes, edges, drawings] = await Promise.all([nodesResult.fresh, edgesResult.fresh, drawingsResult.fresh]);
         serverNodeIds.current = new Set(nodes.map(n => n.id));
         serverEdgeIds.current = new Set(edges.map(e => e.id));
         
         // If we had no cache, we MUST load the fresh data now
         if (!nodesResult.cached || !edgesResult.cached) {
-          loadCanvas(nodes, edges);
+          loadCanvas(nodes, edges, false, drawings);
         }
       } catch (err) {
         console.warn('[Workspace] Background update failed, continuing with cache', err);
@@ -256,10 +265,6 @@ const WorkspacePage = () => {
     if (!workspaceId) return;
 
     const { incSave, decSave } = useCanvasStore.getState();
-    const currentDataTimers = dataTimers.current;
-    const currentPosTimers = posTimers.current;
-    const currentStyleTimers = styleTimers.current;
-    const currentEdgeTimers = edgeTimers.current;
 
     const trackSave = (promise: Promise<void>) => {
       incSave();
@@ -316,6 +321,23 @@ const WorkspacePage = () => {
       deletedEdges.forEach(e => {
         trackSave(deleteCanvasEdge(workspaceId, e.id));
         if (edgeTimers.current.has(e.id)) { clearTimeout(edgeTimers.current.get(e.id)); edgeTimers.current.delete(e.id); }
+      });
+
+      // Save new drawings
+      const newDrawings = state.drawings.filter(d => !prev.drawings.find(pd => pd.id === d.id));
+      newDrawings.forEach(d => {
+        trackSave(saveDrawing(workspaceId, d));
+      });
+
+      // Detect deleted drawings
+      const deletedDrawings = prev.drawings.filter(pd => !state.drawings.find(d => d.id === pd.id));
+      if (deletedDrawings.length > 0) {
+        import('@/lib/cache/indexedDB').then(({ cacheSet }) => {
+          cacheSet('canvas-drawings', workspaceId, state.drawings);
+        });
+      }
+      deletedDrawings.forEach(d => {
+        trackSave(deleteDrawing(workspaceId, d.id));
       });
 
       // Position, data, and style updates for existing nodes
@@ -386,15 +408,28 @@ const WorkspacePage = () => {
 
     return () => {
       unsub();
-      // Ensure all timers are cleared on unmount
-      currentDataTimers.forEach(clearTimeout);
-      currentPosTimers.forEach(clearTimeout);
-      currentStyleTimers.forEach(clearTimeout);
-      currentEdgeTimers.forEach(clearTimeout);
-      currentDataTimers.clear();
-      currentPosTimers.clear();
-      currentStyleTimers.clear();
-      currentEdgeTimers.clear();
+      // Flush pending debounced saves instead of just clearing timers (prevents data loss on navigation)
+      const { nodes, edges } = useCanvasStore.getState();
+      dataTimers.current.forEach((_, nodeId) => {
+        const node = nodes.find(n => n.id === nodeId);
+        if (node) updateNodeDataInDb(workspaceId, nodeId, node.data as Record<string, unknown>);
+      });
+      posTimers.current.forEach((_, nodeId) => {
+        const node = nodes.find(n => n.id === nodeId);
+        if (node) updateNodePosition(workspaceId, nodeId, node.position.x, node.position.y);
+      });
+      styleTimers.current.forEach((_, nodeId) => {
+        const node = nodes.find(n => n.id === nodeId);
+        if (node) updateNodeStyle(workspaceId, nodeId, (node.style?.width as number) || 300, (node.style?.height as number) || 200, (node.style?.zIndex as number) || 0);
+      });
+      edgeTimers.current.forEach((_, edgeId) => {
+        const edge = edges.find(e => e.id === edgeId);
+        if (edge) updateEdgeDataInDb(workspaceId, edgeId, (edge.data as Record<string, unknown>) || {}, edge.label as string | undefined);
+      });
+      dataTimers.current.clear();
+      posTimers.current.clear();
+      styleTimers.current.clear();
+      edgeTimers.current.clear();
     };
   }, [workspaceId]);
 
@@ -432,6 +467,19 @@ const WorkspacePage = () => {
         });
         prev.edges.forEach(pe => {
           if (!currEdgeIds.has(pe.id)) promises.push(deleteCanvasEdge(workspaceId, pe.id));
+        });
+
+        // Sync drawings
+        const { drawings } = useCanvasStore.getState();
+        const currDrawingIds = new Set(drawings.map(d => d.id));
+        drawings.forEach(d => {
+          const prevDrawing = prev.drawings.find(pd => pd.id === d.id);
+          if (!prevDrawing || JSON.stringify(d) !== JSON.stringify(prevDrawing)) {
+            promises.push(saveDrawing(workspaceId, d));
+          }
+        });
+        prev.drawings.forEach(pd => {
+          if (!currDrawingIds.has(pd.id)) promises.push(deleteDrawing(workspaceId, pd.id));
         });
 
         if (promises.length > 0) {

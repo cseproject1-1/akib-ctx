@@ -182,7 +182,14 @@ export const DrawingLayer = forwardRef<HTMLDivElement, DrawingLayerProps>(functi
 
     // Convert each path's points from screen coords to flow coords
     const overlayPaths = paths.map(p => {
-      const flowPoints = p.points.map(pt => screenToFlowPosition({ x: pt.x, y: pt.y }));
+      const flowPoints = p.points.map(pt => {
+        const fp = screenToFlowPosition({ x: pt.x, y: pt.y });
+        // Fallback to screen coords if conversion returns NaN
+        return {
+          x: isNaN(fp.x) ? pt.x : fp.x,
+          y: isNaN(fp.y) ? pt.y : fp.y,
+        };
+      });
       return {
         d: pointsToSmoothPath(flowPoints),
         color: p.color,

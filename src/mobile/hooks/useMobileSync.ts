@@ -3,8 +3,11 @@ import { useCanvasStore } from '@/store/canvasStore';
 import {
   cachedLoadCanvasNodes,
   cachedLoadCanvasEdges,
+  cachedLoadCanvasDrawings,
   saveNode,
   saveEdge,
+  saveDrawing,
+  deleteDrawing,
   deleteCanvasNode,
   deleteCanvasEdge,
   updateNodePosition,
@@ -24,13 +27,13 @@ export function useMobileSync() {
   const loadWorkspaceData = useCallback(async (id: string) => {
     try {
       // Use existing cache system - identical to desktop
-      const [nodesResult, edgesResult] = await Promise.all([
+      const [nodesResult, edgesResult, drawingsResult] = await Promise.all([
         cachedLoadCanvasNodes(id, (freshNodes) => {
           // Background sync callback - same as desktop
           const { nodes: currentNodes } = useCanvasStore.getState();
           const nodesChanged = currentNodes.length !== freshNodes.length;
           if (nodesChanged) {
-            loadCanvas(freshNodes, useCanvasStore.getState().edges);
+            loadCanvas(freshNodes, useCanvasStore.getState().edges, false, useCanvasStore.getState().drawings);
           }
         }),
         cachedLoadCanvasEdges(id, (freshEdges) => {
@@ -38,20 +41,24 @@ export function useMobileSync() {
           const edgesChanged = currentEdges.length !== freshEdges.length;
           if (edgesChanged) {
             const { nodes: latestNodes } = useCanvasStore.getState();
-            loadCanvas(latestNodes, freshEdges, true);
+            loadCanvas(latestNodes, freshEdges, true, useCanvasStore.getState().drawings);
           }
+        }),
+        cachedLoadCanvasDrawings(id, (freshDrawings) => {
+          const { nodes: latestNodes, edges: latestEdges } = useCanvasStore.getState();
+          loadCanvas(latestNodes, latestEdges, true, freshDrawings);
         }),
       ]);
 
       // Load from cache first for instant render
       if (nodesResult.cached && edgesResult.cached) {
-        loadCanvas(nodesResult.cached, edgesResult.cached);
+        loadCanvas(nodesResult.cached, edgesResult.cached, false, drawingsResult.cached ?? []);
       }
 
       // Wait for fresh data and replay pending operations
-      const [nodes, edges] = await Promise.all([nodesResult.fresh, edgesResult.fresh]);
+      const [nodes, edges, drawings] = await Promise.all([nodesResult.fresh, edgesResult.fresh, drawingsResult.fresh]);
       if (!nodesResult.cached || !edgesResult.cached) {
-        loadCanvas(nodes, edges);
+        loadCanvas(nodes, edges, false, drawings);
       }
 
       // Replay any pending operations - ensures data consistency

@@ -373,7 +373,7 @@ export function NodeExpandModal() {
         }
       });
     } else {
-      navigator.clipboard.writeText(url);
+      navigator.clipboard.writeText(url).catch(() => {});
     }
   }, [node]);
 

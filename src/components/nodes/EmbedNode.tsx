@@ -122,6 +122,7 @@ export const EmbedNode = memo(({ id, data, selected }: NodeProps) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url })
       });
+      if (!response.ok) throw new Error(`API error ${response.status}`);
       const result = await response.json() as UrlMetadata;
       if (result) {
         setMetadata(result);

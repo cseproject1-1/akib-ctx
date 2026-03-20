@@ -2,11 +2,15 @@ import type { Node, Edge } from '@xyflow/react';
 import { cacheGet, cacheSet, cacheDel, clearAllCaches, addPendingOp, getAllPendingOps, removePendingOp } from './indexedDB';
 import { cacheClear } from './indexedDB';
 import type { PendingOp } from './indexedDB';
+import type { DrawingOverlay } from '@/types/canvas';
 import {
   loadCanvasNodes,
   loadCanvasEdges,
+  loadCanvasDrawings,
   saveNode as serverSaveNode,
   saveEdge as serverSaveEdge,
+  saveDrawing as serverSaveDrawing,
+  deleteDrawingFromDb as serverDeleteDrawing,
   deleteCanvasNode as serverDeleteNode,
   deleteCanvasEdge as serverDeleteEdge,
   updateNodePosition as serverUpdatePosition,
@@ -260,6 +264,75 @@ export async function cachedLoadCanvasEdges(
   return { cached, fresh };
 }
 
+// ─── Canvas Drawings ───
+
+export async function cachedLoadCanvasDrawings(
+  workspaceId: string,
+  onUpdate?: (drawings: DrawingOverlay[]) => void
+): Promise<{ cached: DrawingOverlay[] | null; fresh: Promise<DrawingOverlay[]> }> {
+  const entry = await cacheGet<DrawingOverlay[]>('canvas-drawings', workspaceId);
+  const cached = entry?.data ?? null;
+
+  const fresh = (async () => {
+    try {
+      const drawings = await loadCanvasDrawings(workspaceId);
+      await cacheSet('canvas-drawings', workspaceId, drawings);
+
+      const isChanged = !cached ||
+        drawings.length !== cached.length ||
+        JSON.stringify(drawings) !== JSON.stringify(cached);
+
+      if (onUpdate && isChanged) {
+        onUpdate(drawings);
+      }
+      return drawings;
+    } catch (err) {
+      console.warn('[sync] Failed to load drawings from server, using cache:', err);
+      if (cached) return cached;
+      // Don't throw — drawings are non-essential, don't block canvas load
+      return [];
+    }
+  })();
+
+  return { cached, fresh };
+}
+
+export async function saveDrawing(workspaceId: string, drawing: DrawingOverlay) {
+  // Update IndexedDB cache
+  const entry = await cacheGet<DrawingOverlay[]>('canvas-drawings', workspaceId);
+  const drawings = entry?.data ?? [];
+  const idx = drawings.findIndex(d => d.id === drawing.id);
+  if (idx >= 0) {
+    drawings[idx] = drawing;
+  } else {
+    drawings.push(drawing);
+  }
+  await cacheSet('canvas-drawings', workspaceId, drawings);
+
+  // Save to server
+  try {
+    await serverSaveDrawing(workspaceId, drawing);
+  } catch (err) {
+    queueOffline({ type: 'saveDrawing', args: [workspaceId, drawing] }, err as Error);
+  }
+}
+
+export async function deleteDrawing(workspaceId: string, drawingId: string) {
+  // Update IndexedDB cache
+  const entry = await cacheGet<DrawingOverlay[]>('canvas-drawings', workspaceId);
+  if (entry) {
+    const drawings = entry.data.filter(d => d.id !== drawingId);
+    await cacheSet('canvas-drawings', workspaceId, drawings);
+  }
+
+  // Delete from server
+  try {
+    await serverDeleteDrawing(workspaceId, drawingId);
+  } catch (err) {
+    queueOffline({ type: 'deleteDrawing', args: [workspaceId, drawingId] }, err as Error);
+  }
+}
+
 // ─── Workspaces ───
 
 export async function cachedGetWorkspaces(
@@ -364,14 +437,22 @@ function queueOffline(op: Omit<PendingOp, 'id' | 'createdAt'>, error?: unknown) 
   const errMsg = error instanceof Error ? error.message : String(error);
   console.error('[sync] Queuing offline:', op.type, errMsg);
   const id = crypto.randomUUID();
-  addPendingOp({ ...op, id, createdAt: Date.now() }).then(() => {
+  const opWithMeta = { ...op, id, createdAt: Date.now() };
+  // Deep clone args to avoid capturing mutable references from Zustand store
+  if (Array.isArray(opWithMeta.args)) {
+    opWithMeta.args = structuredClone(opWithMeta.args);
+  }
+  addPendingOp(opWithMeta).then(() => {
     window.dispatchEvent(new Event('pending-ops-changed'));
+  }).catch((err) => {
+    console.error('[sync] CRITICAL: Failed to queue pending op:', err);
+    toast.error('Failed to save change locally', { duration: 5000 });
   });
 
   if (!navigator.onLine) {
-    toast.info('Saved locally — will sync when online', { id: 'offline-save' });
+    toast.info('Saved locally — will sync when online', { id: `offline-save-${id}` });
   } else {
-    toast.error('Save failed — will retry', { duration: 3000, id: 'save-error' });
+    toast.error('Save failed — will retry', { duration: 3000, id: `save-error-${id}` });
   }
 }
 
@@ -425,6 +506,12 @@ export async function deleteCanvasEdge(workspaceId: string, edgeId: string) {
     console.warn('[sync] Skipping delete for non-UUID edge:', edgeId);
     return;
   }
+  // Update local cache immediately (matching deleteCanvasNode pattern)
+  const entry = await cacheGet<Edge[]>('canvas-edges', workspaceId);
+  if (entry) {
+    const edges = entry.data.filter((e) => e.id !== edgeId);
+    await cacheSet('canvas-edges', workspaceId, edges);
+  }
   try {
     await withRetry(() => serverDeleteEdge(workspaceId, edgeId));
   } catch (err) {
@@ -474,11 +561,13 @@ export async function clearPendingOps() {
 }
 
 let _replaying = false;
+let _replayGeneration = 0;
 
 export async function replayPendingOps(isRetry = false) {
   // Prevent concurrent replays
   if (_replaying) return;
   _replaying = true;
+  const myGeneration = ++_replayGeneration;
 
   // Safety timeout to reset _replaying if it gets stuck (e.g. extremely long wait)
   const safetyTimeout = setTimeout(() => {
@@ -509,6 +598,8 @@ export async function replayPendingOps(isRetry = false) {
     let replayed = 0;
 
     for (const op of ops) {
+      // Abort if sync manager was stopped during replay
+      if (myGeneration !== _replayGeneration) return;
       // Purge stale ops (>30 days)
       if (now - op.createdAt > STALE_MS) {
         await removePendingOp(op.id);
@@ -578,6 +669,14 @@ export async function replayPendingOps(isRetry = false) {
             await serverUpdateSettings(op.args[0] as Partial<UserSettings>);
             break;
           }
+          case 'saveDrawing': {
+            await serverSaveDrawing(op.args[0] as string, op.args[1] as DrawingOverlay);
+            break;
+          }
+          case 'deleteDrawing': {
+            await serverDeleteDrawing(op.args[0] as string, op.args[1] as string);
+            break;
+          }
         }
         await removePendingOp(op.id);
         replayed++;
@@ -595,6 +694,15 @@ export async function replayPendingOps(isRetry = false) {
         if (isNetworkError(err) || isAuthError(err)) {
           console.warn('[sync] Stopping replay due to network/auth error');
           // Start/Increase exponential backoff
+          _retryDelay = Math.min(_retryDelay * 1.5, MAX_RETRY_INTERVAL);
+          break;
+        }
+
+        // Transient server errors: keep op for retry instead of permanently removing
+        if (err?.code === 'internal' || err?.code === 'unavailable' || 
+            err?.code === 'deadline-exceeded' || err?.code === 'aborted' ||
+            err?.code === 'resource-exhausted') {
+          console.warn('[sync] Transient server error, keeping op for retry:', op.type, err?.code);
           _retryDelay = Math.min(_retryDelay * 1.5, MAX_RETRY_INTERVAL);
           break;
         }
@@ -627,6 +735,7 @@ export async function invalidateWorkspaceCache(workspaceId: string) {
   await Promise.all([
     cacheDel('canvas-nodes', workspaceId),
     cacheDel('canvas-edges', workspaceId),
+    cacheDel('canvas-drawings', workspaceId),
     cacheDel('node-counts', workspaceId),
   ]);
 }
@@ -708,6 +817,7 @@ export function stopSyncManager() {
     _offlineHandler = null;
   }
   // Clear any active replay
+  _replayGeneration++; // Invalidate any running replay loop
   _replaying = false;
   _retryDelay = 5000;
 }

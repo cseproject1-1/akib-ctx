@@ -8,6 +8,9 @@ function queueSettingsOffline(partial: Partial<UserSettings>) {
   const id = crypto.randomUUID();
   addPendingOp({ id, type: 'updateSettings', args: [partial], createdAt: Date.now() }).then(() => {
     window.dispatchEvent(new Event('pending-ops-changed'));
+  }).catch((err) => {
+    console.error('[settings] CRITICAL: Failed to queue offline settings:', err);
+    toast.error('Failed to save settings locally', { duration: 5000 });
   });
   if (!navigator.onLine) {
     toast.info('Settings saved locally — will sync when online', { id: 'offline-settings' });

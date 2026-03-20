@@ -1,6 +1,5 @@
-import { ArrowLeft, Menu, Search, MoreVertical, Settings, Home, Share2 } from 'lucide-react';
+import { ArrowLeft, Menu, Search, MoreVertical, Share2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useNavigate } from 'react-router-dom';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,7 +24,6 @@ export function MobileHeader({
   showActions = true,
   actions
 }: MobileHeaderProps) {
-  const navigate = useNavigate();
 
   return (
     <header 
@@ -95,14 +93,6 @@ export function MobileHeader({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem onClick={() => navigate('/mobile-mode')}>
-                    <Home className="mr-2 h-4 w-4" />
-                    <span>Dashboard</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/mobile-mode/settings')}>
-                    <Settings className="mr-2 h-4 w-4" />
-                    <span>Settings</span>
-                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => {
                     if (navigator.share) {
                       navigator.share({

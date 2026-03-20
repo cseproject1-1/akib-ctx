@@ -173,8 +173,11 @@ export function NodeContextMenu() {
 
   const handleCopyLink = () => {
     const url = `${window.location.origin}/workspace/${workspaceId}?nodeId=${nodeId}`;
-    navigator.clipboard.writeText(url);
-    toast.success('Link copied');
+    navigator.clipboard.writeText(url).then(() => {
+      toast.success('Link copied');
+    }).catch(() => {
+      toast.error('Failed to copy link');
+    });
   };
 
   const handleColorChange = (colorName: string) => {
@@ -229,6 +232,7 @@ export function NodeContextMenu() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'summarize', content: textContent })
       });
+      if (!response.ok) throw new Error(`API error ${response.status}`);
       const { data, error } = await response.json() as { data: AISummarizeResponse; error?: string };
       if (error) throw new Error(error);
       const result = data;
@@ -255,6 +259,7 @@ export function NodeContextMenu() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'flashcards', content: textContent })
       });
+      if (!response.ok) throw new Error(`API error ${response.status}`);
       const { data, error } = await response.json() as { data: AIFlashcardsResponse; error?: string };
       if (error) throw new Error(error);
       const result = data;

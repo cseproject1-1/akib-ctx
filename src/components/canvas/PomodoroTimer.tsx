@@ -22,7 +22,7 @@ function getStoredDurations(): { work: number; short: number; long: number } {
 }
 
 function getStoredSessions(): number {
-  return parseInt(localStorage.getItem('pomodoro-sessions') || '0', 10);
+  try { return parseInt(localStorage.getItem('pomodoro-sessions') || '0', 10); } catch { return 0; }
 }
 
 let audioCtx: AudioContext | null = null;
@@ -63,7 +63,11 @@ function sendNotification(mode: TimerMode) {
 }
 
 export function PomodoroTimer() {
-  const [open, setOpen] = useState(false);
+  const activePanel = useCanvasStore((s) => s.activePanel);
+  const setActivePanel = useCanvasStore((s) => s.setActivePanel);
+  const open = activePanel === 'timer';
+  const setOpen = (val: boolean) => setActivePanel(val ? 'timer' : null);
+
   const [showSettings, setShowSettings] = useState(false);
   const [durations, setDurations] = useState(getStoredDurations);
   const [mode, setMode] = useState<TimerMode>('work');
@@ -114,6 +118,12 @@ export function PomodoroTimer() {
     setRunning(false);
   };
 
+  // Use refs for values read inside interval to avoid stale closures and effect churn
+  const modeRef = useRef(mode);
+  const sessionsRef = useRef(sessions);
+  modeRef.current = mode;
+  sessionsRef.current = sessions;
+
   useEffect(() => {
     if (!running) {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -124,11 +134,13 @@ export function PomodoroTimer() {
         if (s <= 1) {
           setRunning(false);
           playBeep();
-          sendNotification(mode);
-          if (mode === 'work') {
-            const newSessions = sessions + 1;
-            setSessions(newSessions);
-            localStorage.setItem('pomodoro-sessions', String(newSessions));
+          sendNotification(modeRef.current);
+          if (modeRef.current === 'work') {
+            setSessions((prev) => {
+              const newSessions = prev + 1;
+              try { localStorage.setItem('pomodoro-sessions', String(newSessions)); } catch { /* quota */ }
+              return newSessions;
+            });
           }
           return 0;
         }
@@ -136,7 +148,7 @@ export function PomodoroTimer() {
       });
     }, 1000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [running, mode, sessions]);
+  }, [running]);
 
   const minutes = Math.floor(secondsLeft / 60);
   const secs = secondsLeft % 60;
@@ -144,20 +156,7 @@ export function PomodoroTimer() {
   const rawProgress = 1 - secondsLeft / totalSeconds;
   const progress = isNaN(rawProgress) ? 0 : Math.max(0, Math.min(1, rawProgress));
 
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed bottom-[200px] left-6 z-[60] flex h-12 w-12 items-center justify-center rounded-xl border-2 border-border bg-card shadow-[4px_4px_0px_hsl(0,0%,15%)] transition-all hover:bg-accent active:scale-95"
-        title="Pomodoro Timer"
-      >
-        <Timer className="h-5 w-5 text-primary" />
-        {running && (
-          <span className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-card bg-green animate-pulse" />
-        )}
-      </button>
-    );
-  }
+  if (!open) return null;
 
   return (
     <div className="fixed bottom-[200px] left-6 z-[60] w-64 rounded-xl border border-border bg-card shadow-[var(--clay-shadow-md)] animate-brutal-pop">

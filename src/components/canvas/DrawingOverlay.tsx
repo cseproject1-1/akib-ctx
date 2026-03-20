@@ -1,29 +1,34 @@
 import { memo } from 'react';
-import { useDrawings, useViewport } from '@/store/canvasStore';
+import { useCanvasStore } from '@/store/canvasStore';
 
 /**
  * Renders free-floating drawing strokes as SVG paths directly on the canvas.
  * Not a React Flow node — no handles, borders, or selection chrome.
- * Transforms in sync with the ReactFlow viewport via Zustand viewport state.
+ * Rendered outside ReactFlow with a CSS transform synced to the viewport.
+ *
+ * viewBox is set to window size so SVG coords == CSS pixels == flow coords.
  */
 export const DrawingOverlay = memo(function DrawingOverlay() {
-  const drawings = useDrawings();
-  const vp = useViewport();
+  const drawings = useCanvasStore((s) => s.drawings);
+  const vp = useCanvasStore((s) => s.viewport);
 
   if (drawings.length === 0) return null;
 
   return (
     <div
-      className="absolute inset-0 pointer-events-none"
+      className="pointer-events-none absolute inset-0"
       style={{ zIndex: 5 }}
     >
       <svg
-        className="absolute top-0 left-0"
+        className="absolute inset-0"
         width="100%"
         height="100%"
+        viewBox={`0 0 ${window.innerWidth} ${window.innerHeight}`}
+        preserveAspectRatio="none"
         style={{
           transform: `translate(${vp.x}px, ${vp.y}px) scale(${vp.zoom})`,
           transformOrigin: '0 0',
+          overflow: 'visible',
         }}
       >
         {drawings.map((drawing) =>

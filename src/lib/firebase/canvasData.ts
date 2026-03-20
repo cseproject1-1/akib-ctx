@@ -1,6 +1,7 @@
 import { collection, doc, query, getDocs, setDoc, updateDoc, deleteDoc, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from './client';
 import type { Node, Edge } from '@xyflow/react';
+import type { DrawingOverlay } from '@/types/canvas';
 
 // For typing purposes you can just define Json locally or ignore it
 type Json = Record<string, unknown> | any;
@@ -12,10 +13,17 @@ export async function loadCanvasNodes(workspaceId: string): Promise<Node[]> {
         const row = docSnap.data();
         return {
             id: row.id,
-            type: row.type,
-            position: { x: row.position_x, y: row.position_y },
+            type: row.type || 'aiNote',
+            position: { 
+              x: typeof row.position_x === 'number' && isFinite(row.position_x) ? row.position_x : 0, 
+              y: typeof row.position_y === 'number' && isFinite(row.position_y) ? row.position_y : 0 
+            },
             data: (row.data as Record<string, unknown>) || {},
-            style: { width: row.width, height: row.height, zIndex: row.z_index },
+            style: { 
+              width: typeof row.width === 'number' && isFinite(row.width) ? row.width : 300, 
+              height: typeof row.height === 'number' && isFinite(row.height) ? row.height : 200, 
+              zIndex: typeof row.z_index === 'number' ? row.z_index : 0 
+            },
         };
     });
 }
@@ -280,4 +288,32 @@ export function subscribeCursors(workspaceId: string, onUpdate: (cursors: Record
     }, (err) => {
         console.error('[sync] Cursors subscription error:', err);
     });
+}
+
+// ─── Drawings ───
+
+export async function loadCanvasDrawings(workspaceId: string): Promise<DrawingOverlay[]> {
+    const q = query(collection(db, `workspaces/${workspaceId}/drawings`));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map((docSnap) => {
+        const row = docSnap.data();
+        return {
+            id: row.id,
+            paths: (row.paths as DrawingOverlay['paths']) || [],
+        };
+    });
+}
+
+export async function saveDrawing(workspaceId: string, drawing: DrawingOverlay) {
+    const ref = doc(db, `workspaces/${workspaceId}/drawings`, drawing.id);
+    await setDoc(ref, {
+        id: drawing.id,
+        workspace_id: workspaceId,
+        paths: sanitizeForFirestore(drawing.paths),
+    }, { merge: true });
+}
+
+export async function deleteDrawingFromDb(workspaceId: string, drawingId: string) {
+    const ref = doc(db, `workspaces/${workspaceId}/drawings`, drawingId);
+    await deleteDoc(ref);
 }

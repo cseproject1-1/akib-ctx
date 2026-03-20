@@ -59,7 +59,7 @@ export function ViewCanvasWrapper() {
     <div className="h-screen w-screen bg-canvas-bg">
       <ReactFlow
         nodes={viewNodes}
-        edges={edges}
+        edges={edges.map(e => ({ ...e, zIndex: 0 }))}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         fitView

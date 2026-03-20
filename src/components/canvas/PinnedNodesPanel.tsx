@@ -4,7 +4,11 @@ import { useReactFlow, useNodes } from '@xyflow/react';
 import { Star, ChevronRight, X } from 'lucide-react';
 
 export function PinnedNodesPanel() {
-  const [open, setOpen] = useState(false);
+  const activePanel = useCanvasStore((s) => s.activePanel);
+  const setActivePanel = useCanvasStore((s) => s.setActivePanel);
+  const open = activePanel === 'pinned';
+  const setOpen = (val: boolean) => setActivePanel(val ? 'pinned' : null);
+
   const nodes = useNodes();
   const reactFlow = useReactFlow();
 
@@ -18,25 +22,12 @@ export function PinnedNodesPanel() {
     reactFlow.setCenter(node.position.x + w / 2, node.position.y + h / 2, { duration: 400, zoom: 1.2 });
   };
 
-  const getNodeLabel = (node: Node): string => {
+  const getNodeLabel = (node: any): string => {
     const d = node.data as Record<string, unknown> || {};
     return (d.title as string) || (d.label as string) || (d.fileName as string) || (d.altText as string) || (d.sourceTitle as string) || (d.text as string)?.slice(0, 30) || node.type || 'Node';
   };
 
-  if (!open) {
-    return (
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed left-6 bottom-[120px] z-[60] flex h-10 items-center gap-1.5 rounded-lg border-2 border-border bg-card px-3 shadow-[3px_3px_0px_hsl(0,0%,15%)] transition-all hover:bg-accent active:scale-95"
-        title="Pinned Nodes"
-      >
-        <Star className="h-4 w-4 text-primary" />
-        {pinnedNodes.length > 0 && (
-          <span className="text-xs font-bold text-foreground">{pinnedNodes.length}</span>
-        )}
-      </button>
-    );
-  }
+  if (!open) return null;
 
   return (
     <div className="fixed left-6 bottom-[120px] z-[60] w-60 rounded-xl border border-border bg-card shadow-[var(--clay-shadow-md)] animate-brutal-pop">

@@ -22,10 +22,14 @@ export const MacroExtension = Extension.create({
   name: 'macro',
 
   addStorage() {
+    let macros: Macro[] = [];
+    try {
+      macros = JSON.parse(localStorage.getItem('editor-macros') || '[]') as Macro[];
+    } catch { /* ignore parse error */ }
     return {
       isRecording: false,
       currentSteps: [] as any[],
-      macros: JSON.parse(localStorage.getItem('editor-macros') || '[]') as Macro[],
+      macros,
     };
   },
 

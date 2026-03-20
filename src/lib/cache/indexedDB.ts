@@ -1,6 +1,6 @@
 const DB_NAME = 'crxnote-cache';
 const DB_VERSION = 2;
-const STORES = ['canvas-nodes', 'canvas-edges', 'workspaces', 'node-counts', 'pending-ops', 'file-blobs'] as const;
+const STORES = ['canvas-nodes', 'canvas-edges', 'canvas-drawings', 'workspaces', 'node-counts', 'pending-ops', 'file-blobs'] as const;
 
 type StoreName = (typeof STORES)[number];
 
@@ -60,7 +60,8 @@ export async function cacheSet<T>(store: StoreName, key: string, data: T): Promi
         if (error?.name === 'QuotaExceededError') {
           reject(error);
         } else {
-          resolve(); // Ignore other errors
+          console.error('[DB] IndexedDB write error:', error);
+          resolve(); // Resolve to not break callers, but log for debugging
         }
       };
     });
@@ -127,7 +128,7 @@ export async function clearAllCaches(): Promise<void> {
 // Pending ops for offline queue
 export interface PendingOp {
   id: string;
-  type: 'saveNode' | 'saveEdge' | 'deleteNode' | 'deleteEdge' | 'updatePosition' | 'updateData' | 'updateStyle' | 'updateEdgeData' | 'updateSettings' | 'cacheFileBlob' | 'removeFileBlob';
+  type: 'saveNode' | 'saveEdge' | 'deleteNode' | 'deleteEdge' | 'updatePosition' | 'updateData' | 'updateStyle' | 'updateEdgeData' | 'updateSettings' | 'cacheFileBlob' | 'removeFileBlob' | 'saveDrawing' | 'deleteDrawing';
   args: unknown[];
   createdAt: number;
 }
