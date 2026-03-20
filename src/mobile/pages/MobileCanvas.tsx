@@ -27,7 +27,8 @@ import {
   Undo,
   Redo,
   Minimize2,
-  Maximize2
+  Maximize2,
+  BookOpen
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { NodeExpandModal } from '@/components/canvas/NodeExpandModal';
@@ -42,6 +43,7 @@ import { MobilePinnedNodes } from '@/mobile/components/MobilePinnedNodes';
 import { MobileNodeContextMenu } from '@/mobile/components/MobileNodeContextMenu';
 import { GestureOverlay } from '@/mobile/components/GestureOverlay';
 import { MobileBatchOperations } from '@/mobile/components/MobileBatchOperations';
+import { MobileViewMode } from '@/mobile/components/MobileViewMode';
 import { useToastManager, useBasicToast } from '@/mobile/hooks/useToastManager';
 
 // Custom hook for haptic feedback
@@ -72,6 +74,7 @@ function MobileCanvasContent() {
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showPinnedNodes, setShowPinnedNodes] = useState(false);
+  const [viewMode, setViewMode] = useState(false);
   const [isAddingNode, setIsAddingNode] = useState(false);
   const [isConnectionMode, setIsConnectionMode] = useState(false);
   const [connectSourceId, setConnectSourceId] = useState<string | null>(null);
@@ -516,6 +519,17 @@ function MobileCanvasContent() {
             <LayoutGrid className="h-5 w-5" />
           </Button>
         </motion.div>
+        <motion.div whileTap={{ scale: 0.9 }}>
+          <Button
+            variant="secondary"
+            size="icon"
+            className="h-10 w-10 rounded-full shadow-md"
+            onClick={() => { setViewMode(true); triggerHaptic('medium'); }}
+            aria-label="View mode"
+          >
+            <BookOpen className="h-5 w-5" />
+          </Button>
+        </motion.div>
       </div>
 
       {/* Add Node FAB */}
@@ -583,6 +597,15 @@ function MobileCanvasContent() {
         onClose={() => setShowBatchOperations(false)}
         onClearSelection={clearSelection}
       />
+
+      {/* View Mode */}
+      {viewMode && (
+        <MobileViewMode
+          nodes={nodes}
+          onClose={() => setViewMode(false)}
+          initialNodeId={useCanvasStore.getState().expandedNode || nodes[0]?.id}
+        />
+      )}
 
       {/* Selection Mode Toggle Button */}
       {selectedNodes.length > 0 && (
