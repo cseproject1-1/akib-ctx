@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Node } from '@xyflow/react';
-import { Virtuoso } from 'react-virtuoso';
 
 const ICON_MAP: Record<string, any> = {
   aiNote: FileText,
@@ -98,8 +97,6 @@ export function MobileListView() {
           </button>
         </div>
 
-
-
         {/* Search Bar */}
         <div className="relative group">
           <input
@@ -149,7 +146,7 @@ export function MobileListView() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 pr-1">
+      <div className="flex-1 min-h-0 overflow-y-auto pr-1 custom-scrollbar">
         {filteredNodes.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground italic gap-2">
             <div className="h-12 w-12 rounded-full bg-accent/30 flex items-center justify-center">
@@ -158,45 +155,42 @@ export function MobileListView() {
             <p className="text-sm">No matches found</p>
           </div>
         ) : (
-          <Virtuoso
-            data={filteredNodes}
-            className="custom-scrollbar"
-            itemContent={(idx, node: Node) => {
+          <div className="space-y-3 pb-4">
+            {filteredNodes.map((node: Node) => {
               const Icon = ICON_MAP[node.type || 'text'] || FileText;
               const title = (node.data as any).title || (node.data as any).text || 'Untitled Item';
               const preview = extractContentPreview(node);
               
               return (
-                <div className="pb-3">
-                  <button
-                    onClick={() => setExpandedNode(node.id)}
-                    className="w-full flex flex-col p-4 rounded-2xl border-2 border-border bg-card hover:border-primary/50 transition-all text-left group active:shadow-inner"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-3 overflow-hidden">
-                        <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 group-hover:bg-primary group-hover:text-primary-foreground transition-colors shadow-sm">
-                          <Icon className="h-5 w-5" />
-                        </div>
-                        <div className="flex flex-col overflow-hidden">
-                          <h3 className="font-bold text-[13px] text-foreground truncate">{title}</h3>
-                          <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest leading-none">
-                            {node.type?.replace(/([A-Z])/g, ' $1')}
-                          </span>
-                        </div>
+                <button
+                  key={node.id}
+                  onClick={() => setExpandedNode(node.id)}
+                  className="w-full flex flex-col p-4 rounded-2xl border-2 border-border bg-card hover:border-primary/50 transition-all text-left group active:shadow-inner"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-primary/10 text-primary border border-primary/20 group-hover:bg-primary group-hover:text-primary-foreground transition-colors shadow-sm">
+                        <Icon className="h-5 w-5" />
                       </div>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors group-hover:translate-x-1 duration-300" />
+                      <div className="flex flex-col overflow-hidden">
+                        <h3 className="font-bold text-[13px] text-foreground truncate">{title}</h3>
+                        <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-widest leading-none">
+                          {node.type?.replace(/([A-Z])/g, ' $1')}
+                        </span>
+                      </div>
                     </div>
-                    
-                    {preview && (
-                      <p className="text-[11px] text-muted-foreground/80 line-clamp-2 leading-relaxed ml-[52px] italic border-l-2 border-border pl-3 mt-1">
-                        {preview}
-                      </p>
-                    )}
-                  </button>
-                </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors group-hover:translate-x-1 duration-300" />
+                  </div>
+                  
+                  {preview && (
+                    <p className="text-[11px] text-muted-foreground/80 line-clamp-2 leading-relaxed ml-[52px] italic border-l-2 border-border pl-3 mt-1">
+                      {preview}
+                    </p>
+                  )}
+                </button>
               );
-            }}
-          />
+            })}
+          </div>
         )}
       </div>
       

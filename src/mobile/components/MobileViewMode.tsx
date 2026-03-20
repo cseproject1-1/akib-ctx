@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
-import { X, ChevronLeft, ChevronRight, BookOpen, List } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, ChevronLeft, ChevronRight, List } from 'lucide-react';
 import { type Node } from '@xyflow/react';
 import { cn } from '@/lib/utils';
 import katex from 'katex';
@@ -326,7 +326,9 @@ export function MobileViewMode({ nodes, onClose, initialNodeId }: MobileViewMode
   const [showHeader, setShowHeader] = useState(true);
   const [showJumpList, setShowJumpList] = useState(false);
   const headerTimer = useRef<NodeJS.Timeout | null>(null);
-  const dragX = useMotionValue(0);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const [isSwiping, setIsSwiping] = useState(false);
+  const touchStart = useRef({ x: 0, y: 0, time: 0 });
 
   // Sort nodes by position (top-to-bottom, left-to-right)
   const sortedNodes = useMemo(() => {
@@ -363,23 +365,68 @@ export function MobileViewMode({ nodes, onClose, initialNodeId }: MobileViewMode
   const canNext = currentIndex < sortedNodes.length - 1;
 
   const goPrev = useCallback(() => {
-    if (canPrev) setCurrentIndex(i => i - 1);
-  }, [canPrev]);
+    if (canPrev) {
+      setCurrentIndex(i => i - 1);
+      resetHeaderTimer();
+    }
+  }, [canPrev, resetHeaderTimer]);
 
   const goNext = useCallback(() => {
-    if (canNext) setCurrentIndex(i => i + 1);
-  }, [canNext]);
-
-  // Swipe handlers
-  const handleDragEnd = useCallback((_: any, info: any) => {
-    const threshold = 60;
-    if (info.offset.x < -threshold && canNext) {
-      goNext();
-    } else if (info.offset.x > threshold && canPrev) {
-      goPrev();
+    if (canNext) {
+      setCurrentIndex(i => i + 1);
+      resetHeaderTimer();
     }
-    resetHeaderTimer();
-  }, [canNext, canPrev, goNext, goPrev, resetHeaderTimer]);
+  }, [canNext, resetHeaderTimer]);
+
+  // Custom touch handler for better gesture discrimination
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    touchStart.current = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+    setIsSwiping(false);
+    setSwipeOffset(0);
+  }, []);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    const dx = touch.clientX - touchStart.current.x;
+    const dy = touch.clientY - touchStart.current.y;
+
+    // Determine if this is a horizontal swipe (only after sufficient movement)
+    if (!isSwiping && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
+      if (Math.abs(dx) > Math.abs(dy) * 1.5) {
+        // Horizontal swipe — take over
+        setIsSwiping(true);
+      } else {
+        // Vertical scroll — let it pass through
+        return;
+      }
+    }
+
+    if (isSwiping) {
+      e.preventDefault();
+      // Apply resistance at boundaries
+      let offset = dx;
+      if ((!canPrev && dx > 0) || (!canNext && dx < 0)) {
+        offset = dx * 0.2; // rubber-band resistance
+      }
+      setSwipeOffset(offset);
+    }
+  }, [isSwiping, canPrev, canNext]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (isSwiping) {
+      const velocity = Math.abs(swipeOffset) / Math.max(Date.now() - touchStart.current.time, 1) * 1000;
+      const threshold = velocity > 300 ? 30 : 60;
+
+      if (swipeOffset < -threshold && canNext) {
+        goNext();
+      } else if (swipeOffset > threshold && canPrev) {
+        goPrev();
+      }
+    }
+    setIsSwiping(false);
+    setSwipeOffset(0);
+  }, [isSwiping, swipeOffset, canNext, canPrev, goNext, goPrev]);
 
   // Keyboard nav (for connected keyboards on tablets)
   useEffect(() => {
@@ -492,25 +539,27 @@ export function MobileViewMode({ nodes, onClose, initialNodeId }: MobileViewMode
       </AnimatePresence>
 
       {/* Swipeable content */}
-      <div className="flex-1 min-h-0 relative overflow-hidden">
-        <motion.div
+      <div
+        className="flex-1 min-h-0 relative overflow-hidden"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+      >
+        <div
           className="absolute inset-0"
-          drag="x"
-          dragConstraints={{ left: 0, right: 0 }}
-          dragElastic={0.2}
-          onDragEnd={handleDragEnd}
-          style={{ x: dragX }}
+          style={{
+            transform: `translateX(${swipeOffset}px)`,
+            transition: isSwiping ? 'none' : 'transform 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+          }}
           key={currentIndex}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.15 }}
         >
           <div className="h-full overflow-y-auto overscroll-y-contain px-5 py-6 pb-28 scrollbar-hide" onClick={resetHeaderTimer}>
             <div className="max-w-lg mx-auto">
               <NodeContent node={currentNode} />
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Edge indicators */}
         {canPrev && (

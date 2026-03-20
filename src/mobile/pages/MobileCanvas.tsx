@@ -28,7 +28,8 @@ import {
   Redo,
   Minimize2,
   Maximize2,
-  BookOpen
+  BookOpen,
+  MoreVertical
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { NodeExpandModal } from '@/components/canvas/NodeExpandModal';
@@ -75,6 +76,8 @@ function MobileCanvasContent() {
   const [showBookmarks, setShowBookmarks] = useState(false);
   const [showPinnedNodes, setShowPinnedNodes] = useState(false);
   const [viewMode, setViewMode] = useState(false);
+  const [showOverflow, setShowOverflow] = useState(false);
+  const [showNodeList, setShowNodeList] = useState(false);
   const [isAddingNode, setIsAddingNode] = useState(false);
   const [isConnectionMode, setIsConnectionMode] = useState(false);
   const [connectSourceId, setConnectSourceId] = useState<string | null>(null);
@@ -393,42 +396,10 @@ function MobileCanvasContent() {
         ))}
       </div>
 
-      {/* Top Toolbar */}
+      {/* Top Toolbar - compact 4-button layout */}
       <div className="absolute top-4 left-4 right-4 flex justify-between z-10 gap-2">
         <div className="flex gap-2">
-          <motion.div whileTap={{ scale: 0.9 }}>
-            <Button
-              variant="secondary"
-              size="icon"
-              className="h-10 w-10 rounded-full shadow-md"
-              onClick={() => setShowVersionHistory(true)}
-              aria-label="Version history"
-            >
-              <History className="h-5 w-5" />
-            </Button>
-          </motion.div>
-          <motion.div whileTap={{ scale: 0.9 }}>
-            <Button
-              variant="secondary"
-              size="icon"
-              className="h-10 w-10 rounded-full shadow-md"
-              onClick={() => setShowBookmarks(true)}
-              aria-label="Bookmarks"
-            >
-              <Bookmark className="h-5 w-5" />
-            </Button>
-          </motion.div>
-          <motion.div whileTap={{ scale: 0.9 }}>
-            <Button
-              variant="secondary"
-              size="icon"
-              className="h-10 w-10 rounded-full shadow-md"
-              onClick={() => setShowPinnedNodes(true)}
-              aria-label="Pinned nodes"
-            >
-              <Pin className="h-5 w-5" />
-            </Button>
-          </motion.div>
+          {/* Undo */}
           <motion.div whileTap={{ scale: 0.9 }}>
             <Button
               variant="secondary"
@@ -440,6 +411,7 @@ function MobileCanvasContent() {
               <Undo className="h-5 w-5" />
             </Button>
           </motion.div>
+          {/* Redo */}
           <motion.div whileTap={{ scale: 0.9 }}>
             <Button
               variant="secondary"
@@ -451,20 +423,79 @@ function MobileCanvasContent() {
               <Redo className="h-5 w-5" />
             </Button>
           </motion.div>
-          <motion.div whileTap={{ scale: 0.9 }}>
-            <Button
-              variant={selectionMode ? "default" : "secondary"}
-              size="icon"
-              className={cn(
-                "h-10 w-10 rounded-full shadow-md transition-all",
-                selectionMode ? "bg-primary text-primary-foreground scale-110" : ""
+          {/* Overflow Menu */}
+          <div className="relative">
+            <motion.div whileTap={{ scale: 0.9 }}>
+              <Button
+                variant="secondary"
+                size="icon"
+                className={cn(
+                  "h-10 w-10 rounded-full shadow-md transition-all",
+                  showOverflow ? "bg-primary text-primary-foreground" : ""
+                )}
+                onClick={() => { setShowOverflow(!showOverflow); triggerHaptic('light'); }}
+                aria-label="More actions"
+              >
+                <MoreVertical className="h-5 w-5" />
+              </Button>
+            </motion.div>
+            {/* Overflow dropdown */}
+            <AnimatePresence>
+              {showOverflow && (
+                <>
+                  {/* Backdrop to close */}
+                  <div className="fixed inset-0 z-40" onClick={() => setShowOverflow(false)} />
+                  <motion.div
+                    initial={{ opacity: 0, y: -8, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -8, scale: 0.95 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-12 left-0 z-50 bg-card border border-border rounded-2xl shadow-xl p-1.5 min-w-[200px]"
+                  >
+                    <button
+                      onClick={() => { setShowVersionHistory(true); setShowOverflow(false); }}
+                      className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm hover:bg-accent active:scale-[0.98] transition-all"
+                    >
+                      <History className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium">Version History</span>
+                    </button>
+                    <button
+                      onClick={() => { setShowBookmarks(true); setShowOverflow(false); }}
+                      className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm hover:bg-accent active:scale-[0.98] transition-all"
+                    >
+                      <Bookmark className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium">Bookmarks</span>
+                    </button>
+                    <button
+                      onClick={() => { setShowPinnedNodes(true); setShowOverflow(false); }}
+                      className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm hover:bg-accent active:scale-[0.98] transition-all"
+                    >
+                      <Pin className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium">Pinned Nodes</span>
+                    </button>
+                    <div className="h-px bg-border my-1" />
+                    <button
+                      onClick={() => { toggleSelectionMode(); setShowOverflow(false); }}
+                      className={cn(
+                        "flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm hover:bg-accent active:scale-[0.98] transition-all",
+                        selectionMode && "bg-primary/10 text-primary"
+                      )}
+                    >
+                      <Minimize2 className="h-4 w-4" />
+                      <span className="font-medium">{selectionMode ? 'Exit Selection' : 'Select Nodes'}</span>
+                    </button>
+                    <button
+                      onClick={() => { setShowNodeList(true); setShowOverflow(false); }}
+                      className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm hover:bg-accent active:scale-[0.98] transition-all"
+                    >
+                      <LayoutGrid className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium">Node List</span>
+                    </button>
+                  </motion.div>
+                </>
               )}
-              onClick={toggleSelectionMode}
-              aria-label="Selection mode"
-            >
-              <Minimize2 className="h-5 w-5" />
-            </Button>
-          </motion.div>
+            </AnimatePresence>
+          </div>
         </div>
 
         {/* Connection Mode Toggle */}
@@ -623,6 +654,70 @@ function MobileCanvasContent() {
           </Button>
         </motion.div>
       )}
+
+      {/* Node List Quick-Switcher */}
+      <AnimatePresence>
+        {showNodeList && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[180] bg-background/95 backdrop-blur-md flex flex-col"
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border safe-area-top">
+              <h2 className="text-lg font-bold">All Nodes</h2>
+              <button
+                onClick={() => setShowNodeList(false)}
+                className="p-2 rounded-full hover:bg-accent active:scale-95 transition-all"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
+              {nodes.length === 0 ? (
+                <p className="text-center text-muted-foreground py-12">No nodes yet</p>
+              ) : (
+                [...nodes]
+                  .sort((a, b) => {
+                    if (Math.abs(a.position.y - b.position.y) > 20) return a.position.y - b.position.y;
+                    return a.position.x - b.position.x;
+                  })
+                  .map((node, idx) => {
+                    const nd = node.data as any;
+                    const title = nd.title || nd.year || nd.label || nd.text || 'Untitled';
+                    const type = (node.type || 'note').replace(/([A-Z])/g, ' $1').trim();
+                    return (
+                      <button
+                        key={node.id}
+                        onClick={() => {
+                          if (reactFlowInstance) {
+                            const nodePos = node.position;
+                            const nodeWidth = (node.measured?.width || node.width || 300) as number;
+                            const nodeHeight = (node.measured?.height || node.height || 200) as number;
+                            reactFlowInstance.setCenter(
+                              nodePos.x + nodeWidth / 2,
+                              nodePos.y + nodeHeight / 2,
+                              { zoom: 1.2, duration: 600 }
+                            );
+                          }
+                          setShowNodeList(false);
+                          triggerHaptic('light');
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl border border-border bg-card hover:border-primary/50 active:scale-[0.99] transition-all text-left"
+                      >
+                        <span className="text-[10px] font-black text-muted-foreground tabular-nums w-5 text-right">{idx + 1}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold truncate">{title}</p>
+                          <p className="text-[9px] text-muted-foreground uppercase tracking-wider">{type}</p>
+                        </div>
+                      </button>
+                    );
+                  })
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       </div>
     </GestureOverlay>
   );

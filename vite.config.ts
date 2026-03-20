@@ -73,9 +73,9 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       manifest: {
-        name: 'CtxNote - Multi-Dimensional Knowledge Base',
+        name: 'CtxNote - Visual Knowledge Base & Infinite Canvas',
         short_name: 'CtxNote',
-        description: 'Premium non-linear knowledge base for visual thinkers. Create, connect, and organize thoughts on an infinite canvas with AI power.',
+        description: 'Non-linear knowledge base for creating and organizing notes on an infinite canvas with offline support.',
         theme_color: '#0f172a',
         background_color: '#020617',
         display: 'standalone',
