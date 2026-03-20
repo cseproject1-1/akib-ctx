@@ -76,12 +76,21 @@ export function MobileDashboard() {
   const loadWorkspaces = useCallback(async () => {
     try {
       setLoading(true);
-      const result = await cachedGetWorkspaces();
-      const ws = Array.isArray(result) ? result : (result?.cached || []);
-      setWorkspaces(ws || []);
+      const { cached, fresh } = await cachedGetWorkspaces((freshData) => {
+        setWorkspaces(freshData);
+      });
+
+      if (cached) {
+        setWorkspaces(cached);
+        setLoading(false);
+      }
+
+      if (!cached) {
+        const data = await fresh;
+        setWorkspaces(data);
+      }
     } catch (error) {
       console.error('Failed to load workspaces:', error);
-      // Silent mode - error is logged, retry possible
     } finally {
       setLoading(false);
     }

@@ -43,7 +43,6 @@ import { MobileNodeContextMenu } from '@/mobile/components/MobileNodeContextMenu
 import { GestureOverlay } from '@/mobile/components/GestureOverlay';
 import { MobileBatchOperations } from '@/mobile/components/MobileBatchOperations';
 import { useToastManager, useBasicToast } from '@/mobile/hooks/useToastManager';
-import { PremiumFeatures } from '@/mobile/components/PremiumFeatures';
 
 // Custom hook for haptic feedback
 const useHaptic = () => {
@@ -97,7 +96,6 @@ function MobileCanvasContent() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [showBatchOperations, setShowBatchOperations] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   
   // Long press timer
@@ -543,16 +541,6 @@ function MobileCanvasContent() {
       <div className="absolute bottom-24 left-1/2 -translate-x-1/2 bg-background/80 backdrop-blur px-3 py-1 rounded-full text-xs text-muted-foreground">
         {Math.round(zoom * 100)}%
       </div>
-
-      {/* Premium Features */}
-      <PremiumFeatures
-        onDarkModeToggle={() => {
-          const next = !isDarkMode;
-          setIsDarkMode(next);
-          document.documentElement.setAttribute('data-theme', next ? 'dark' : 'light');
-        }}
-        isDarkMode={isDarkMode}
-      />
 
       {/* Selection Mode Indicator */}
       {selectionMode && (
