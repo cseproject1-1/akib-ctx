@@ -628,6 +628,22 @@
   animation: node-pulse 2s ease-in-out infinite;
 }
 
+/* Image Node specific overrides */
+.react-flow__node-image {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.react-flow__node-image:hover {
+  box-shadow: none !important;
+}
+
+.react-flow__node-image.selected {
+  box-shadow: none !important;
+  animation: none !important;
+}
+
 /* Selection glow refinement */
 @keyframes node-pulse {
   0%, 100% { box-shadow: var(--premium-shadow-lg), 0 0 30px hsla(var(--primary), 0.25), 0 0 0 1px hsl(var(--primary)); }
