@@ -4,7 +4,7 @@ import { FileText, Upload, Loader2, Expand, X, Presentation, Sheet, File } from 
 import { useCanvasStore } from '@/store/canvasStore';
 import { HANDLE_IDS } from '@/lib/constants/canvas';
 import { uploadCanvasFile } from '@/lib/r2/storage';
-import { PDFViewerModal } from '@/components/canvas/PDFViewerModal';
+import { FileViewerModal } from '@/components/canvas/FileViewerModal';
 import { toast } from 'sonner';
 import { PDFNodeData } from '@/types/canvas';
 
@@ -222,7 +222,7 @@ export const PDFNode = memo(({ id, data, selected }: NodeProps) => {
       </div>
 
       {viewerOpen && nodeData.storageUrl && (
-        <PDFViewerModal
+        <FileViewerModal
           url={nodeData.storageUrl}
           fileName={nodeData.fileName || 'document'}
           fileSize={nodeData.fileSize || 0}
