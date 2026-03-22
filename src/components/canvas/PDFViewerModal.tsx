@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { toast } from 'sonner';
-import { X, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Maximize, Download, ExternalLink, Search, Trash2, StickyNote, Image, Search as SearchIcon, Loader2, ArrowLeft, ArrowRight, ChevronDown, ChevronUp, Grid3X3, Sidebar, LayoutGrid, LayoutList, List, BookOpen, RotateCw, RotateCcw, CloudOff, Wifi } from 'lucide-react';
+import { X, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Maximize, Download, ExternalLink, Search, Trash2, StickyNote, Image, Search as SearchIcon, Loader2, ArrowLeft, ArrowRight, ChevronDown, ChevronUp, Grid3X3, Sidebar, LayoutGrid, LayoutList, List, BookOpen, RotateCw, RotateCcw, CloudOff, Wifi, FileText } from 'lucide-react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { PDFDocumentProxy } from 'pdfjs-dist';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -17,7 +17,7 @@ interface PDFViewerModalProps {
   url: string;
   fileName: string;
   fileSize?: number;
-  fileType?: 'pdf' | 'doc' | 'docx' | 'ppt' | 'pptx';
+  fileType?: 'pdf' | 'doc' | 'docx' | 'ppt' | 'pptx' | 'xls' | 'xlsx' | 'csv' | 'txt';
   onClose: () => void;
 }
 
@@ -79,7 +79,11 @@ const Thumbnail = ({ file, pageNumber, width, onClick, isSelected }: ThumbnailPr
 };
 
 function isOfficeFile(fileType?: string) {
-  return fileType === 'doc' || fileType === 'docx' || fileType === 'ppt' || fileType === 'pptx';
+  return fileType === 'doc' || fileType === 'docx' || fileType === 'ppt' || fileType === 'pptx' || fileType === 'xls' || fileType === 'xlsx';
+}
+
+function isTextFile(fileType?: string) {
+  return fileType === 'csv' || fileType === 'txt';
 }
 
 function getOfficeViewerUrl(url: string) {
@@ -312,6 +316,43 @@ export function PDFViewerModal({ url, fileName, fileSize, fileType, onClose }: P
     }
     return pages;
   }, [numPages]);
+
+  if (isTextFile(fileType)) {
+    return (
+      <div className="fixed inset-0 z-[100] flex flex-col bg-black/90 backdrop-blur-sm">
+        <div className="flex items-center justify-between border-b border-border bg-card/95 px-4 py-2.5 backdrop-blur">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-bold text-foreground truncate max-w-[300px]">{fileName}</span>
+            {fileSizeStr && (
+              <span className="text-xs text-muted-foreground">{fileSizeStr}</span>
+            )}
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+              {fileType?.toUpperCase()}
+            </span>
+          </div>
+          <div className="flex items-center gap-1">
+            <ToolBtn onClick={() => window.open(url, '_blank')} title="Open in new tab">
+              <ExternalLink className="h-4 w-4" />
+            </ToolBtn>
+            <ToolBtn onClick={handleDownload} title="Download">
+              <Download className="h-4 w-4" />
+            </ToolBtn>
+            <div className="h-6 w-px bg-border mx-1" />
+            <ToolBtn onClick={onClose} title="Close">
+              <X className="h-4 w-4" />
+            </ToolBtn>
+          </div>
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4 text-muted-foreground">
+            <FileText className="h-16 w-16" />
+            <p className="text-sm">{fileName}</p>
+            <p className="text-xs">This file type cannot be previewed inline.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isOffice) {
     return (

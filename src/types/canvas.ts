@@ -72,7 +72,7 @@ export interface PDFNodeData extends SharedNodeFields {
   storageUrl?: string;
   uploading?: boolean;
   progress?: number;
-  fileType?: 'pdf' | 'doc' | 'docx' | 'ppt' | 'pptx';
+  fileType?: 'pdf' | 'doc' | 'docx' | 'ppt' | 'pptx' | 'xls' | 'xlsx' | 'csv' | 'txt';
 }
 
 export interface ImageNodeData extends SharedNodeFields {

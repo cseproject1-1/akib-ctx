@@ -11,7 +11,7 @@ import katex from 'katex';
 import { cn } from '@/lib/utils';
 
 /* ─── Expandable node types ─── */
-const EXPANDABLE_TYPES = ['aiNote', 'lectureNotes', 'checklist', 'summary', 'codeSnippet', 'math', 'termQuestion', 'stickyNote', 'flashcard', 'table', 'image', 'embed', 'drawing', 'video', 'text', 'pdf'];
+const EXPANDABLE_TYPES = ['aiNote', 'lectureNotes', 'checklist', 'summary', 'codeSnippet', 'math', 'termQuestion', 'stickyNote', 'flashcard', 'table', 'image', 'embed', 'drawing', 'video', 'text'];
 
 /* ─── Checklist helpers ─── */
 interface CheckItem { id: string; text: string; done: boolean; }

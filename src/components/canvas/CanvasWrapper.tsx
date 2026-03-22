@@ -901,27 +901,30 @@ export function CanvasWrapper() {
         'application/msword',
         'application/vnd.openxmlformats-officedocument.presentationml.presentation',
         'application/vnd.ms-powerpoint',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       ];
       const isPDF = file.type === 'application/pdf' || ext === 'pdf';
-      const isOfficeDoc = ['doc', 'docx', 'ppt', 'pptx'].includes(ext) || officeMimes.includes(file.type);
+      const isOfficeDoc = ['doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx'].includes(ext) || officeMimes.includes(file.type);
+      const isTextFile = ['csv', 'txt'].includes(ext);
       const isImage = file.type.startsWith('image/');
 
-      if (!isPDF && !isOfficeDoc && !isImage) {
+      if (!isPDF && !isOfficeDoc && !isTextFile && !isImage) {
         toast.error(`Unsupported file: ${file.name}`);
         continue;
       }
 
       const nodeId = crypto.randomUUID();
-      const isDocNode = isPDF || isOfficeDoc;
+      const isDocNode = isPDF || isOfficeDoc || isTextFile;
       const nodeType = isDocNode ? 'pdf' : 'image';
 
-      const fileType = isDocNode ? (ext === 'pdf' ? 'pdf' : ext) : undefined;
+      const fileType = isDocNode ? ext : undefined;
 
       const placeholderData = isDocNode
         ? { fileName: file.name, fileSize: file.size, fileType, uploading: true, progress: 0 }
         : { altText: file.name, uploading: true, progress: 0 };
 
-      const size = isDocNode ? { width: 300, height: 180 } : { width: 320, height: 280 };
+      const size = isDocNode ? { width: 220, height: 80 } : { width: 320, height: 280 };
 
       addNode({
         id: nodeId,
