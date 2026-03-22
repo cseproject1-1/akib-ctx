@@ -137,3 +137,41 @@ describe('markdownToHtml', () => {
     expect(result).toContain('<hr');
   });
 });
+
+import { preprocessMath } from '@/lib/editor/markdownUtils';
+
+describe('preprocessMath — dollar-sign protection', () => {
+  it('converts display math $$...$$ to math-block placeholder', () => {
+    const result = preprocessMath('$$E=mc^2$$');
+    expect(result).toContain('data-math-block');
+    expect(result).toContain('E=mc^2');
+  });
+
+  it('converts inline math $...$  when content starts with a letter', () => {
+    const result = preprocessMath('$E=mc^2$');
+    expect(result).toContain('math-inline');
+    expect(result).toContain('E=mc^2');
+  });
+
+  it('does NOT treat dollar amounts as math ($50)', () => {
+    const result = preprocessMath('Items cost $50 each');
+    expect(result).not.toContain('math-inline');
+    expect(result).not.toContain('data-math-block');
+    expect(result).toContain('$50');
+  });
+
+  it('does NOT treat price ranges as math ($10-$20)', () => {
+    const result = preprocessMath('Save $10-$20 today');
+    expect(result).not.toContain('math-inline');
+    expect(result).toContain('$10');
+  });
+
+  it('does NOT mangle Mermaid diagram source', () => {
+    const mermaid = 'graph TD\nA-->B\nB-->C';
+    const result = preprocessMath(mermaid);
+    // No math node markers should appear
+    expect(result).not.toContain('data-math-block');
+    expect(result).not.toContain('math-inline');
+    expect(result).toContain('graph TD');
+  });
+});

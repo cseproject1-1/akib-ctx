@@ -2,6 +2,7 @@
  * Utility to detect and parse various content types from strings.
  * Used for intelligent clipboard processing.
  */
+import { normalizeHtml } from '@/lib/editor/htmlNormalizer';
 
 export function extractText(content: any): string {
   if (!content) return '';
@@ -56,9 +57,15 @@ export function parseContent(text: string, html?: string): ParsedContent {
   const trimmed = text.trim();
   
   // 1. Detect Mermaid Diagrams
-  if (trimmed.startsWith('graph ') || trimmed.startsWith('sequenceDiagram') || trimmed.startsWith('gantt') || trimmed.startsWith('classDiagram') || trimmed.startsWith('erDiagram') || trimmed.startsWith('pie')) {
+  //    Route to codeSnippet (not math) so the diagram renderer is used correctly.
+  const mermaidKeywords = [
+    'graph ', 'sequenceDiagram', 'gantt', 'classDiagram', 'erDiagram',
+    'pie', 'flowchart ', 'journey', 'gitGraph', 'mindmap', 'timeline',
+    'quadrantChart', 'requirementDiagram',
+  ];
+  if (mermaidKeywords.some((kw) => trimmed.startsWith(kw))) {
     return {
-      type: 'math', // Or create a specific Mermaid type if available, using math/code as fallback
+      type: 'codeSnippet',
       data: { code: trimmed, language: 'mermaid', title: 'Mermaid Diagram' },
       style: { width: 500, height: 400 }
     };
@@ -115,13 +122,21 @@ export function parseContent(text: string, html?: string): ParsedContent {
   }
 
   // 5. Default: AI Note with smart title
+  //    When HTML is available, normalize it and store as 'html' format so
+  //    the NoteEditor renders it with structure preserved (not as markdown text).
+  const hasRichHtml = html && html.trim().length > 0 && /<[a-z]+/i.test(html);
+  const pasteContent = hasRichHtml
+    ? normalizeHtml(html)
+    : trimmed;
+  const pasteFormat: 'html' | 'markdown' = hasRichHtml ? 'html' : 'markdown';
+
   return {
     type: 'aiNote',
     data: {
       title: extractSmartTitle(trimmed, 'Pasted Note'),
-      content: trimmed, // Tiptap usually handles this
-      pasteContent: trimmed,
-      pasteFormat: html ? 'html' : 'markdown'
+      content: trimmed,
+      pasteContent,
+      pasteFormat,
     },
     style: { width: 420, height: 500 }
   };

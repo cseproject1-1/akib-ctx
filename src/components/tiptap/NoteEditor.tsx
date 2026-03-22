@@ -16,7 +16,10 @@ import { TypographyDropdown } from './TypographyDropdown';
 import { ColorPickerDropdown } from './ColorPickerDropdown';
 import { AIInlineTool } from './AIInlineTool';
 import { TableHUD } from './TableHUD';
-import { markdownToHtml, sanitizeKatexHtml } from '@/lib/editor/markdownUtils';/**
+import { markdownToHtml, sanitizeKatexHtml } from '@/lib/editor/markdownUtils';
+import { normalizeHtml, isClipboardFromExternalApp } from '@/lib/editor/htmlNormalizer';
+
+/**
  * Calculate task progress from Tiptap JSON content.
  */
 function calculateProgress(json: JSONContent): number | undefined {
@@ -175,7 +178,9 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
         return false;
       },
       handlePaste: (view, event) => {
-        // 1. Handle image paste (screenshots, copied images)
+        // ---------------------------------------------------------------
+        // STEP 1 — Image paste (screenshots / copied images)
+        // ---------------------------------------------------------------
         const items = event.clipboardData?.items;
         if (items) {
           for (let i = 0; i < items.length; i++) {
@@ -197,11 +202,51 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
         const clipboardText = event.clipboardData?.getData('text/plain') || '';
         const clipboardHtml = event.clipboardData?.getData('text/html') || '';
 
-        // 2. Intercept AI Chat / Documentation Markdown
-        // Stronger regex to catch common markdown patterns including headers, lists, and links
+        // ---------------------------------------------------------------
+        // STEP 2 — KaTeX math HTML (class="katex" rendered HTML)
+        // ---------------------------------------------------------------
+        if (clipboardHtml.trim().length > 0 && /class="katex/i.test(clipboardHtml)) {
+          event.preventDefault();
+          const sanitized = sanitizeKatexHtml(clipboardHtml);
+          editor?.commands.insertContent(sanitized);
+          return true;
+        }
+
+        // ---------------------------------------------------------------
+        // STEP 3 — External app HTML (Notion / Google Docs / Word)
+        //           Use DOM-based normalizer to preserve structure
+        // ---------------------------------------------------------------
+        if (clipboardHtml.trim().length > 0 && isClipboardFromExternalApp(clipboardHtml)) {
+          event.preventDefault();
+          const normalized = normalizeHtml(clipboardHtml);
+          if (normalized.trim().length > 0) {
+            editor?.commands.insertContent(normalized);
+          } else {
+            // Normalizer produced nothing — fall back to plain text
+            const html = markdownToHtml(clipboardText);
+            editor?.commands.insertContent(html);
+          }
+          return true;
+        }
+
+        // ---------------------------------------------------------------
+        // STEP 4 — Mermaid diagram text
+        // ---------------------------------------------------------------
+        const mermaidRe = /^\s*(graph\s+(TD|LR|RL|BT|TB)|sequenceDiagram|gantt|classDiagram|erDiagram|pie(\s+title)?|flowchart\s+(TD|LR|RL|BT|TB)|journey|gitGraph|mindmap|timeline|quadrantChart|requirementDiagram)/i;
+        if (mermaidRe.test(clipboardText)) {
+          event.preventDefault();
+          const fenced = '```mermaid\n' + clipboardText.trim() + '\n```';
+          const html = markdownToHtml(fenced);
+          editor?.commands.insertContent(html);
+          return true;
+        }
+
+        // ---------------------------------------------------------------
+        // STEP 5 — Strong markdown / code from AI chat / docs
+        // ---------------------------------------------------------------
         const isStrongMarkdown = /```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`]+`|^\s*#{1,6}\s|^[\s]*[*+-]\s|^[\s]*\d+\.\s|\[.+\]\(.+\)|\$\$[\s\S]+?\$\$|\|[-:\s]+\|[-:\s]+\|/m.test(clipboardText);
         const isCodeFallback = !isStrongMarkdown && /^(const|let|var|function|class|import|export|if|for|while)\b/m.test(clipboardText);
-        
+
         if (isStrongMarkdown || isCodeFallback) {
           event.preventDefault();
           let textToParse = clipboardText;
@@ -213,29 +258,22 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
           return true;
         }
 
-        // 3. Handle HTML paste with sanitization
+        // ---------------------------------------------------------------
+        // STEP 6 — Generic HTML paste (websites, emails, etc.)
+        //           Let TipTap's schema filter handle it — it handles
+        //           common elements well without normalization
+        // ---------------------------------------------------------------
         if (clipboardHtml.trim().length > 0) {
-          const hasKatex = /class="katex/i.test(clipboardHtml);
-          if (hasKatex) {
-            event.preventDefault();
-            const sanitized = sanitizeKatexHtml(clipboardHtml);
-            editor?.commands.insertContent(sanitized);
-            return true;
-          }
-
-          // Check if it's messy HTML from Office / Google Docs
-          const isMessyHtml = /meta charset="utf-8"|urn:schemas-microsoft-com:office:office|docs-internal-guid/i.test(clipboardHtml);
           const hasSemanticTags = /<(h[1-6]|table|thead|tbody|tr|th|td|ul|ol|li|pre|code|blockquote|strong|em|img)\b/i.test(clipboardHtml);
-          
-          if (isMessyHtml && hasSemanticTags) {
-            // If it's messy but has structure, let Tiptap handle it but Tiptap sometimes struggles 
-            // with Word's MSO formatting. We'll let it pass for now as Tiptap's schema filtering 
-            // is usually decent, but if users report issues we could add DOMPurify here.
+          if (hasSemanticTags) {
+            // Let TipTap handle it natively; schema filtering strips unknowns
             return false;
           }
         }
 
-        // 4. Handle URLs pasted inside editor — create clickable link
+        // ---------------------------------------------------------------
+        // STEP 7 — Bare URL → clickable link
+        // ---------------------------------------------------------------
         if (/^https?:\/\/[^\s<>]+$/.test(clipboardText.trim())) {
           event.preventDefault();
           const url = clipboardText.trim();
@@ -246,13 +284,16 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
           return true;
         }
 
-        // 5. Otherwise convert plain text as markdown (fallback)
+        // ---------------------------------------------------------------
+        // STEP 8 — Plain text fallback: convert via markdownToHtml
+        // ---------------------------------------------------------------
         if (clipboardText.trim().length > 0) {
           event.preventDefault();
           const html = markdownToHtml(clipboardText);
           editor?.commands.insertContent(html);
           return true;
         }
+
         return false;
       },
     },
