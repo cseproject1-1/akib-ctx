@@ -71,7 +71,7 @@ describe('AINoteNode Bug Fixes - All 30 Bugs', () => {
 
   describe('High Priority Bugs (7-12)', () => {
     it('Bug 7: All debounce timers cleaned up on unmount', () => {
-      const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
+      const clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout');
       const debounceRef = { current: setTimeout(() => {}, 1000) };
       const titleDebounceRef = { current: setTimeout(() => {}, 1000) };
       const progressDebounceRef = { current: setTimeout(() => {}, 1000) };

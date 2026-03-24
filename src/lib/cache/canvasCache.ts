@@ -727,6 +727,14 @@ export async function replayPendingOps(isRetry = false) {
           continue;
         }
 
+        // Document no longer exists (node/edge deleted elsewhere)
+        if (err?.code === 'not-found' || err?.message?.includes('No document to update')) {
+          console.warn('[sync] Removing op for deleted document:', op.type, err?.message);
+          await removePendingOp(op.id);
+          purged++;
+          continue;
+        }
+
         if (isNetworkError(err) || isAuthError(err)) {
           console.warn('[sync] Stopping replay due to network/auth error');
           // Start/Increase exponential backoff

@@ -1,0 +1,57 @@
+
+> vite_react_shadcn_ts@0.0.0 test
+> vitest run
+
+
+[1m[46m RUN [49m[22m [36mv3.2.4 [39m[90mG:/Nodejs project/ctxnote[39m
+
+ [32m✓[39m src/test/example.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m src/test/migration.test.ts [2m([22m[2m26 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/test/markdownToHtml.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+[90mstderr[2m | src/__tests__/backend-sync.test.ts[2m > [22m[2mcanvasCache – saveNode write-through[2m > [22m[2mqueues offline op when serverSaveNode fails
+[22m[39m[sync] Retry 1/3: network error
+
+ [32m✓[39m src/__tests__/ainote-bugfixes.test.ts [2m([22m[2m28 tests[22m[2m)[22m[32m 300[2mms[22m[39m
+[90mstderr[2m | src/__tests__/backend-sync.test.ts[2m > [22m[2mcanvasCache – saveNode write-through[2m > [22m[2mqueues offline op when serverSaveNode fails
+[22m[39m[sync] Retry 2/3: network error
+
+[90mstderr[2m | src/__tests__/backend-sync.test.ts[2m > [22m[2mcanvasCache – saveNode write-through[2m > [22m[2mqueues offline op when serverSaveNode fails
+[22m[39m[sync] Retry 3/3: network error
+
+[90mstderr[2m | src/__tests__/backend-sync.test.ts[2m > [22m[2mcanvasCache – saveNode write-through[2m > [22m[2mqueues offline op when serverSaveNode fails
+[22m[39m[sync] Queuing offline: saveNode network error
+
+[90mstderr[2m | src/__tests__/backend-sync.test.ts[2m > [22m[2mcanvasCache – deleteCanvasNode write-through[2m > [22m[2mqueues offline op when serverDeleteNode fails
+[22m[39m[sync] Retry 1/3: timeout
+
+[90mstderr[2m | src/__tests__/backend-sync.test.ts[2m > [22m[2mcanvasCache – deleteCanvasNode write-through[2m > [22m[2mqueues offline op when serverDeleteNode fails
+[22m[39m[sync] Retry 2/3: timeout
+
+[90mstderr[2m | src/__tests__/backend-sync.test.ts[2m > [22m[2mcanvasCache – deleteCanvasNode write-through[2m > [22m[2mqueues offline op when serverDeleteNode fails
+[22m[39m[sync] Retry 3/3: timeout
+
+[90mstderr[2m | src/__tests__/backend-sync.test.ts[2m > [22m[2mcanvasCache – deleteCanvasNode write-through[2m > [22m[2mqueues offline op when serverDeleteNode fails
+[22m[39m[sync] Queuing offline: deleteNode timeout
+
+[90mstderr[2m | src/__tests__/backend-sync.test.ts[2m > [22m[2mcanvasCache – updateNodeDataInDb write-through[2m > [22m[2mqueues offline op on network failure
+[22m[39m[sync] Retry 1/3: connection refused
+
+[90mstderr[2m | src/__tests__/backend-sync.test.ts[2m > [22m[2mcanvasCache – updateNodeDataInDb write-through[2m > [22m[2mqueues offline op on network failure
+[22m[39m[sync] Retry 2/3: connection refused
+
+[90mstderr[2m | src/__tests__/backend-sync.test.ts[2m > [22m[2mcanvasCache – updateNodeDataInDb write-through[2m > [22m[2mqueues offline op on network failure
+[22m[39m[sync] Retry 3/3: connection refused
+
+[90mstderr[2m | src/__tests__/backend-sync.test.ts[2m > [22m[2mcanvasCache – updateNodeDataInDb write-through[2m > [22m[2mqueues offline op on network failure
+[22m[39m[sync] Queuing offline: updateData connection refused
+
+ [32m✓[39m src/__tests__/backend-sync.test.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 4745[2mms[22m[39m
+   [33m[2m✓[22m[39m canvasCache – saveNode write-through[2m > [22mqueues offline op when serverSaveNode fails [33m 1516[2mms[22m[39m
+   [33m[2m✓[22m[39m canvasCache – deleteCanvasNode write-through[2m > [22mqueues offline op when serverDeleteNode fails [33m 1511[2mms[22m[39m
+   [33m[2m✓[22m[39m canvasCache – updateNodeDataInDb write-through[2m > [22mqueues offline op on network failure [33m 1531[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m5 passed[39m[22m[90m (5)[39m
+[2m      Tests [22m [1m[32m92 passed[39m[22m[90m (92)[39m
+[2m   Start at [22m 21:03:19
+[2m   Duration [22m 6.95s[2m (transform 407ms, setup 733ms, collect 753ms, tests 5.09s, environment 4.75s, prepare 968ms)[22m
+
