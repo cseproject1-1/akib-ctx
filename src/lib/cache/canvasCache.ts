@@ -336,8 +336,10 @@ export async function deleteDrawing(workspaceId: string, drawingId: string) {
 // ─── Workspaces ───
 
 export async function cachedGetWorkspaces(
-  onUpdate?: (ws: Workspace[]) => void
+  onUpdate?: (ws: Workspace[]) => void,
+  options: { excludeVault?: boolean } = {}
 ): Promise<{ cached: Workspace[] | null; fresh: Promise<Workspace[]> }> {
+  const { excludeVault = false } = options;
   const entry = await cacheGet<Workspace[]>('workspaces', 'list');
   const cached = entry?.data ?? null;
 
@@ -346,18 +348,32 @@ export async function cachedGetWorkspaces(
     try {
       const ws = await serverGetWorkspaces();
       await cacheSet('workspaces', 'list', ws);
-      const isChanged = !cached || ws.length !== cached.length || ws.some((w, i) => w.id !== cached[i].id || w.updated_at !== cached[i].updated_at);
-      if (onUpdate && isChanged) {
-        onUpdate(ws);
+      // Apply filtering for onUpdate and fresh return
+      const filteredWs = excludeVault ? ws.filter(w => !w.is_in_vault) : ws;
+      if (onUpdate) {
+        const isChanged = !cached || filteredWs.length !== cached.length || filteredWs.some((w, i) => w.id !== cached[i].id || w.updated_at !== cached[i].updated_at);
+        if (isChanged) {
+          onUpdate(filteredWs);
+        }
       }
-      return ws;
+      return filteredWs;
     } catch {
-      if (cached) return cached;
+      if (cached) {
+        const filteredCached = excludeVault ? cached.filter(w => !w.is_in_vault) : cached;
+        if (onUpdate) {
+          onUpdate(filteredCached);
+        }
+        return filteredCached;
+      }
       throw new Error('Failed to load workspaces');
     }
   })();
 
-  return { cached, fresh };
+  // Return filtered cached and fresh
+  return {
+    cached: excludeVault ? (cached?.filter(w => !w.is_in_vault) ?? null) : cached,
+    fresh
+  };
 }
 
 // ─── Node Counts ───

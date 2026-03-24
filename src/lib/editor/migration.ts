@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { JSONContent } from '@tiptap/react';
 
 /**

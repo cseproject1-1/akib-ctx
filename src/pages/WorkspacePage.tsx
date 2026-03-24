@@ -3,6 +3,7 @@ import { CanvasWrapper } from '@/components/canvas/CanvasWrapper';
 import { useParams } from 'react-router-dom';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useCanvasStore } from '@/store/canvasStore';
+import { useVaultStore } from '@/store/vaultStore';
 import {
   cachedLoadCanvasNodes,
   cachedLoadCanvasEdges,
@@ -28,6 +29,7 @@ import { auth } from '@/lib/firebase/client';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PasswordDialog } from '@/components/PasswordDialog';
+import { VaultPasswordDialog } from '@/components/VaultPasswordDialog';
 import { verifyPassword } from '@/lib/utils/password';
 
 const WorkspacePage = () => {
@@ -36,9 +38,11 @@ const WorkspacePage = () => {
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [workspacePasswordHash, setWorkspacePasswordHash] = useState<string | null>(null);
   const [isUnlocked, setIsUnlocked] = useState(false);
+  const [showVaultPasswordDialog, setShowVaultPasswordDialog] = useState(false);
   const loadCanvas = useCanvasStore((s) => s.loadCanvas);
   const setWorkspaceId = useCanvasStore((s) => s.setWorkspaceId);
   const setWorkspaceMeta = useCanvasStore((s) => s.setWorkspaceMeta);
+  const isVaultLocked = useVaultStore((s) => s.isLocked);
   const resetState = useCanvasStore((s) => s.resetState);
   const updateCursorPosition = useCanvasStore((s) => s.updateCursorPosition);
   const removeCursor = useCanvasStore((s) => s.removeCursor);
@@ -152,39 +156,47 @@ const WorkspacePage = () => {
     }
   }, [workspaceId, loadCanvas, setWorkspaceMeta]);
 
-  useEffect(() => {
-    if (!workspaceId) return;
-    setWorkspaceId(workspaceId);
-
-    const load = async () => {
-
-      try {
-        // First, check if workspace is password protected
-        const workspaces = await getWorkspaces();
-        const ws = workspaces?.find(w => w.id === workspaceId);
-        
-        if (ws?.is_password_protected && ws.password_hash) {
-          setWorkspacePasswordHash(ws.password_hash);
-          setShowPasswordDialog(true);
-          setLoading(false);
-          return; // Stop loading until password is verified
-        }
-
-        // If no password protection, proceed with loading
-        await loadWorkspaceData();
-      } catch (err) {
-        console.error('Error checking workspace protection:', err);
-        // If error checking protection, try to load anyway
-        await loadWorkspaceData();
-      }
-    };
-
-    load();
-
-    return () => {
-      resetState();
-    };
-  }, [workspaceId, loadCanvas, setWorkspaceId, setWorkspaceMeta, resetState, loadWorkspaceData]);
+   useEffect(() => {
+     if (!workspaceId) return;
+     setWorkspaceId(workspaceId);
+ 
+     const load = async () => {
+ 
+       try {
+         // First, check if workspace is password protected
+         const workspaces = await getWorkspaces();
+         const ws = workspaces?.find(w => w.id === workspaceId);
+         
+         // Check if workspace is in the vault and vault is locked
+         if (ws?.is_in_vault && useVaultStore.getState().isLocked) {
+           setShowVaultPasswordDialog(true);
+           setLoading(false);
+           return; // Stop loading until vault password is verified
+         }
+         
+         // Check if workspace is individually password protected
+         if (ws?.is_password_protected && ws.password_hash) {
+           setWorkspacePasswordHash(ws.password_hash);
+           setShowPasswordDialog(true);
+           setLoading(false);
+           return; // Stop loading until password is verified
+         }
+ 
+         // If no password protection, proceed with loading
+         await loadWorkspaceData();
+       } catch (err) {
+         console.error('Error checking workspace protection:', err);
+         // If error checking protection, try to load anyway
+         await loadWorkspaceData();
+       }
+     };
+ 
+     load();
+ 
+     return () => {
+       resetState();
+     };
+   }, [workspaceId, loadCanvas, setWorkspaceId, setWorkspaceMeta, resetState, loadWorkspaceData, useVaultStore.getState().isLocked]);
 
   // ─── Real-time Sync ───
   useEffect(() => {
@@ -260,178 +272,188 @@ const WorkspacePage = () => {
     };
   }, [workspaceId, updateCursorPosition, loadCanvas]);
 
-  // Subscribe to store changes and persist (using cached write-through wrappers)
-  useEffect(() => {
-    if (!workspaceId) return;
+   // Subscribe to store changes and persist (using cached write-through wrappers)
+   useEffect(() => {
+     if (!workspaceId) return;
+ 
+     const { incSave, decSave } = useCanvasStore.getState();
+ 
+     const trackSave = (promise: Promise<void>) => {
+       incSave();
+       promise.then(() => decSave()).catch(() => decSave(true));
+     };
+ 
+     const unsub = useCanvasStore.subscribe((state, prev) => {
+       if (state._skipSync) return;
+       if (!loadComplete.current) return;
+       if (state.workspaceId !== workspaceId) return;
 
-    const { incSave, decSave } = useCanvasStore.getState();
+       const prevNodes = prev.nodes;
+       const currNodes = state.nodes;
+       const prevEdges = prev.edges;
+       const currEdges = state.edges;
 
-    const trackSave = (promise: Promise<void>) => {
-      incSave();
-      promise.then(() => decSave()).catch(() => decSave(true));
-    };
+       // ── Node additions (new nodes → saveNode) ──
+       currNodes.forEach((node) => {
+         const existed = prevNodes.find((p) => p.id === node.id);
+         if (!existed) {
+           // Brand-new node: save the whole thing
+           trackSave(saveNode(workspaceId, node));
+           return;
+         }
 
-    const unsub = useCanvasStore.subscribe((state, prev) => {
-      if (state._skipSync) return;
-      if (!loadComplete.current) return;
-      if (state.workspaceId !== workspaceId) return;
-      
-      if (prev.workspaceId && prev.workspaceId !== workspaceId) {
-        console.warn('[sync] Workspace ID mismatch in prev state, skipping this update');
-        return;
-      }
+         // ── Data changes (debounced 800ms) ──
+         if (node.data !== existed.data) {
+           const prev = dataTimers.current.get(node.id);
+           if (prev) clearTimeout(prev);
+           dataTimers.current.set(
+             node.id,
+             setTimeout(() => {
+               const { nodes: latest } = useCanvasStore.getState();
+               const n = latest.find((n) => n.id === node.id);
+               if (n) trackSave(updateNodeDataInDb(workspaceId, node.id, n.data as Record<string, unknown>));
+               dataTimers.current.delete(node.id);
+             }, 800)
+           );
+         }
 
-      // Save new nodes
-      const newNodes = state.nodes.filter(n => !prev.nodes.find(pn => pn.id === n.id));
-      newNodes.forEach(n => {
-        trackSave(saveNode(workspaceId, n));
-      });
+         // ── Position changes (debounced 500ms after drag-end) ──
+         if (node.position !== existed.position) {
+           const prev = posTimers.current.get(node.id);
+           if (prev) clearTimeout(prev);
+           posTimers.current.set(
+             node.id,
+             setTimeout(() => {
+               const { nodes: latest } = useCanvasStore.getState();
+               const n = latest.find((n) => n.id === node.id);
+               if (n) trackSave(updateNodePosition(workspaceId, node.id, n.position.x, n.position.y));
+               posTimers.current.delete(node.id);
+             }, 500)
+           );
+         }
 
-      // Save new edges
-      const newEdges = state.edges.filter(e => !prev.edges.find(pe => pe.id === e.id));
-      newEdges.forEach(e => {
-        trackSave(saveEdge(workspaceId, e));
-      });
+         // ── Style changes (width/height/zIndex, debounced 500ms) ──
+         if (node.style !== existed.style) {
+           const prev = styleTimers.current.get(node.id);
+           if (prev) clearTimeout(prev);
+           styleTimers.current.set(
+             node.id,
+             setTimeout(() => {
+               const { nodes: latest } = useCanvasStore.getState();
+               const n = latest.find((n) => n.id === node.id);
+               if (n)
+                 trackSave(
+                   updateNodeStyle(
+                     workspaceId,
+                     node.id,
+                     (n.style?.width as number) || 300,
+                     (n.style?.height as number) || 200,
+                     (n.style?.zIndex as number) || 0
+                   )
+                 );
+               styleTimers.current.delete(node.id);
+             }, 500)
+           );
+         }
+       });
 
-      // Detect deleted nodes
-      const deletedNodes = prev.nodes.filter(pn => !state.nodes.find(n => n.id === pn.id));
-      if (deletedNodes.length > 0) {
-        import('@/lib/cache/indexedDB').then(({ cacheSet }) => {
-          cacheSet('canvas-nodes', workspaceId, state.nodes);
-        });
-      }
-      deletedNodes.forEach(n => {
-        trackSave(deleteCanvasNode(workspaceId, n.id));
-        const storageKey = (n.data as { storageKey?: string })?.storageKey;
-        if (storageKey) deleteCanvasFile(storageKey).catch(() => { });
-        
-        // Clean up pending timeouts
-        if (dataTimers.current.has(n.id)) { clearTimeout(dataTimers.current.get(n.id)); dataTimers.current.delete(n.id); }
-        if (posTimers.current.has(n.id)) { clearTimeout(posTimers.current.get(n.id)); posTimers.current.delete(n.id); }
-        if (styleTimers.current.has(n.id)) { clearTimeout(styleTimers.current.get(n.id)); styleTimers.current.delete(n.id); }
-      });
+       // ── Node deletions ──
+       prevNodes.forEach((pNode) => {
+         const stillExists = currNodes.find((c) => c.id === pNode.id);
+         if (!stillExists && serverNodeIds.current.has(pNode.id)) {
+           // Cancel any pending debounced saves for this node
+           const dt = dataTimers.current.get(pNode.id);
+           const pt = posTimers.current.get(pNode.id);
+           const st = styleTimers.current.get(pNode.id);
+           if (dt) { clearTimeout(dt); dataTimers.current.delete(pNode.id); }
+           if (pt) { clearTimeout(pt); posTimers.current.delete(pNode.id); }
+           if (st) { clearTimeout(st); styleTimers.current.delete(pNode.id); }
+           trackSave(deleteCanvasNode(workspaceId, pNode.id));
+         }
+       });
 
-      // Detect deleted edges
-      const deletedEdges = prev.edges.filter(pe => !state.edges.find(e => e.id === pe.id));
-      if (deletedEdges.length > 0) {
-        import('@/lib/cache/indexedDB').then(({ cacheSet }) => {
-          cacheSet('canvas-edges', workspaceId, state.edges);
-        });
-      }
-      deletedEdges.forEach(e => {
-        trackSave(deleteCanvasEdge(workspaceId, e.id));
-        if (edgeTimers.current.has(e.id)) { clearTimeout(edgeTimers.current.get(e.id)); edgeTimers.current.delete(e.id); }
-      });
+       // ── Edge additions ──
+       currEdges.forEach((edge) => {
+         const existed = prevEdges.find((p) => p.id === edge.id);
+         if (!existed) {
+           trackSave(saveEdge(workspaceId, edge));
+           return;
+         }
 
-      // Save new drawings
-      const newDrawings = state.drawings.filter(d => !prev.drawings.find(pd => pd.id === d.id));
-      newDrawings.forEach(d => {
-        trackSave(saveDrawing(workspaceId, d));
-      });
+         // ── Edge data/label changes (debounced 800ms) ──
+         if (edge.data !== existed.data || edge.label !== existed.label) {
+           const prev = edgeTimers.current.get(edge.id);
+           if (prev) clearTimeout(prev);
+           edgeTimers.current.set(
+             edge.id,
+             setTimeout(() => {
+               const { edges: latest } = useCanvasStore.getState();
+               const e = latest.find((e) => e.id === edge.id);
+               if (e) trackSave(updateEdgeDataInDb(workspaceId, edge.id, (e.data as Record<string, unknown>) || {}, e.label as string | undefined));
+               edgeTimers.current.delete(edge.id);
+             }, 800)
+           );
+         }
+       });
 
-      // Detect deleted drawings
-      const deletedDrawings = prev.drawings.filter(pd => !state.drawings.find(d => d.id === pd.id));
-      if (deletedDrawings.length > 0) {
-        import('@/lib/cache/indexedDB').then(({ cacheSet }) => {
-          cacheSet('canvas-drawings', workspaceId, state.drawings);
-        });
-      }
-      deletedDrawings.forEach(d => {
-        trackSave(deleteDrawing(workspaceId, d.id));
-      });
+       // ── Edge deletions ──
+       prevEdges.forEach((pEdge) => {
+         const stillExists = currEdges.find((c) => c.id === pEdge.id);
+         if (!stillExists && serverEdgeIds.current.has(pEdge.id)) {
+           const et = edgeTimers.current.get(pEdge.id);
+           if (et) { clearTimeout(et); edgeTimers.current.delete(pEdge.id); }
+           trackSave(deleteCanvasEdge(workspaceId, pEdge.id));
+         }
+       });
 
-      // Position, data, and style updates for existing nodes
-      state.nodes.forEach(n => {
-        const prev_n = prev.nodes.find(pn => pn.id === n.id);
-        if (!prev_n) return;
-
-        if (
-          (prev_n.position.x !== n.position.x || prev_n.position.y !== n.position.y) &&
-          !isNaN(n.position.x) && !isNaN(n.position.y)
-        ) {
-          const existing = posTimers.current.get(n.id);
-          if (existing) clearTimeout(existing);
-          posTimers.current.set(n.id, setTimeout(() => {
-            trackSave(updateNodePosition(workspaceId, n.id, n.position.x, n.position.y));
-            posTimers.current.delete(n.id);
-          }, 500));
-        }
-
-        const dataChanged = n.data !== prev_n.data;
-        if (dataChanged) {
-          const existing = dataTimers.current.get(n.id);
-          if (existing) clearTimeout(existing);
-          dataTimers.current.set(n.id, setTimeout(() => {
-            trackSave(updateNodeDataInDb(workspaceId, n.id, n.data as Record<string, unknown>));
-            dataTimers.current.delete(n.id);
-          }, 800));
-        }
-
-        const prevW = (prev_n.style?.width as number) || 300;
-        const prevH = (prev_n.style?.height as number) || 200;
-        const prevZ = (prev_n.style?.zIndex as number) || 0;
-        const curW = (n.style?.width as number) || 300;
-        const curH = (n.style?.height as number) || 200;
-        const curZ = (n.style?.zIndex as number) || 0;
-        if (prevW !== curW || prevH !== curH || prevZ !== curZ) {
-          const existing = styleTimers.current.get(n.id);
-          if (existing) clearTimeout(existing);
-          styleTimers.current.set(n.id, setTimeout(() => {
-            trackSave(updateNodeStyle(workspaceId, n.id, curW, curH, curZ));
-            styleTimers.current.delete(n.id);
-          }, 500));
-        }
-      });
-
-      // Detect edge data/label changes
-      state.edges.forEach(e => {
-        const prev_e = prev.edges.find(pe => pe.id === e.id);
-        if (!prev_e) return;
-        
-        // Deep compare data to avoid redundant saves
-        const dataChanged = JSON.stringify(e.data) !== JSON.stringify(prev_e.data);
-        const labelChanged = e.label !== prev_e.label;
-        
-        if (dataChanged || labelChanged) {
-          const existing = edgeTimers.current.get(e.id);
-          if (existing) clearTimeout(existing);
-          edgeTimers.current.set(e.id, setTimeout(() => {
-            // Re-verify workspaceId before final commit
-            if (useCanvasStore.getState().workspaceId === workspaceId) {
-              trackSave(updateEdgeDataInDb(workspaceId, e.id, (e.data as Record<string, unknown>) || {}, e.label as string | undefined));
-            }
-            edgeTimers.current.delete(e.id);
-          }, 1000)); // Consolidated slightly longer debounce for edges
-        }
-      });
-    });
-
-    return () => {
-      unsub();
-      // Flush pending debounced saves instead of just clearing timers (prevents data loss on navigation)
-      const { nodes, edges } = useCanvasStore.getState();
-      dataTimers.current.forEach((_, nodeId) => {
-        const node = nodes.find(n => n.id === nodeId);
-        if (node) updateNodeDataInDb(workspaceId, nodeId, node.data as Record<string, unknown>);
-      });
-      posTimers.current.forEach((_, nodeId) => {
-        const node = nodes.find(n => n.id === nodeId);
-        if (node) updateNodePosition(workspaceId, nodeId, node.position.x, node.position.y);
-      });
-      styleTimers.current.forEach((_, nodeId) => {
-        const node = nodes.find(n => n.id === nodeId);
-        if (node) updateNodeStyle(workspaceId, nodeId, (node.style?.width as number) || 300, (node.style?.height as number) || 200, (node.style?.zIndex as number) || 0);
-      });
-      edgeTimers.current.forEach((_, edgeId) => {
-        const edge = edges.find(e => e.id === edgeId);
-        if (edge) updateEdgeDataInDb(workspaceId, edgeId, (edge.data as Record<string, unknown>) || {}, edge.label as string | undefined);
-      });
-      dataTimers.current.clear();
-      posTimers.current.clear();
-      styleTimers.current.clear();
-      edgeTimers.current.clear();
-    };
-  }, [workspaceId]);
+       // ── Drawing saves ──
+       const currDrawings = state.drawings;
+       const prevDrawings = prev.drawings;
+       if (currDrawings !== prevDrawings) {
+         currDrawings.forEach((d) => {
+           const pd = prevDrawings.find((p) => p.id === d.id);
+           if (!pd || JSON.stringify(d) !== JSON.stringify(pd)) {
+             trackSave(saveDrawing(workspaceId, d));
+           }
+         });
+         prevDrawings.forEach((pd) => {
+           if (!currDrawings.find((c) => c.id === pd.id)) {
+             trackSave(deleteDrawing(workspaceId, pd.id));
+           }
+         });
+       }
+     });
+     const curDataTimers = dataTimers.current;
+     const curPosTimers = posTimers.current;
+     const curStyleTimers = styleTimers.current;
+     const curEdgeTimers = edgeTimers.current;
+ 
+     return () => {
+       unsub();
+       // Flush pending debounced saves instead of just clearing timers (prevents data loss on navigation)
+       const { nodes, edges } = useCanvasStore.getState();
+       curDataTimers.forEach((_, nodeId) => {
+         const node = nodes.find(n => n.id === nodeId);
+         if (node) updateNodeDataInDb(workspaceId, nodeId, node.data as Record<string, unknown>);
+       });
+       curPosTimers.forEach((_, nodeId) => {
+         const node = nodes.find(n => n.id === nodeId);
+         if (node) updateNodePosition(workspaceId, nodeId, node.position.x, node.position.y);
+       });
+       curStyleTimers.forEach((_, nodeId) => {
+         const node = nodes.find(n => n.id === nodeId);
+         if (node) updateNodeStyle(workspaceId, nodeId, (node.style?.width as number) || 300, (node.style?.height as number) || 200, (node.style?.zIndex as number) || 0);
+       });
+       curEdgeTimers.forEach((_, edgeId) => {
+         const edge = edges.find(e => e.id === edgeId);
+         if (edge) updateEdgeDataInDb(workspaceId, edgeId, (edge.data as Record<string, unknown>) || {}, edge.label as string | undefined);
+       });
+       curDataTimers.clear();
+       curPosTimers.clear();
+       curStyleTimers.clear();
+       curEdgeTimers.clear();
+     };
+   }, [workspaceId]);
 
   // ─── Resync after undo/redo ───
   useEffect(() => {
@@ -527,20 +549,32 @@ const WorkspacePage = () => {
     };
   }, [workspaceId]);
 
-  // Password verification handler
-  const handleVerifyPassword = async (password: string): Promise<boolean> => {
-    if (!workspacePasswordHash) return false;
-    
-    const isValid = await verifyPassword(password, workspacePasswordHash);
-    if (isValid) {
-      setIsUnlocked(true);
-      setShowPasswordDialog(false);
-      // Now load the workspace data
-      await loadWorkspaceData();
-      toast.success('Workspace unlocked');
-    }
-    return isValid;
-  };
+   // Password verification handler
+   const handleVerifyPassword = async (password: string): Promise<boolean> => {
+     if (!workspacePasswordHash) return false;
+     
+     const isValid = await verifyPassword(password, workspacePasswordHash);
+     if (isValid) {
+       setIsUnlocked(true);
+       setShowPasswordDialog(false);
+       // Now load the workspace data
+       await loadWorkspaceData();
+       toast.success('Workspace unlocked');
+     }
+     return isValid;
+   };
+   
+   // Vault password verification handler
+   const handleVerifyVaultPassword = async (password: string): Promise<boolean> => {
+     const isValid = await useVaultStore.getState().unlockVault(password);
+     if (isValid) {
+       setShowVaultPasswordDialog(false);
+       // Now load the workspace data
+       await loadWorkspaceData();
+       toast.success('Vault unlocked');
+     }
+     return isValid;
+   };
 
   if (loading) {
     return (
@@ -575,19 +609,27 @@ const WorkspacePage = () => {
   }
 
   return (
-    <>
-      <ReactFlowProvider>
-        <CanvasWrapper />
-      </ReactFlowProvider>
-      
-      <PasswordDialog
-        isOpen={showPasswordDialog}
-        onClose={() => setShowPasswordDialog(false)}
-        onVerify={handleVerifyPassword}
-        title="Password Protected Workspace"
-        message="This workspace is protected. Please enter the password to unlock it."
-      />
-    </>
+     <>
+       <ReactFlowProvider>
+         <CanvasWrapper />
+       </ReactFlowProvider>
+       
+       <PasswordDialog
+         isOpen={showPasswordDialog}
+         onClose={() => setShowPasswordDialog(false)}
+         onVerify={handleVerifyPassword}
+         title="Password Protected Workspace"
+         message="This workspace is protected. Please enter the password to unlock it."
+       />
+       
+       <VaultPasswordDialog
+         isOpen={showVaultPasswordDialog}
+         onClose={() => setShowVaultPasswordDialog(false)}
+         onVerify={handleVerifyVaultPassword}
+         title="Vault Locked"
+         message="This workspace is in the locked folder. Please enter the vault password to access it."
+       />
+     </>
   );
 };
 

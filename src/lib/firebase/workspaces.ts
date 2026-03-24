@@ -17,6 +17,8 @@ export interface Workspace {
     // Password protection (optional, backward compatible)
     password_hash?: string;
     is_password_protected?: boolean;
+    // Locked folder visibility (optional)
+    is_in_vault?: boolean;
 }
 
 export async function getWorkspaces(): Promise<Workspace[]> {
@@ -52,14 +54,16 @@ export async function createWorkspace(name: string, color: string, passwordHash?
         is_deleted: false,
         // Password protection fields (optional, backward compatible)
         password_hash: passwordHash,
-        is_password_protected: !!passwordHash
+        is_password_protected: !!passwordHash,
+        // Locked folder visibility (optional)
+        is_in_vault: false
     };
 
     await setDoc(wsRef, newWs);
     return newWs;
 }
 
-export async function updateWorkspace(id: string, updates: { name?: string; color?: string; is_public?: boolean; tags?: string[]; folder?: string | null; is_deleted?: boolean; deleted_at?: string | null; password_hash?: string; is_password_protected?: boolean }) {
+export async function updateWorkspace(id: string, updates: { name?: string; color?: string; is_public?: boolean; tags?: string[]; folder?: string | null; is_deleted?: boolean; deleted_at?: string | null; password_hash?: string; is_password_protected?: boolean; is_in_vault?: boolean }) {
     const wsRef = doc(db, 'workspaces', id);
     await updateDoc(wsRef, {
         ...updates,

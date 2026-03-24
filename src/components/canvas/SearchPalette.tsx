@@ -75,7 +75,7 @@ export function SearchPalette() {
   const setActivePalette = useCanvasStore((s) => s.setActivePalette);
 
   const open = activePalette === 'search';
-  const setOpen = (val: boolean) => setActivePalette(val ? 'search' : null);
+  const setOpen = useCallback((val: boolean) => setActivePalette(val ? 'search' : null), [setActivePalette]);
 
   const fuse = useMemo(() => {
     return new Fuse(nodes, {

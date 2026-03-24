@@ -121,8 +121,11 @@ export function PomodoroTimer() {
   // Use refs for values read inside interval to avoid stale closures and effect churn
   const modeRef = useRef(mode);
   const sessionsRef = useRef(sessions);
-  modeRef.current = mode;
-  sessionsRef.current = sessions;
+  
+  useEffect(() => {
+    modeRef.current = mode;
+    sessionsRef.current = sessions;
+  }, [mode, sessions]);
 
   useEffect(() => {
     if (!running) {

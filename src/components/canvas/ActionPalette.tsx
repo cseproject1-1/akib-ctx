@@ -41,7 +41,7 @@ export function ActionPalette({ nodeWidth = 0, screenX = 0, screenY = 0 }: Actio
   const activePalette = useCanvasStore((s) => s.activePalette);
   const setActivePalette = useCanvasStore((s) => s.setActivePalette);
   const isOpen = activePalette === 'action';
-  const setIsOpen = (val: boolean) => setActivePalette(val ? 'action' : null);
+  const setIsOpen = useCallback((val: boolean) => setActivePalette(val ? 'action' : null), [setActivePalette]);
 
   const [search, setSearch] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);

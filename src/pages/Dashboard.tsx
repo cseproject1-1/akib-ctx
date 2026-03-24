@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { Plus, Brain, Trash2, LogOut, Loader2, Layers, Star, Search, SortAsc, LayoutGrid, List, Copy, BookOpen, Beaker, Briefcase, Code, Palette, Music, Lightbulb, GraduationCap, Rocket, Info, Calendar, Clock, FileText, Folder, FolderPlus, MoreVertical, MoreHorizontal, Edit2, ChevronRight, ChevronDown, RotateCcw, Trash, Check, X, Settings, FileUp, Shield, Lock, type LucideIcon } from 'lucide-react';
+import { Plus, Brain, Trash2, LogOut, Loader2, Layers, Star, Search, SortAsc, LayoutGrid, List, Copy, BookOpen, Beaker, Briefcase, Code, Palette, Music, Lightbulb, GraduationCap, Rocket, Info, Calendar, Clock, FileText, Folder, FolderPlus, MoreVertical, MoreHorizontal, Edit2, ChevronRight, ChevronDown, RotateCcw, Trash, Check, X, Settings, FileUp, Shield, Lock, Unlock, type LucideIcon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Node } from '@xyflow/react';
 import { useEffect, useState, useMemo, useCallback } from 'react';
@@ -13,6 +13,8 @@ import { canvasTemplates, instantiateTemplate } from '@/lib/canvasTemplates';
 import { HotkeySettingsModal } from '@/components/dashboard/HotkeySettingsModal';
 import { ImportModal } from '@/components/dashboard/ImportModal';
 import { PasswordManageDialog } from '@/components/PasswordManageDialog';
+import { VaultModal } from '@/components/VaultModal';
+import { useVaultStore } from '@/store/vaultStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useCanvasStore } from '@/store/canvasStore';
 import { usePWAInstall } from '@/hooks/usePWAInstall';
@@ -47,6 +49,7 @@ type ViewMode = 'grid' | 'list';
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user, signOut, loading: authLoading } = useAuth();
+  const isVaultLocked = useVaultStore((s) => s.isLocked);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [nodeCounts, setNodeCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
@@ -73,13 +76,19 @@ const Dashboard = () => {
   });
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showImport, setShowImport] = useState(false);
-  const [importFiles, setImportFiles] = useState<FileList | null>(null);
+   const [importFiles, setImportFiles] = useState<FileList | null>(null);
   // Password protection state
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isPasswordProtected, setIsPasswordProtected] = useState(false);
   const [showPasswordManageDialog, setShowPasswordManageDialog] = useState(false);
   const [passwordManageWorkspaceId, setPasswordManageWorkspaceId] = useState<string | null>(null);
+  // Vault state — single VaultModal handles all sub-flows
+  const [showVaultModal, setShowVaultModal] = useState(false);
+  const [vaultModalMode, setVaultModalMode] = useState<'unlock' | 'set' | 'change_verify' | 'change_new' | 'remove' | 'settings' | undefined>(undefined);
+  // Vault workspaces (separate list, loaded only when unlocked)
+  const [vaultWorkspaces, setVaultWorkspaces] = useState<Workspace[]>([]);
+  const [vaultNodeCounts, setVaultNodeCounts] = useState<Record<string, number>>({});
 
   const handleGlobalDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -110,94 +119,175 @@ const Dashboard = () => {
     return Array.from(folders).sort();
   }, [workspaces]);
 
-  const folderCounts = useMemo(() => {
-    const counts: Record<string, number> = {
-      all: workspaces.filter(ws => !ws.is_deleted).length,
-      unorganized: workspaces.filter(ws => !ws.is_deleted && !ws.folder).length,
-      trash: workspaces.filter(ws => ws.is_deleted).length
-    };
-    allFolders.forEach(folder => {
-      counts[folder] = workspaces.filter(ws => !ws.is_deleted && ws.folder === folder).length;
-    });
-    return counts;
-  }, [workspaces, allFolders]);
+   const folderCounts = useMemo(() => {
+     const counts: Record<string, number> = {
+       all: workspaces.filter(ws => !ws.is_deleted).length,
+       unorganized: workspaces.filter(ws => !ws.is_deleted && !ws.folder).length,
+       trash: workspaces.filter(ws => ws.is_deleted).length
+     };
+     allFolders.forEach(folder => {
+       counts[folder] = workspaces.filter(ws => !ws.is_deleted && ws.folder === folder).length;
+     });
+     // Add vault count if vault is unlocked
+     if (selectedFolder === 'vault' && !isVaultLocked) {
+       counts.vault = vaultWorkspaces.length;
+     }
+     return counts;
+   }, [workspaces, allFolders, vaultWorkspaces.length, isVaultLocked, selectedFolder]);
 
-  const sortedWorkspaces = useMemo(() => {
-    // Determine the base filter based on whether we're in trash or not
-    let filtered = workspaces.filter(ws => selectedFolder === 'trash' ? ws.is_deleted : !ws.is_deleted);
+   const sortedWorkspaces = useMemo(() => {
+     // Special handling for vault folder
+     if (selectedFolder === 'vault') {
+       // Show vault workspaces (only if vault is unlocked)
+       if (useVaultStore.getState().isLocked) {
+         return []; // Return empty array if vault is locked
+       }
+       // Filter workspaces that are in the vault
+       let filtered = workspaces.filter(ws => ws.is_in_vault && !ws.is_deleted);
+       
+       // Apply search and tag filters
+       filtered = filtered.filter((ws) =>
+         ws.name.toLowerCase().includes(searchQuery.toLowerCase())
+       );
 
-    // Apply folder filter
-    if (selectedFolder !== 'trash') {
-      if (selectedFolder) {
-        filtered = filtered.filter(ws => ws.folder === selectedFolder);
-      } else if (selectedFolder === '') {
-        filtered = filtered.filter(ws => !ws.folder);
-      }
-    }
+       if (selectedTag) {
+         filtered = filtered.filter(ws => ws.tags?.includes(selectedTag));
+       }
 
-    // Apply search and tag filters
-    filtered = filtered.filter((ws) =>
-      ws.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+       return filtered.sort((a, b) => {
+         const af = favorites.has(a.id) ? 1 : 0;
+         const bf = favorites.has(b.id) ? 1 : 0;
+         if (af !== bf) return bf - af;
+         switch (sortMode) {
+           case 'name': return a.name.localeCompare(b.name);
+           case 'nodes': return (vaultNodeCounts[b.id] || 0) - (vaultNodeCounts[a.id] || 0);
+           default: return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+         }
+       });
+     }
 
-    if (selectedTag) {
-      filtered = filtered.filter(ws => ws.tags?.includes(selectedTag));
-    }
+     // Determine the base filter based on whether we're in trash or not
+     let filtered = workspaces.filter(ws => selectedFolder === 'trash' ? ws.is_deleted : !ws.is_deleted);
 
-    return filtered.sort((a, b) => {
-      const af = favorites.has(a.id) ? 1 : 0;
-      const bf = favorites.has(b.id) ? 1 : 0;
-      if (af !== bf) return bf - af;
-      switch (sortMode) {
-        case 'name': return a.name.localeCompare(b.name);
-        case 'nodes': return (nodeCounts[b.id] || 0) - (nodeCounts[a.id] || 0);
-        default: return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-      }
-    });
-  }, [workspaces, searchQuery, sortMode, favorites, nodeCounts, selectedFolder, selectedTag]);
+     // Apply folder filter
+     if (selectedFolder !== 'trash') {
+       if (selectedFolder) {
+         filtered = filtered.filter(ws => ws.folder === selectedFolder);
+       } else if (selectedFolder === '') {
+         filtered = filtered.filter(ws => !ws.folder);
+       }
+     }
 
-  const loadWorkspaces = useCallback(async () => {
-    try {
-      const { cached, fresh } = await cachedGetWorkspaces(async (freshData) => {
-        setWorkspaces(freshData);
-        // Refresh node counts incrementally
-        await Promise.all(freshData.map(async (ws) => {
-          const count = await cachedGetNodeCount(ws.id);
-          setNodeCounts((prev) => ({ ...prev, [ws.id]: count }));
-        }));
-      });
+     // Apply search and tag filters
+     filtered = filtered.filter((ws) =>
+       ws.name.toLowerCase().includes(searchQuery.toLowerCase())
+     );
 
-      // Instant render from cache
-      if (cached) {
-        setWorkspaces(cached);
-        setLoading(false);
-        // Load cached node counts incrementally
-        await Promise.all(cached.map(async (ws) => {
-          const count = await cachedGetNodeCount(ws.id);
-          setNodeCounts((prev) => ({ ...prev, [ws.id]: count }));
-        }));
-      }
+     if (selectedTag) {
+       filtered = filtered.filter(ws => ws.tags?.includes(selectedTag));
+     }
 
-      // Wait for fresh if no cache
-      if (!cached) {
-        const data = await fresh;
-        setWorkspaces(data);
-        await Promise.all(data.map(async (ws) => {
-          const count = await cachedGetNodeCount(ws.id);
-          setNodeCounts((prev) => ({ ...prev, [ws.id]: count }));
-        }));
-      }
-    } catch (err) {
-      toast.error('Failed to load workspaces');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+     return filtered.sort((a, b) => {
+       const af = favorites.has(a.id) ? 1 : 0;
+       const bf = favorites.has(b.id) ? 1 : 0;
+       if (af !== bf) return bf - af;
+       switch (sortMode) {
+         case 'name': return a.name.localeCompare(b.name);
+         case 'nodes': return (nodeCounts[b.id] || 0) - (nodeCounts[a.id] || 0);
+         default: return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+       }
+     });
+   }, [workspaces, searchQuery, sortMode, favorites, nodeCounts, vaultNodeCounts, selectedFolder, selectedTag, isVaultLocked]);
 
-  useEffect(() => {
-    if (!user) return;
-    loadWorkspaces();
-  }, [user, loadWorkspaces]);
+   const loadRegularWorkspaces = useCallback(async () => {
+     try {
+       const { cached, fresh } = await cachedGetWorkspaces(async (freshData) => {
+         setWorkspaces(freshData);
+         // Refresh node counts incrementally
+         await Promise.all(freshData.map(async (ws) => {
+           const count = await cachedGetNodeCount(ws.id);
+           setNodeCounts((prev) => ({ ...prev, [ws.id]: count }));
+         }));
+       }, { excludeVault: true });
+
+       // Instant render from cache
+       if (cached) {
+         setWorkspaces(cached);
+         setLoading(false);
+         // Load cached node counts incrementally
+         await Promise.all(cached.map(async (ws) => {
+           const count = await cachedGetNodeCount(ws.id);
+           setNodeCounts((prev) => ({ ...prev, [ws.id]: count }));
+         }));
+       }
+
+       // Wait for fresh if no cache
+       if (!cached) {
+         const data = await fresh;
+         setWorkspaces(data);
+         setLoading(false);
+         // Load fresh node counts
+         await Promise.all(data.map(async (ws) => {
+           const count = await cachedGetNodeCount(ws.id);
+           setNodeCounts((prev) => ({ ...prev, [ws.id]: count }));
+         }));
+       }
+     } catch (error) {
+       setLoading(false);
+       toast.error('Failed to load workspaces');
+       console.error('Workspace loading error:', error);
+     }
+   }, []);
+
+   const loadVaultWorkspaces = useCallback(async () => {
+     try {
+       const { cached, fresh } = await cachedGetWorkspaces(async (freshData) => {
+         // Filter for vault workspaces only
+         const vaultWorkspaces = freshData.filter(ws => ws.is_in_vault);
+         setVaultWorkspaces(vaultWorkspaces);
+         // Refresh node counts for vault workspaces
+         await Promise.all(vaultWorkspaces.map(async (ws) => {
+           const count = await cachedGetNodeCount(ws.id);
+           setVaultNodeCounts((prev) => ({ ...prev, [ws.id]: count }));
+         }));
+       }, { excludeVault: false });
+
+       // Instant render from cache
+       if (cached) {
+         const vaultCached = cached.filter(ws => ws.is_in_vault);
+         setVaultWorkspaces(vaultCached);
+         setLoading(false);
+         // Load cached node counts for vault workspaces
+         await Promise.all(vaultCached.map(async (ws) => {
+           const count = await cachedGetNodeCount(ws.id);
+           setVaultNodeCounts((prev) => ({ ...prev, [ws.id]: count }));
+         }));
+       }
+
+       // Wait for fresh if no cache
+       if (!cached) {
+         const data = await fresh;
+         const vaultFresh = data.filter(ws => ws.is_in_vault);
+         setVaultWorkspaces(vaultFresh);
+         setLoading(false);
+         // Load fresh node counts for vault workspaces
+         await Promise.all(vaultFresh.map(async (ws) => {
+           const count = await cachedGetNodeCount(ws.id);
+           setVaultNodeCounts((prev) => ({ ...prev, [ws.id]: count }));
+         }));
+       }
+     } catch (error) {
+       setLoading(false);
+       toast.error('Failed to load vault workspaces');
+       console.error('Vault workspace loading error:', error);
+     }
+   }, []);
+
+   useEffect(() => {
+     if (!user) return;
+     loadRegularWorkspaces();
+     loadVaultWorkspaces();
+   }, [user, loadRegularWorkspaces, loadVaultWorkspaces]);
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
@@ -242,16 +332,17 @@ const Dashboard = () => {
     }
   };
 
-  const handleDuplicate = async (e: React.MouseEvent, ws: Workspace) => {
-    e.stopPropagation();
-    try {
-      await duplicateWorkspace(ws.id, `${ws.name} (copy)`, ws.color);
-      toast.success('Workspace duplicated');
-      loadWorkspaces();
-    } catch (err) {
-      toast.error('Failed to duplicate workspace');
-    }
-  };
+   const handleDuplicate = async (e: React.MouseEvent, ws: Workspace) => {
+     e.stopPropagation();
+     try {
+       await duplicateWorkspace(ws.id, `${ws.name} (copy)`, ws.color);
+       toast.success('Workspace duplicated');
+       await loadRegularWorkspaces();
+       await loadVaultWorkspaces();
+     } catch (err) {
+       toast.error('Failed to duplicate workspace');
+     }
+   };
 
   const handleDelete = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -340,12 +431,51 @@ const Dashboard = () => {
     setWorkspaces(prev => prev.map(w => w.id === passwordManageWorkspaceId ? { ...w, password_hash: passwordHash, is_password_protected: true } : w));
   };
 
-  const handleRemovePassword = async () => {
-    if (!passwordManageWorkspaceId) return;
-    
-    await updateWorkspace(passwordManageWorkspaceId, { password_hash: undefined, is_password_protected: false });
-    setWorkspaces(prev => prev.map(w => w.id === passwordManageWorkspaceId ? { ...w, password_hash: undefined, is_password_protected: false } : w));
-  };
+   const handleRemovePassword = async () => {
+     if (!passwordManageWorkspaceId) return;
+     
+     await updateWorkspace(passwordManageWorkspaceId, { password_hash: undefined, is_password_protected: false });
+     setWorkspaces(prev => prev.map(w => w.id === passwordManageWorkspaceId ? { ...w, password_hash: undefined, is_password_protected: false } : w));
+   };
+
+   const handleMoveToVault = async (workspaceId: string) => {
+     try {
+       await updateWorkspace(workspaceId, { is_in_vault: true });
+       // Optimistically update workspaces state
+       setWorkspaces(prev => prev.map(ws => ws.id === workspaceId ? { ...ws, is_in_vault: true } : ws));
+       // Optimistically update vaultWorkspaces state
+       setVaultWorkspaces(prev => {
+         const ws = prev.find(w => w.id === workspaceId);
+         if (ws) {
+           return prev.map(w => w.id === workspaceId ? { ...w, is_in_vault: true } : w);
+         } else {
+           const workspaceToAdd = workspaces.find(w => w.id === workspaceId);
+           if (workspaceToAdd) {
+             return [...prev, { ...workspaceToAdd, is_in_vault: true }];
+           }
+           return prev;
+         }
+       });
+       toast.success('Moved to Locked Folder');
+     } catch (err) {
+       toast.error('Failed to move to Locked Folder');
+       console.error(err);
+     }
+   };
+
+   const handleMoveOutOfVault = async (workspaceId: string) => {
+     try {
+       await updateWorkspace(workspaceId, { is_in_vault: false });
+       // Optimistically update workspaces state
+       setWorkspaces(prev => prev.map(ws => ws.id === workspaceId ? { ...ws, is_in_vault: false } : ws));
+       // Remove from vaultWorkspaces state
+       setVaultWorkspaces(prev => prev.filter(ws => ws.id !== workspaceId));
+       toast.success('Moved out of Locked Folder');
+     } catch (err) {
+       toast.error('Failed to move out of Locked Folder');
+       console.error(err);
+     }
+   };
 
   const handleEmptyTrash = async () => {
     const trashCount = workspaces.filter(ws => ws.is_deleted).length;
@@ -526,18 +656,55 @@ const Dashboard = () => {
                   </div>
                   <span className={`text-[10px] ${selectedFolder === '' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{folderCounts.unorganized}</span>
                 </button>
-                <button 
-                  onClick={() => setSelectedFolder('trash')}
-                   className={`group flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-bold transition-all ${selectedFolder === 'trash' ? 'bg-destructive text-destructive-foreground shadow-[var(--clay-shadow-sm)]' : 'text-foreground hover:bg-accent'}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Trash2 className="h-4 w-4" />
-                    Trash Bin
-                  </div>
-                  <span className={`text-[10px] ${selectedFolder === 'trash' ? 'text-white/70' : 'text-muted-foreground'}`}>{folderCounts.trash}</span>
-                </button>
-              </div>
-            </section>
+                 <button 
+                   onClick={() => setSelectedFolder('trash')}
+                    className={`group flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-bold transition-all ${selectedFolder === 'trash' ? 'bg-destructive text-destructive-foreground shadow-[var(--clay-shadow-sm)]' : 'text-foreground hover:bg-accent'}`}
+                 >
+                   <div className="flex items-center gap-3">
+                     <Trash2 className="h-4 w-4" />
+                     Trash Bin
+                   </div>
+                   <span className={`text-[10px] ${selectedFolder === 'trash' ? 'text-white/70' : 'text-muted-foreground'}`}>{folderCounts.trash}</span>
+                 </button>
+               </div>
+             </section>
+             
+             <section>
+               <div className="mb-3 flex items-center justify-between">
+                 <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Security</h3>
+               </div>
+               <button 
+                 onClick={() => {
+                   if (isVaultLocked) {
+                     setVaultModalMode(undefined);
+                      setShowVaultModal(true);
+                   } else {
+                     setSelectedFolder('vault');
+                   }
+                 }}
+                 className={`group flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-bold transition-all ${selectedFolder === 'vault' ? 'bg-primary text-primary-foreground shadow-[var(--clay-shadow-sm)]' : 'text-foreground hover:bg-accent'}`}
+               >
+                 <div className="flex items-center gap-3">
+                   {isVaultLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
+                   Locked Folder
+                 </div>
+                 <span className={`text-[10px] ${selectedFolder === 'vault' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                   {isVaultLocked ? 'Locked' : vaultWorkspaces.length}
+                 </span>
+               </button>
+               {selectedFolder === 'vault' && !isVaultLocked && (
+                 <button
+                   onClick={() => {
+                     useVaultStore.getState().lockVault();
+                     setSelectedFolder(null);
+                   }}
+                   className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-bold text-muted-foreground hover:bg-accent hover:text-foreground transition-all"
+                 >
+                   <Lock className="h-3.5 w-3.5" />
+                   Lock Vault
+                 </button>
+               )}
+             </section>
 
             <section>
               <div className="mb-3 flex items-center justify-between">
@@ -876,30 +1043,42 @@ const Dashboard = () => {
                           <span>New Folder...</span>
                         </DropdownMenuItem>
 
-                        <DropdownMenuSeparator />
-                        {selectedFolder === 'trash' ? (
-                          <>
-                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleRestore(ws.id); }}>
-                              <RotateCcw className="mr-2 h-4 w-4 text-primary" />
-                              <span>Restore</span>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={(e) => { e.stopPropagation(); handlePermanentDelete(ws.id); }}
-                              className="text-destructive focus:bg-destructive focus:text-destructive-foreground font-bold"
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              <span>Delete Permanently</span>
-                            </DropdownMenuItem>
-                          </>
-                        ) : (
-                          <DropdownMenuItem 
-                            onClick={(e) => { e.stopPropagation(); handleDelete(e, ws.id); }}
-                            className="text-destructive focus:bg-destructive focus:text-destructive-foreground font-bold"
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            <span>Move to Trash</span>
-                          </DropdownMenuItem>
-                        )}
+                         <DropdownMenuSeparator />
+                         {selectedFolder === 'vault' ? (
+                           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleMoveOutOfVault(ws.id); }}>
+                             <Unlock className="mr-2 h-4 w-4" />
+                             <span>Move out of Locked Folder</span>
+                           </DropdownMenuItem>
+                         ) : (
+                           <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleMoveToVault(ws.id); }}>
+                             <Lock className="mr-2 h-4 w-4" />
+                             <span>Move to Locked Folder</span>
+                           </DropdownMenuItem>
+                         )}
+                         <DropdownMenuSeparator />
+                         {selectedFolder === 'trash' ? (
+                           <>
+                             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleRestore(ws.id); }}>
+                               <RotateCcw className="mr-2 h-4 w-4 text-primary" />
+                               <span>Restore</span>
+                             </DropdownMenuItem>
+                             <DropdownMenuItem 
+                               onClick={(e) => { e.stopPropagation(); handlePermanentDelete(ws.id); }}
+                               className="text-destructive focus:bg-destructive focus:text-destructive-foreground font-bold"
+                             >
+                               <Trash2 className="mr-2 h-4 w-4" />
+                               <span>Delete Permanently</span>
+                             </DropdownMenuItem>
+                           </>
+                         ) : (
+                           <DropdownMenuItem 
+                             onClick={(e) => { e.stopPropagation(); handleDelete(e, ws.id); }}
+                             className="text-destructive focus:bg-destructive focus:text-destructive-foreground font-bold"
+                           >
+                             <Trash2 className="mr-2 h-4 w-4" />
+                             <span>Move to Trash</span>
+                           </DropdownMenuItem>
+                         )}
                       </DropdownMenuContent>
                     </DropdownMenu>
 
@@ -1125,6 +1304,15 @@ const Dashboard = () => {
         onSetPassword={handleSetPassword}
         onRemovePassword={handleRemovePassword}
         hasPassword={workspaces.find(w => w.id === passwordManageWorkspaceId)?.is_password_protected || false}
+      />
+
+      <VaultModal
+        isOpen={showVaultModal}
+        onClose={() => setShowVaultModal(false)}
+        initialMode={vaultModalMode}
+        onUnlocked={() => {
+          setSelectedFolder('vault');
+        }}
       />
     </div>
   );

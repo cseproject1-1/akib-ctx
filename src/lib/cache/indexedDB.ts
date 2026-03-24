@@ -15,7 +15,17 @@ function openDB(): Promise<IDBDatabase> {
         }
       });
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      const db = req.result;
+      db.onversionchange = () => {
+        db.close();
+        dbPromise = null;
+      };
+      db.onclose = () => {
+        dbPromise = null;
+      };
+      resolve(db);
+    };
     req.onerror = () => reject(req.error);
   });
 }
@@ -34,11 +44,15 @@ export interface CachedEntry<T> {
 export async function cacheGet<T>(store: StoreName, key: string): Promise<CachedEntry<T> | null> {
   try {
     const db = await getDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction(store, 'readonly');
-      const req = tx.objectStore(store).get(key);
-      req.onsuccess = () => resolve(req.result ?? null);
-      req.onerror = () => resolve(null);
+    return await new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction(store, 'readonly');
+        const req = tx.objectStore(store).get(key);
+        req.onsuccess = () => resolve(req.result ?? null);
+        req.onerror = () => resolve(null);
+      } catch (err) {
+        reject(err);
+      }
     });
   } catch {
     return null;
@@ -51,19 +65,23 @@ export async function cacheSet<T>(store: StoreName, key: string, data: T): Promi
     const entry: CachedEntry<T> = { data, cachedAt: Date.now() };
     
     return await new Promise((resolve, reject) => {
-      const tx = db.transaction(store, 'readwrite');
-      const req = tx.objectStore(store).put(entry, key);
-      
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => {
-        const error = tx.error || req.error;
-        if (error?.name === 'QuotaExceededError') {
-          reject(error);
-        } else {
-          console.error('[DB] IndexedDB write error:', error);
-          resolve(); // Resolve to not break callers, but log for debugging
-        }
-      };
+      try {
+        const tx = db.transaction(store, 'readwrite');
+        const req = tx.objectStore(store).put(entry, key);
+        
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => {
+          const error = tx.error || req.error;
+          if (error?.name === 'QuotaExceededError') {
+            reject(error);
+          } else {
+            console.error('[DB] IndexedDB write error:', error);
+            resolve(); // Resolve to not break callers, but log for debugging
+          }
+        };
+      } catch (err) {
+        reject(err);
+      }
     });
   } catch (err) {
     if (err && typeof err === 'object' && 'name' in err && err.name === 'QuotaExceededError') {
@@ -86,11 +104,15 @@ async function purgeOldCaches() {
 export async function cacheDel(store: StoreName, key: string): Promise<void> {
   try {
     const db = await getDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction(store, 'readwrite');
-      tx.objectStore(store).delete(key);
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => resolve();
+    return await new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction(store, 'readwrite');
+        tx.objectStore(store).delete(key);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+      } catch (err) {
+        reject(err);
+      }
     });
   } catch {
     // silently fail
@@ -100,11 +122,15 @@ export async function cacheDel(store: StoreName, key: string): Promise<void> {
 export async function cacheClear(store: StoreName): Promise<void> {
   try {
     const db = await getDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction(store, 'readwrite');
-      tx.objectStore(store).clear();
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => resolve();
+    return await new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction(store, 'readwrite');
+        tx.objectStore(store).clear();
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+      } catch (err) {
+        reject(err);
+      }
     });
   } catch {
     // silently fail
@@ -114,11 +140,15 @@ export async function cacheClear(store: StoreName): Promise<void> {
 export async function clearAllCaches(): Promise<void> {
   try {
     const db = await getDB();
-    const tx = db.transaction([...STORES], 'readwrite');
-    STORES.forEach((s) => tx.objectStore(s).clear());
-    return new Promise((resolve) => {
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => resolve();
+    return await new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction([...STORES], 'readwrite');
+        STORES.forEach((s) => tx.objectStore(s).clear());
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+      } catch (err) {
+        reject(err);
+      }
     });
   } catch {
     // silently fail
@@ -140,14 +170,18 @@ export async function addPendingOp(op: PendingOp): Promise<void> {
 export async function getAllPendingOps(): Promise<PendingOp[]> {
   try {
     const db = await getDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction('pending-ops', 'readonly');
-      const req = tx.objectStore('pending-ops').getAll();
-      req.onsuccess = () => {
-        const entries = (req.result || []) as CachedEntry<PendingOp>[];
-        resolve(entries.map((e) => e.data).sort((a, b) => a.createdAt - b.createdAt));
-      };
-      req.onerror = () => resolve([]);
+    return await new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction('pending-ops', 'readonly');
+        const req = tx.objectStore('pending-ops').getAll();
+        req.onsuccess = () => {
+          const entries = (req.result || []) as CachedEntry<PendingOp>[];
+          resolve(entries.map((e) => e.data).sort((a, b) => a.createdAt - b.createdAt));
+        };
+        req.onerror = () => resolve([]);
+      } catch (err) {
+        reject(err);
+      }
     });
   } catch {
     return [];
@@ -197,24 +231,27 @@ export async function clearFileBlobs(): Promise<void> {
 export async function cleanupOldFileBlobs(maxAgeDays = 7): Promise<void> {
   try {
     const db = await getDB();
-    const tx = db.transaction('file-blobs', 'readwrite');
-    const store = tx.objectStore('file-blobs');
-    const req = store.getAll();
-    
-    req.onsuccess = () => {
-      const entries = (req.result || []) as CachedEntry<CachedBlob>[];
-      const cutoffTime = Date.now() - (maxAgeDays * 24 * 60 * 60 * 1000);
-      
-      entries.forEach(entry => {
-        if (entry.cachedAt < cutoffTime) {
-          store.delete(entry.data.url);
-        }
-      });
-    };
-    
-    return new Promise((resolve) => {
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => resolve();
+    return await new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction('file-blobs', 'readwrite');
+        const store = tx.objectStore('file-blobs');
+        const req = store.getAll();
+        
+        req.onsuccess = () => {
+          const entries = (req.result || []) as CachedEntry<CachedBlob>[];
+          const cutoffTime = Date.now() - (maxAgeDays * 24 * 60 * 60 * 1000);
+          
+          entries.forEach(entry => {
+            if (entry.cachedAt < cutoffTime) {
+              store.delete(entry.data.url);
+            }
+          });
+        };
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+      } catch (err) {
+        reject(err);
+      }
     });
   } catch {
     // silently fail

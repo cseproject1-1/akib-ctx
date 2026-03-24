@@ -75,7 +75,7 @@ export function useMobileSync() {
       console.error('[MobileSync] Failed to load workspace:', err);
       // Silent mode - error is logged
     }
-  }, [loadCanvas, workspaceId]);
+  }, [loadCanvas, setWorkspaceMeta]);
 
   const saveNodeToCloud = useCallback(async (node: any) => {
     try {

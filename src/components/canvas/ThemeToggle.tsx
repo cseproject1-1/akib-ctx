@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useEffect, useState, createContext, useContext } from 'react';
 import { Sun, Moon } from 'lucide-react';
 

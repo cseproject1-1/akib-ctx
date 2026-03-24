@@ -161,7 +161,31 @@ export const BlockNoteEditor = ({
       return;
     }
 
-    editor.replaceBlocks(editor.document, initialContent);
+    try {
+      // Recursively sanitize blocks to prevent BlockNote from crashing on malformed nodes
+      const sanitizeBlocks = (blocks: any[]): any[] => {
+        if (!Array.isArray(blocks)) return [];
+        return blocks.filter((b: any) => b && typeof b === 'object' && b.type).map((b: any) => {
+          const sanitized: any = { ...b };
+          if (b.content && Array.isArray(b.content)) {
+            sanitized.content = b.content.filter((c: any) => c && typeof c === 'object');
+          }
+          if (b.children && Array.isArray(b.children)) {
+            sanitized.children = sanitizeBlocks(b.children);
+          }
+          return sanitized;
+        });
+      };
+      
+      const safeContent = sanitizeBlocks(initialContent);
+
+      if (safeContent.length > 0) {
+        editor.replaceBlocks(editor.document, safeContent);
+      }
+    } catch (error) {
+      console.error('[BlockNote] Failed to apply initial content safely:', error);
+    }
+
     initialContentApplied.current = true;
     lastEmittedContent.current = JSON.stringify(editor.document);
   }, [editor, initialContent]);

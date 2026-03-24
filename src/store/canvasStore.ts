@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
 import {
@@ -91,6 +92,7 @@ interface CanvasState {
   setDrawingMode: (val: boolean) => void;
   addDrawing: (drawing: DrawingOverlay) => void;
   deleteDrawing: (id: string) => void;
+  updateDrawing: (id: string, updates: Partial<DrawingOverlay>) => void;
   setDrawings: (drawings: DrawingOverlay[]) => void;
   setViewport: (vp: { x: number; y: number; zoom: number }) => void;
   setZenMode: (val: boolean) => void;
@@ -830,6 +832,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   addDrawing: (drawing) => {
     get().pushSnapshot('Add Drawing');
     set({ drawings: [...get().drawings, drawing] });
+  },
+  updateDrawing: (id, updates) => {
+    get().pushSnapshot('Update Drawing');
+    set({ drawings: get().drawings.map(d => d.id === id ? { ...d, ...updates } : d) });
   },
   deleteDrawing: (id) => {
     get().pushSnapshot('Delete Drawing');

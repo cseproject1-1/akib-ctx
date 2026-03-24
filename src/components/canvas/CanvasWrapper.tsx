@@ -259,7 +259,8 @@ export function CanvasWrapper() {
         } else {
           isDraggingRef.current = false;
           debouncedSyncToStore.cancel();
-          onNodesChange(changes);
+          // Defer store update to next tick to avoid React render phase warning
+          setTimeout(() => onNodesChange(changes), 0);
         }
         return nextNodes;
       });
@@ -403,7 +404,7 @@ export function CanvasWrapper() {
     }
 
     setGuides(newGuides);
-  }, [nodes, isViewMode, setLocalNodes]);
+  }, [isViewMode, setLocalNodes]);
 
   const handleNodeDragStop = useCallback((_: React.MouseEvent, node: Node) => {
     setGuides([]);
@@ -587,7 +588,7 @@ export function CanvasWrapper() {
       console.error('Paste failed:', err);
       pasteNodes();
     }
-  }, [workspaceId, addNode, updateNodeData, getBestPastePosition, detectPasteType, pasteNodes]);
+  }, [workspaceId, addNode, getBestPastePosition, detectPasteType, pasteNodes]);
 
   // Keyboard shortcuts
   useEffect(() => {

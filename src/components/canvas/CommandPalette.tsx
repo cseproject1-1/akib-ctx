@@ -32,13 +32,14 @@ export function CommandPalette() {
   const activePalette = useCanvasStore((s) => s.activePalette);
   const setActivePalette = useCanvasStore((s) => s.setActivePalette);
   const open = activePalette === 'command';
-  const setOpen = (val: boolean | ((prev: boolean) => boolean)) => {
+  const setOpen = useCallback((val: boolean | ((prev: boolean) => boolean)) => {
     if (typeof val === 'function') {
-      setActivePalette(val(open) ? 'command' : null);
+      const isCurrentlyOpen = useCanvasStore.getState().activePalette === 'command';
+      setActivePalette(val(isCurrentlyOpen) ? 'command' : null);
     } else {
       setActivePalette(val ? 'command' : null);
     }
-  };
+  }, [setActivePalette]);
   const [search, setSearch] = useState('');
   const nodes = useNodes();
   const reactFlow = useReactFlow();

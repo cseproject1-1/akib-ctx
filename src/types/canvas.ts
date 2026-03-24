@@ -246,4 +246,6 @@ export interface Workspace {
   // Password protection (optional, backward compatible)
   password_hash?: string;
   is_password_protected?: boolean;
+  // Locked folder visibility (optional)
+  is_in_vault?: boolean;
 }

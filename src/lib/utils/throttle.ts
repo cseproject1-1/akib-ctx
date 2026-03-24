@@ -6,6 +6,7 @@
  * @param wait The number of milliseconds to wait.
  * @returns A new throttled function.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function throttle<T extends (...args: any[]) => void>(
   func: T,
   wait: number
