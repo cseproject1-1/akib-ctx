@@ -638,33 +638,33 @@ const Dashboard = () => {
               <div className="space-y-1">
                 <button 
                   onClick={() => setSelectedFolder(null)}
-                  className={`group flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-bold transition-all ${!selectedFolder ? 'bg-primary text-primary-foreground shadow-[var(--clay-shadow-sm)]' : 'text-foreground hover:bg-accent'}`}
+                  className={`group flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-bold transition-all duration-200 ${!selectedFolder ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-accent/50'}`}
                 >
                   <div className="flex items-center gap-3">
                     <Layers className="h-4 w-4" />
                     All Workspaces
                   </div>
-                  <span className={`text-[10px] ${!selectedFolder ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{folderCounts.all}</span>
+                  <span className={`text-[10px] ${!selectedFolder ? 'text-primary/70' : 'text-muted-foreground'}`}>{folderCounts.all}</span>
                 </button>
                 <button 
                   onClick={() => setSelectedFolder('')}
-                  className={`group flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-bold transition-all ${selectedFolder === '' ? 'bg-primary text-primary-foreground shadow-[var(--clay-shadow-sm)]' : 'text-foreground hover:bg-accent'}`}
+                  className={`group flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-bold transition-all duration-200 ${selectedFolder === '' ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-accent/50'}`}
                 >
                   <div className="flex items-center gap-3">
                     <Folder className="h-4 w-4" />
                     Unorganized
                   </div>
-                  <span className={`text-[10px] ${selectedFolder === '' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{folderCounts.unorganized}</span>
+                  <span className={`text-[10px] ${selectedFolder === '' ? 'text-primary/70' : 'text-muted-foreground'}`}>{folderCounts.unorganized}</span>
                 </button>
                  <button 
                    onClick={() => setSelectedFolder('trash')}
-                    className={`group flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-bold transition-all ${selectedFolder === 'trash' ? 'bg-destructive text-destructive-foreground shadow-[var(--clay-shadow-sm)]' : 'text-foreground hover:bg-accent'}`}
+                    className={`group flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-bold transition-all duration-200 ${selectedFolder === 'trash' ? 'bg-destructive/10 text-destructive' : 'text-foreground hover:bg-accent/50'}`}
                  >
                    <div className="flex items-center gap-3">
                      <Trash2 className="h-4 w-4" />
                      Trash Bin
                    </div>
-                   <span className={`text-[10px] ${selectedFolder === 'trash' ? 'text-white/70' : 'text-muted-foreground'}`}>{folderCounts.trash}</span>
+                   <span className={`text-[10px] ${selectedFolder === 'trash' ? 'text-destructive/70' : 'text-muted-foreground'}`}>{folderCounts.trash}</span>
                  </button>
                </div>
              </section>
@@ -682,13 +682,13 @@ const Dashboard = () => {
                      setSelectedFolder('vault');
                    }
                  }}
-                 className={`group flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-bold transition-all ${selectedFolder === 'vault' ? 'bg-primary text-primary-foreground shadow-[var(--clay-shadow-sm)]' : 'text-foreground hover:bg-accent'}`}
+                 className={`group flex w-full items-center justify-between rounded-lg px-3 py-2 text-xs font-bold transition-all duration-200 ${selectedFolder === 'vault' ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-accent/50'}`}
                >
                  <div className="flex items-center gap-3">
                    {isVaultLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
                    Locked Folder
                  </div>
-                 <span className={`text-[10px] ${selectedFolder === 'vault' ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                 <span className={`text-[10px] ${selectedFolder === 'vault' ? 'text-primary/70' : 'text-muted-foreground'}`}>
                    {isVaultLocked ? 'Locked' : vaultWorkspaces.length}
                  </span>
                </button>
@@ -698,7 +698,7 @@ const Dashboard = () => {
                      useVaultStore.getState().lockVault();
                      setSelectedFolder(null);
                    }}
-                   className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-bold text-muted-foreground hover:bg-accent hover:text-foreground transition-all"
+                   className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-border/50 bg-card/50 px-3 py-1.5 text-xs font-bold text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-all duration-200"
                  >
                    <Lock className="h-3.5 w-3.5" />
                    Lock Vault
@@ -738,11 +738,11 @@ const Dashboard = () => {
                   <div key={folder} className="group relative">
                     <button 
                       onClick={() => setSelectedFolder(folder)}
-                      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-bold transition-all ${selectedFolder === folder ? 'bg-primary text-primary-foreground shadow-[var(--clay-shadow-sm)]' : 'text-foreground hover:bg-accent'}`}
+                      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-xs font-bold transition-all duration-200 ${selectedFolder === folder ? 'bg-primary/10 text-primary' : 'text-foreground hover:bg-accent/50'}`}
                     >
-                      <Folder className="h-4 w-4 text-primary flex-shrink-0" />
+                      <Folder className={`h-4 w-4 flex-shrink-0 transition-colors ${selectedFolder === folder ? 'text-primary' : 'text-muted-foreground group-hover:text-primary'}`} />
                       <span className="truncate flex-1 text-left" title={folder}>{folder}</span>
-                      <span className={`text-[10px] ${selectedFolder === folder ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>{folderCounts[folder]}</span>
+                      <span className={`text-[10px] ${selectedFolder === folder ? 'text-primary/70' : 'text-muted-foreground'}`}>{folderCounts[folder]}</span>
                     </button>
                     
                     <div className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -812,11 +812,11 @@ const Dashboard = () => {
       <ImportModal open={showImport} onOpenChange={(open) => { setShowImport(open); if (!open) setImportFiles(null); }} initialFiles={importFiles} />
 
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="flex h-14 items-center justify-between border-b-2 border-border bg-card px-6">
+        <header className="flex h-14 items-center justify-between border-b border-border/40 bg-card/80 backdrop-blur-md px-6 sticky top-0 z-10">
           <div className="flex items-center gap-4">
             <button 
               onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
-              className="rounded-lg border-2 border-border bg-card p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-all"
+              className="rounded-lg border border-border/50 bg-card p-1.5 text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-all duration-200 hover:shadow-sm"
             >
               <LayoutGrid className="h-4 w-4" />
             </button>
@@ -829,31 +829,31 @@ const Dashboard = () => {
           </div>
           
           <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <div className="relative group">
+              <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-primary" />
               <input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search boards..."
-                className="rounded-lg border border-border bg-background pl-9 pr-3 py-1.5 text-xs font-bold text-foreground outline-none focus:border-primary w-40 sm:w-64"
+                className="rounded-lg border border-border/50 bg-card/50 pl-9 pr-3 py-1.5 text-xs font-bold text-foreground outline-none transition-all duration-200 focus:border-primary focus:bg-background focus:ring-2 focus:ring-primary/10 w-40 sm:w-64"
               />
             </div>
             <button
               onClick={() => setSortMode(nextSort())}
-              className="brutal-btn flex items-center gap-2 rounded-lg bg-card px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-foreground"
+              className="flex items-center gap-2 rounded-lg border border-border/50 bg-card/50 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-all duration-200 hover:shadow-sm active:scale-95"
             >
               <SortAsc className="h-3.5 w-3.5" />
               {sortLabel}
             </button>
             <button
               onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
-              className="brutal-btn rounded-lg bg-card p-1.5 text-foreground"
+              className="rounded-lg border border-border/50 bg-card/50 p-1.5 text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-all duration-200 hover:shadow-sm active:scale-95"
             >
               {viewMode === 'grid' ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
             </button>
             <button
               onClick={() => setShowImport(true)}
-              className="brutal-btn flex items-center gap-2 rounded-lg bg-card px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-foreground"
+              className="flex items-center gap-2 rounded-lg border border-border/50 bg-card/50 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-all duration-200 hover:shadow-sm active:scale-95"
             >
               <FileUp className="h-3.5 w-3.5" />
               Import
@@ -861,7 +861,7 @@ const Dashboard = () => {
             {selectedFolder === 'trash' && folderCounts.trash > 0 && (
               <button
                 onClick={handleEmptyTrash}
-                className="brutal-btn flex items-center gap-2 rounded-lg bg-destructive px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-destructive-foreground"
+                className="flex items-center gap-2 rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-destructive hover:bg-destructive/20 transition-all duration-200 hover:shadow-sm active:scale-95"
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 Empty Trash
@@ -896,38 +896,40 @@ const Dashboard = () => {
             )}
 
           {!loading && workspaces.length === 0 && (
-            <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border py-16">
-              <Layers className="h-12 w-12 text-muted-foreground" />
-              <p className="text-sm font-semibold text-muted-foreground">No workspaces yet. Create one to get started!</p>
-              <button
-                onClick={() => setShowCreate(true)}
-                className="brutal-btn flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-bold uppercase text-primary-foreground"
-              >
-                <Plus className="h-4 w-4" />
-                Create Workspace
-              </button>
-              <button
-                onClick={() => setShowImport(true)}
-                className="brutal-btn flex items-center gap-2 rounded-lg bg-card px-5 py-2.5 text-sm font-bold uppercase text-foreground"
-              >
-                <FileUp className="h-4 w-4" />
-                Import Knowledge
-              </button>
+            <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border/60 bg-card/30 backdrop-blur-sm py-16 animate-in fade-in zoom-in-95 duration-500">
+              <Layers className="h-12 w-12 text-muted-foreground/50" />
+              <p className="text-sm font-medium text-muted-foreground">No workspaces yet. Create one to get started!</p>
+              <div className="flex gap-3 mt-2">
+                <button
+                  onClick={() => setShowCreate(true)}
+                  className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-all shadow-sm hover:shadow-md active:scale-95"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create Workspace
+                </button>
+                <button
+                  onClick={() => setShowImport(true)}
+                  className="flex items-center gap-2 rounded-lg border border-border/50 bg-card px-5 py-2.5 text-sm font-semibold text-foreground hover:bg-accent/50 transition-all shadow-sm hover:shadow-md active:scale-95"
+                >
+                  <FileUp className="h-4 w-4" />
+                  Import Knowledge
+                </button>
+              </div>
             </div>
           )}
 
           {viewMode === 'grid' ? (
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
               {loading && Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="flex h-44 animate-pulse rounded-xl border border-border bg-card" />
+                <div key={i} className="flex h-44 animate-pulse rounded-xl border border-border/50 bg-card/50" />
               ))}
               {!loading && workspaces.length > 0 && (
                 <button
                   onClick={() => setShowCreate(true)}
-                  className="group flex h-44 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border bg-card transition-all duration-200 hover:border-primary hover:shadow-[var(--clay-shadow-sm)] hover:scale-[1.02] active:scale-[0.98] animate-fade-in"
+                  className="group flex h-44 flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/60 bg-card/30 backdrop-blur-sm transition-all duration-300 hover:border-primary/50 hover:bg-card/80 hover:shadow-md hover:-translate-y-1 active:scale-[0.98] animate-in fade-in"
                 >
-                  <Plus className="h-8 w-8 text-muted-foreground transition-all duration-200 group-hover:text-primary group-hover:rotate-90" />
-                  <span className="text-sm font-bold uppercase tracking-wider text-muted-foreground transition-colors group-hover:text-primary">
+                  <Plus className="h-8 w-8 text-muted-foreground/70 transition-all duration-500 group-hover:text-primary group-hover:rotate-90" />
+                  <span className="text-sm font-semibold tracking-wide text-muted-foreground transition-colors group-hover:text-primary">
                     New Workspace
                   </span>
                 </button>
@@ -939,15 +941,15 @@ const Dashboard = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.05, duration: 0.2 }}
                   onClick={() => navigate(`/workspace/${ws.id}`)}
-                  className="brutal-card group relative flex h-44 cursor-pointer flex-col justify-between rounded-xl p-4 text-left transition-all duration-200 hover:scale-[1.02] hover:shadow-[var(--clay-shadow-lg)] active:scale-[0.98]"
+                  className="group relative flex h-44 cursor-pointer flex-col justify-between rounded-xl border border-border/40 bg-card/50 backdrop-blur-sm p-5 text-left transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5 hover:bg-card active:scale-[0.98]"
                 >
                   {(() => {
                     const { icon: WsIcon, color: iconColor } = getIconForColor(ws.color); return (
-                      <div className="flex items-center gap-2.5">
-                        <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-border" style={{ backgroundColor: iconColor + '22' }}>
-                          <WsIcon className="h-3.5 w-3.5" style={{ color: iconColor }} />
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-border/50 shadow-sm" style={{ backgroundColor: iconColor + '15' }}>
+                          <WsIcon className="h-4 w-4" style={{ color: iconColor }} />
                         </div>
-                        <span className="truncate text-sm font-bold uppercase tracking-wider text-foreground">{ws.name}</span>
+                        <span className="truncate text-sm font-bold tracking-wide text-foreground">{ws.name}</span>
                       </div>
                     );
                   })()}
@@ -993,13 +995,13 @@ const Dashboard = () => {
                       <DropdownMenuTrigger asChild>
                         <button 
                           onClick={e => e.stopPropagation()}
-                          className="rounded-md p-1.5 text-muted-foreground opacity-0 transition-all hover:bg-accent hover:text-foreground group-hover:opacity-100"
+                          className="rounded-lg p-1.5 text-muted-foreground opacity-0 transition-all duration-200 hover:bg-accent/80 hover:text-foreground group-hover:opacity-100 backdrop-blur-sm"
                         >
                           <MoreVertical className="h-4 w-4" />
                         </button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48 border border-border shadow-[var(--clay-shadow-sm)]">
-                        <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest">Workspace Actions</DropdownMenuLabel>
+                      <DropdownMenuContent align="end" className="w-48 max-h-[60vh] overflow-y-auto overflow-x-hidden border border-border/50 bg-card/95 backdrop-blur-xl shadow-xl rounded-xl">
+                        <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">Workspace Actions</DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={(e) => { e.stopPropagation(); toggleFavorite(ws.id); }}>
                           <Star className={`mr-2 h-4 w-4 ${favorites.has(ws.id) ? 'fill-primary text-primary' : ''}`} />
@@ -1087,14 +1089,14 @@ const Dashboard = () => {
                         onMouseEnter={() => setShowStatsId(ws.id)}
                         onMouseLeave={() => setShowStatsId(null)}
                         onClick={(e) => e.stopPropagation()}
-                        className="rounded-md p-1.5 text-muted-foreground opacity-0 transition-all hover:text-primary group-hover:opacity-100"
+                        className="rounded-lg p-1.5 text-muted-foreground opacity-0 transition-all duration-200 hover:text-primary hover:bg-primary/10 group-hover:opacity-100"
                       >
                         <Info className="h-4 w-4" />
                       </button>
                       {showStatsId === ws.id && (
-                        <div className="absolute right-0 top-10 z-[100] w-56 rounded-xl border border-border bg-card p-4 shadow-[var(--clay-shadow-md)] animate-brutal-pop">
-                          <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-primary border-b border-border pb-1">Workspace Breakdown</p>
-                          <div className="space-y-3 font-bold text-foreground">
+                        <div className="absolute right-0 top-10 z-[100] w-56 rounded-xl border border-border/50 bg-card/95 backdrop-blur-xl p-4 shadow-xl animate-in fade-in zoom-in-95 duration-200">
+                          <p className="mb-3 text-xs font-semibold text-primary border-b border-border/50 pb-2">Workspace Info</p>
+                          <div className="space-y-3 font-medium text-foreground">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
                                 <Layers className="h-3.5 w-3.5 text-muted-foreground" />
@@ -1133,7 +1135,7 @@ const Dashboard = () => {
               {!loading && workspaces.length > 0 && (
                 <button
                   onClick={() => setShowCreate(true)}
-                  className="flex w-full items-center gap-3 rounded-lg border border-dashed border-border bg-card px-4 py-3 text-sm font-bold uppercase tracking-wider text-muted-foreground transition-all hover:border-primary hover:text-primary"
+                  className="flex w-full items-center gap-3 rounded-xl border border-dashed border-border/60 bg-card/30 backdrop-blur-sm px-5 py-3.5 text-sm font-semibold tracking-wide text-muted-foreground transition-all duration-300 hover:border-primary/50 hover:text-primary hover:bg-card/80 hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99]"
                 >
                   <Plus className="h-4 w-4" />
                   New Workspace
@@ -1142,20 +1144,20 @@ const Dashboard = () => {
               {sortedWorkspaces.map((ws, idx) => (
                 <motion.div
                   key={ws.id}
-                  initial={{ opacity: 0, x: -15 }}
+                  initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: idx * 0.03, duration: 0.2 }}
                   onClick={() => navigate(`/workspace/${ws.id}`)}
-                  className="brutal-card group flex cursor-pointer items-center gap-4 rounded-lg px-4 py-3 transition-all hover:scale-[1.01] active:scale-[0.99]"
+                  className="group flex cursor-pointer items-center gap-4 rounded-xl border border-border/30 bg-card/40 backdrop-blur-sm px-5 py-3.5 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 hover:bg-card active:scale-[0.99]"
                 >
                   {(() => {
                     const { icon: WsIcon, color: iconColor } = getIconForColor(ws.color); return (
-                      <div className="flex h-6 w-6 items-center justify-center rounded-md border border-border flex-shrink-0" style={{ backgroundColor: iconColor + '22' }}>
-                        <WsIcon className="h-3 w-3" style={{ color: iconColor }} />
+                      <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-border/50 flex-shrink-0 shadow-sm" style={{ backgroundColor: iconColor + '15' }}>
+                        <WsIcon className="h-4 w-4" style={{ color: iconColor }} />
                       </div>
                     );
                   })()}
-                  <span className="flex-1 truncate text-sm font-bold uppercase tracking-wider text-foreground">{ws.name}</span>
+                  <span className="flex-1 truncate text-sm font-bold tracking-wide text-foreground">{ws.name}</span>
                   <span className="text-xs font-semibold text-muted-foreground">{nodeCounts[ws.id] ?? '…'} nodes</span>
                   <span className="text-xs text-muted-foreground hidden sm:inline">{formatDistanceToNow(new Date(ws.updated_at), { addSuffix: true })}</span>
                   <div className="flex items-center gap-1">
@@ -1193,11 +1195,11 @@ const Dashboard = () => {
     {/* Create workspace modal */}
     {showCreate && (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-[var(--clay-shadow-md)] animate-brutal-pop">
-            <h3 className="mb-4 text-lg font-bold uppercase tracking-wider text-foreground">New Workspace</h3>
+          <div className="w-full max-w-md rounded-xl border border-border/50 bg-card/95 backdrop-blur-xl p-6 shadow-2xl animate-in zoom-in-95 fade-in duration-200">
+            <h3 className="mb-4 text-lg font-bold tracking-tight text-foreground">New Workspace</h3>
             <div className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-bold uppercase tracking-wider text-foreground">Name</label>
+                <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Name</label>
                 <input
                   className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-semibold text-foreground outline-none focus:border-primary"
                   value={newName}
@@ -1216,7 +1218,7 @@ const Dashboard = () => {
                       <button
                         key={item.label}
                         onClick={() => setNewIcon(idx)}
-                        className={`flex h-10 w-10 items-center justify-center rounded-lg border transition-all ${newIcon === idx ? 'scale-110 border-primary bg-primary/10 shadow-[var(--clay-shadow-sm)]' : 'border-border hover:scale-105 hover:border-foreground'}`}
+                        className={`flex h-10 w-10 items-center justify-center rounded-lg border transition-all duration-200 ${newIcon === idx ? 'scale-110 border-primary bg-primary/10 shadow-md ring-2 ring-primary/20' : 'border-border/50 hover:scale-105 hover:border-border hover:bg-accent/50'}`}
                         title={item.label}
                       >
                         <IconComp className="h-4.5 w-4.5" style={{ color: item.color }} />
@@ -1226,11 +1228,11 @@ const Dashboard = () => {
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-bold uppercase tracking-wider text-foreground">Template</label>
+                <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Template</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => setSelectedTemplate(null)}
-                    className={`rounded-lg border px-3 py-2 text-left text-xs font-bold transition-all ${selectedTemplate === null ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:border-foreground'}`}
+                    className={`rounded-lg border px-3 py-2 text-left text-xs font-semibold transition-all duration-200 ${selectedTemplate === null ? 'border-primary bg-primary/10 text-primary shadow-sm' : 'border-border/50 text-muted-foreground hover:border-border hover:bg-accent/50 hover:text-foreground'}`}
                   >
                     ✨ Blank
                   </button>
@@ -1238,7 +1240,7 @@ const Dashboard = () => {
                     <button
                       key={t.id}
                       onClick={() => setSelectedTemplate(t.id)}
-                      className={`rounded-lg border px-3 py-2 text-left text-xs font-bold transition-all ${selectedTemplate === t.id ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:border-foreground'}`}
+                      className={`rounded-lg border px-3 py-2 text-left text-xs font-semibold transition-all duration-200 ${selectedTemplate === t.id ? 'border-primary bg-primary/10 text-primary shadow-sm' : 'border-border/50 text-muted-foreground hover:border-border hover:bg-accent/50 hover:text-foreground'}`}
                     >
                       {t.emoji} {t.name}
                     </button>
@@ -1246,7 +1248,7 @@ const Dashboard = () => {
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-foreground">
+                <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   <input
                     type="checkbox"
                     checked={isPasswordProtected}
@@ -1277,14 +1279,14 @@ const Dashboard = () => {
               <div className="flex justify-end gap-3 pt-2">
                 <button
                   onClick={() => { setShowCreate(false); setSelectedTemplate(null); }}
-                  className="brutal-btn rounded-lg bg-card px-4 py-2 text-sm font-bold uppercase text-foreground"
+                  className="rounded-lg border border-border/50 bg-card px-4 py-2 text-sm font-semibold text-foreground hover:bg-accent/50 transition-all duration-200 active:scale-95"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleCreate}
                   disabled={!newName.trim() || creating}
-                  className="brutal-btn flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-bold uppercase text-primary-foreground disabled:opacity-50"
+                  className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-all duration-200 shadow-sm disabled:opacity-50 active:scale-95"
                 >
                   {creating && <Loader2 className="h-4 w-4 animate-spin" />}
                   Create

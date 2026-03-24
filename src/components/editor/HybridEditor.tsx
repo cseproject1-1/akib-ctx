@@ -111,7 +111,7 @@ export const HybridEditor = forwardRef<any, HybridEditorProps>(function HybridEd
   }
 
   // Legacy fast-path: hybrid disabled, Tiptap-only content
-  if (!enableHybridEditor && detectedVersion === 1 && !isGhost) {
+  if (!enableHybridEditor && detectedVersion === 1 && !isGhost && !useBlockNote) {
     return (
       <NoteEditor
         ref={tiptapRef}

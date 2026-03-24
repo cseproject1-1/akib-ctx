@@ -1,8 +1,10 @@
 import { useCanvasStore } from '@/store/canvasStore';
 import { useNodes } from '@xyflow/react';
 import { HybridEditor, type NoteEditorHandle } from '@/components/editor/HybridEditor';
+import { getEditorVersion } from '@/lib/editor/migration';
+import { useSettingsStore } from '@/store/settingsStore';
 import { OutlinePanel } from '@/components/tiptap/OutlinePanel';
-import { X, Maximize2, Minimize2, List as ListIcon, ChevronRight, ChevronLeft, Share2 } from 'lucide-react';
+import { X, Maximize2, Minimize2, List as ListIcon, ChevronRight, ChevronLeft, Share2, LayoutList } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { Drawer } from 'vaul';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -438,6 +440,7 @@ export function NodeExpandModal() {
     storageUrl?: string;
     fileType?: string;
     fileName?: string;
+    useBlockEditor?: boolean;
   };
   const nodeType = node.type || 'aiNote';
 
@@ -477,8 +480,8 @@ export function NodeExpandModal() {
             pasteFormat={nodeData.pasteFormat}
             editable={!isViewMode}
             title={getTitle()}
-            forceTiptap={isShareView}
-            forceBlockNote={!isShareView}
+            forceTiptap={isShareView || nodeData.useBlockEditor === false}
+            forceBlockNote={!isShareView && nodeData.useBlockEditor === true}
           />
         );
 
@@ -724,6 +727,25 @@ export function NodeExpandModal() {
             >
                <Share2 className="h-4 w-4" />
             </button>
+            {(nodeType === 'aiNote' || nodeType === 'lectureNotes') && !isViewMode && (() => {
+              const isActive = nodeData.useBlockEditor !== undefined 
+                ? nodeData.useBlockEditor 
+                : useCanvasStore.getState().isBlockEditorMode || (useSettingsStore.getState().enableHybridEditor && getEditorVersion(nodeData.content) === 2);
+              return (
+                <button
+                  onClick={() => updateNodeData(expandedNode, { useBlockEditor: !isActive })}
+                  className={cn(
+                    "rounded-lg p-1.5 transition-all hidden sm:block",
+                    isActive ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                  )}
+                  title="Toggle Block Editor"
+                  aria-label="Toggle Block Editor"
+                  aria-pressed={isActive}
+                >
+                  <LayoutList className="h-4 w-4" />
+                </button>
+              );
+            })()}
             {(nodeType === 'aiNote' || nodeType === 'lectureNotes') && (
               <button
                 onClick={() => setShowOutline(!showOutline)}

@@ -71,13 +71,13 @@ export function PasswordManageDialog({ isOpen, onClose, onSetPassword, onRemoveP
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-[var(--clay-shadow-md)] animate-brutal-pop">
+      <div className="w-full max-w-md rounded-xl border border-border/50 bg-card/95 backdrop-blur-xl p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-primary/10 p-2">
+            <div className="rounded-lg bg-primary/10 p-2 border border-primary/20">
               <Lock className="h-5 w-5 text-primary" />
             </div>
-            <h3 className="text-lg font-bold uppercase tracking-wider text-foreground">
+            <h3 className="text-lg font-bold tracking-tight text-foreground">
               {hasPassword ? 'Change Password' : 'Set Password'}
             </h3>
           </div>

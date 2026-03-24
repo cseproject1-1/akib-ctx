@@ -125,10 +125,10 @@ export function ImportModal({ open, onOpenChange, initialFiles }: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md border-4 border-foreground shadow-[8px_8px_0px_0px_rgba(0,0,0,1)]">
+      <DialogContent className="max-w-md border border-border/50 bg-card/95 backdrop-blur-xl shadow-2xl rounded-xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-2xl font-black uppercase italic">
-            <FileUp className="h-6 w-6" />
+          <DialogTitle className="flex items-center gap-2 text-xl font-bold tracking-tight text-foreground">
+            <FileUp className="h-5 w-5 text-primary" />
             Import Knowledge
           </DialogTitle>
           <DialogDescription className="font-bold text-foreground/70">
@@ -140,33 +140,33 @@ export function ImportModal({ open, onOpenChange, initialFiles }: {
           onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
           onDragLeave={() => setDragActive(false)}
           onDrop={handleDrop}
-          className={`flex flex-col items-center justify-center gap-4 rounded-xl border-4 border-dashed p-10 transition-all ${dragActive ? 'border-primary bg-primary/10 scale-[0.98]' : 'border-muted-foreground/30 bg-muted/20'}`}
+          className={`flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed p-10 transition-all duration-300 ${dragActive ? 'border-primary bg-primary/10 scale-[0.98]' : 'border-border/60 bg-card/50'}`}
         >
           {isImporting ? (
-            <div className="flex flex-col items-center gap-2">
+            <div className="flex flex-col items-center gap-3">
                 <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                <p className="text-sm font-black uppercase tracking-widest animate-pulse">Processing Files...</p>
+                <p className="text-sm font-semibold tracking-wide animate-pulse text-muted-foreground">Processing Files...</p>
             </div>
           ) : (
             <>
-              <div className="flex gap-4">
-                <div className="flex flex-col items-center gap-1">
-                    <FileText className="h-10 w-10 text-primary" />
-                    <span className="text-[10px] font-bold uppercase">Obsidian</span>
+              <div className="flex gap-6 mb-2">
+                <div className="flex flex-col items-center gap-2">
+                    <div className="rounded-full bg-primary/10 p-3"><FileText className="h-6 w-6 text-primary" /></div>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Obsidian</span>
                 </div>
-                <div className="flex flex-col items-center gap-1">
-                    <Globe className="h-10 w-10 text-primary" />
-                    <span className="text-[10px] font-bold uppercase">Notion</span>
+                <div className="flex flex-col items-center gap-2">
+                    <div className="rounded-full bg-primary/10 p-3"><Globe className="h-6 w-6 text-primary" /></div>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Notion</span>
                 </div>
-                <div className="flex flex-col items-center gap-1">
-                    <FileUp className="h-10 w-10 text-primary" />
-                    <span className="text-[10px] font-bold uppercase">ZIP</span>
+                <div className="flex flex-col items-center gap-2">
+                    <div className="rounded-full bg-primary/10 p-3"><FileUp className="h-6 w-6 text-primary" /></div>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">ZIP</span>
                 </div>
               </div>
-              <p className="text-center text-sm font-bold text-foreground/60">
+              <p className="text-center text-sm font-medium text-muted-foreground mb-2">
                 Drag and drop files here or click below
               </p>
-              <label className="brutal-btn cursor-pointer rounded-lg bg-primary px-6 py-2 text-xs font-black uppercase tracking-widest text-primary-foreground shadow-[var(--clay-shadow-sm)] active:translate-x-0 active:translate-y-0 active:shadow-none">
+              <label className="cursor-pointer rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground transition-all duration-200 hover:bg-primary/90 hover:shadow-md active:scale-95 shadow-sm">
                 Select Files
                 <input
                   type="file"
@@ -180,12 +180,12 @@ export function ImportModal({ open, onOpenChange, initialFiles }: {
           )}
         </div>
 
-        <div className="space-y-2 rounded-lg bg-secondary/30 p-4 border-2 border-foreground/10">
-            <h4 className="flex items-center gap-2 text-xs font-black uppercase tracking-tight">
-                <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+        <div className="space-y-3 rounded-xl bg-accent/30 p-4 border border-border/50">
+            <h4 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <CheckCircle2 className="h-4 w-4 text-green-500" />
                 What's preserved?
             </h4>
-            <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">
+            <ul className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs font-medium text-muted-foreground">
                 <li>• Heading hierarchy</li>
                 <li>• Content sections</li>
                 <li>• Links & Lists</li>
@@ -193,10 +193,10 @@ export function ImportModal({ open, onOpenChange, initialFiles }: {
             </ul>
         </div>
 
-        <DialogFooter className="border-t-2 border-foreground pt-4">
+        <DialogFooter className="border-t border-border/50 pt-4">
           <button
             onClick={() => onOpenChange(false)}
-            className="rounded-lg border-2 border-foreground bg-secondary px-6 py-2 text-xs font-black uppercase tracking-widest shadow-[4px_4px_0px_black] hover:translate-x-0.5 hover:translate-y-0.5 hover:shadow-none"
+            className="rounded-lg border border-border/50 bg-card px-6 py-2 text-sm font-semibold text-foreground transition-all duration-200 hover:bg-accent/50 active:scale-95"
           >
             Cancel
           </button>
