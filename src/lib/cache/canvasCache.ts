@@ -473,16 +473,28 @@ function queueOffline(op: Omit<PendingOp, 'id' | 'createdAt'>, error?: unknown) 
 }
 
 export async function saveNode(workspaceId: string, node: Node) {
+  // Ensure updatedAt is set when saving
+  const now = new Date().toISOString();
+  const nodeWithDates: Node = {
+    ...node,
+    data: {
+      ...(node.data as any),
+      createdAt: (node.data as any)?.createdAt || now,
+      updatedAt: now,
+      lastSyncedAt: now,
+    },
+  };
+
   const entry = await cacheGet<Node[]>('canvas-nodes', workspaceId);
   if (entry) {
-    const nodes = entry.data.filter((n) => n.id !== node.id);
-    nodes.push(node);
+    const nodes = entry.data.filter((n) => n.id !== nodeWithDates.id);
+    nodes.push(nodeWithDates);
     await cacheSet('canvas-nodes', workspaceId, nodes);
   }
   try {
-    await withRetry(() => serverSaveNode(workspaceId, node));
+    await withRetry(() => serverSaveNode(workspaceId, nodeWithDates));
   } catch (err) {
-    queueOffline({ type: 'saveNode', args: [workspaceId, node] }, err);
+    queueOffline({ type: 'saveNode', args: [workspaceId, nodeWithDates] }, err);
   }
 }
 
@@ -635,6 +647,14 @@ export async function replayPendingOps(isRetry = false) {
               if (typeof node.style.width !== 'number') node.style.width = 300;
               if (typeof node.style.height !== 'number') node.style.height = 200;
             }
+            // Ensure createdAt is preserved, update updatedAt and lastSyncedAt
+            const now = new Date().toISOString();
+            const nodeData = node.data as any;
+            if (nodeData && !nodeData.createdAt) {
+              nodeData.createdAt = now;
+            }
+            nodeData.updatedAt = now;
+            nodeData.lastSyncedAt = now;
             await serverSaveNode(op.args[0] as string, node);
             break;
           }

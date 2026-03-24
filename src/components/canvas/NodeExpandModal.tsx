@@ -5,7 +5,7 @@ import { getEditorVersion } from '@/lib/editor/migration';
 import { useSettingsStore } from '@/store/settingsStore';
 import { OutlinePanel } from '@/components/tiptap/OutlinePanel';
 import { X, Maximize2, Minimize2, List as ListIcon, ChevronRight, ChevronLeft, Share2, LayoutList } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { Drawer } from 'vaul';
 import { useIsMobile } from '@/hooks/use-mobile';
 import type { JSONContent } from '@tiptap/react';
@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 
 /* ─── Expandable node types ─── */
 const EXPANDABLE_TYPES = ['aiNote', 'lectureNotes', 'checklist', 'summary', 'codeSnippet', 'math', 'termQuestion', 'stickyNote', 'flashcard', 'table', 'image', 'embed', 'drawing', 'video', 'text'];
+const POSITION_THRESHOLD = 20; // NM-ADD-1: Constant for navigation threshold
 
 /* ─── Checklist helpers ─── */
 interface CheckItem { id: string; text: string; done: boolean; }
@@ -176,23 +177,81 @@ function StickyNoteFullscreen({ text, onChange, editable }: { text: string; onCh
 }
 
 /* ─── Flashcard fullscreen ─── */
-function FlashcardFullscreen({ flashcards }: { flashcards: { question: string; answer: string }[] }) {
+function FlashcardFullscreen({ flashcards, onUpdate, editable }: { flashcards: { question: string; answer: string }[]; onUpdate: (f: { question: string; answer: string }[]) => void; editable: boolean }) {
   const [idx, setIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const card = flashcards[idx];
-  if (!card) return <div className="text-muted-foreground text-center">No flashcards</div>;
+
+  const updateCard = (field: 'question' | 'answer', value: string) => {
+    if (!editable) return;
+    const newCards = [...flashcards];
+    newCards[idx] = { ...newCards[idx], [field]: value };
+    onUpdate(newCards);
+  };
+
+  const addCard = () => {
+    if (!editable) return;
+    const newCards = [...flashcards, { question: '', answer: '' }];
+    onUpdate(newCards);
+    setIdx(newCards.length - 1);
+    setIsEditing(true);
+  };
+
+  if (!card && !isEditing) {
+     return (
+       <div className="flex flex-col items-center justify-center py-12">
+         <p className="text-muted-foreground mb-4">No flashcards yet</p>
+         {editable && <button onClick={addCard} className="text-xs font-bold text-primary underline">Create first card</button>}
+       </div>
+     );
+  }
+
   return (
     <div className="flex flex-col items-center gap-6">
-      <button onClick={() => setFlipped(!flipped)} className="w-full max-w-lg cursor-pointer">
-        <div className={`min-h-[200px] rounded-xl border-2 border-dashed p-8 text-center transition-all ${flipped ? 'border-primary/40 bg-primary/5' : 'border-border bg-accent/30'}`}>
-          <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">{flipped ? 'Answer' : 'Question'}</p>
-          <p className="text-lg font-semibold text-foreground">{flipped ? card.answer : card.question}</p>
-        </div>
-      </button>
+      <div className="w-full max-w-lg">
+        {isEditing && editable ? (
+          <div className="space-y-4 rounded-xl border-2 border-primary/20 bg-accent/10 p-6">
+            <div>
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1 block">Question</label>
+              <textarea 
+                className="w-full bg-transparent text-sm font-semibold outline-none resize-none" 
+                value={card?.question || ''} 
+                onChange={e => updateCard('question', e.target.value)}
+                placeholder="Type question..."
+              />
+            </div>
+            <div className="h-[1px] bg-border" />
+            <div>
+              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1 block">Answer</label>
+              <textarea 
+                className="w-full bg-transparent text-sm font-semibold outline-none resize-none" 
+                value={card?.answer || ''} 
+                onChange={e => updateCard('answer', e.target.value)}
+                placeholder="Type answer..."
+              />
+            </div>
+            <button onClick={() => setIsEditing(false)} className="w-full py-2 bg-primary text-primary-foreground rounded-lg text-xs font-bold">Done</button>
+          </div>
+        ) : (
+          <button onClick={() => setFlipped(!flipped)} className="w-full cursor-pointer">
+            <div className={`min-h-[200px] rounded-xl border-2 border-dashed p-8 text-center transition-all ${flipped ? 'border-primary/40 bg-primary/5' : 'border-border bg-accent/30'}`}>
+              <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">{flipped ? 'Answer' : 'Question'}</p>
+              <p className="text-lg font-semibold text-foreground">{flipped ? card.answer : card.question}</p>
+            </div>
+          </button>
+        )}
+      </div>
       <div className="flex items-center gap-4">
-        <button onClick={() => { setFlipped(false); setIdx(Math.max(0, idx - 1)); }} disabled={idx === 0} className="rounded-lg px-3 py-1 text-sm font-bold text-muted-foreground hover:bg-accent disabled:opacity-20">← Prev</button>
-        <span className="text-sm font-bold text-muted-foreground">{idx + 1}/{flashcards.length}</span>
-        <button onClick={() => { setFlipped(false); setIdx(Math.min(flashcards.length - 1, idx + 1)); }} disabled={idx === flashcards.length - 1} className="rounded-lg px-3 py-1 text-sm font-bold text-muted-foreground hover:bg-accent disabled:opacity-20">Next →</button>
+        <button onClick={() => { setFlipped(false); setIdx(Math.max(0, idx - 1)); }} disabled={idx === 0 || isEditing} className="rounded-lg px-3 py-1 text-sm font-bold text-muted-foreground hover:bg-accent disabled:opacity-20">← Prev</button>
+        <span className="text-sm font-bold text-muted-foreground">{flashcards.length > 0 ? `${idx + 1}/${flashcards.length}` : '0/0'}</span>
+        <button onClick={() => { setFlipped(false); setIdx(Math.min(flashcards.length - 1, idx + 1)); }} disabled={idx === flashcards.length - 1 || isEditing} className="rounded-lg px-3 py-1 text-sm font-bold text-muted-foreground hover:bg-accent disabled:opacity-20">Next →</button>
+        {editable && !isEditing && (
+          <div className="flex gap-2 ml-4">
+            <button onClick={() => setIsEditing(true)} className="text-[10px] font-black uppercase text-primary hover:underline">Edit</button>
+            <button onClick={addCard} className="text-[10px] font-black uppercase text-muted-foreground hover:text-foreground">Add New</button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -221,16 +280,31 @@ function TableFullscreen({ headers, rows, onUpdate, editable }: { headers: strin
         </thead>
         <tbody>
           {rows.map((row, ri) => (
-            <tr key={ri} className="hover:bg-accent/30">
+            <tr key={ri} className="hover:bg-accent/30 group">
               {row.map((cell, ci) => (
                 <td key={ci} className="border border-border px-3 py-2">
                   <input className={`w-full bg-transparent text-foreground outline-none ${!editable ? 'cursor-default' : ''}`} value={cell.value} onChange={e => updateCell(ri, ci, e.target.value)} placeholder="—" readOnly={!editable} />
                 </td>
               ))}
+              {editable && (
+                <td className="w-8 border-none opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => onUpdate({ rows: rows.filter((_, i) => i !== ri) })} className="text-muted-foreground hover:text-destructive">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
       </table>
+      {editable && (
+        <button 
+          onClick={() => onUpdate({ rows: [...rows, headers.map(() => ({ value: '' }))] })} 
+          className="mt-3 text-[10px] font-black uppercase text-primary hover:underline"
+        >
+          + Add Row
+        </button>
+      )}
     </div>
   );
 }
@@ -239,27 +313,73 @@ function TableFullscreen({ headers, rows, onUpdate, editable }: { headers: strin
    Main Modal
    ═══════════════════════════════════════════════════════ */
 
+/* ─── Error Boundary for viewers ─── */
+function ViewerErrorBoundary({ children, onRetry }: { children: React.ReactNode; onRetry?: () => void }) {
+  const [hasError, setHasError] = useState(false);
+  if (hasError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <div className="rounded-lg bg-destructive/10 p-6 text-destructive">
+          <p className="font-bold uppercase tracking-widest text-xs mb-1">Viewer Error</p>
+          <p className="text-sm opacity-80">Something went wrong while rendering this content.</p>
+          <button 
+            onClick={() => { setHasError(false); onRetry?.(); }}
+            className="mt-4 rounded-lg bg-destructive px-4 py-2 text-xs font-bold text-destructive-foreground hover:opacity-90 transition-opacity"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <ErrorCatcher onError={() => setHasError(true)}>
+      {children}
+    </ErrorCatcher>
+  );
+}
+
+class ErrorCatcher extends React.Component<{ children: React.ReactNode; onError: () => void }, { hasError: boolean }> {
+  constructor(props: { children: React.ReactNode; onError: () => void }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch() { this.props.onError(); }
+  render() { return this.state.hasError ? null : this.props.children; }
+}
+
 export function NodeExpandModal() {
   const expandedNode = useCanvasStore((s) => s.expandedNode);
   const setExpandedNode = useCanvasStore((s) => s.setExpandedNode);
-  const nodes = useNodes();
-  const edges = useCanvasStore((s) => s.edges);
+  
+  // NM-MED-1: Performance optimization - only subscribe to needed node and edges count
+  const node = useCanvasStore((s) => s.nodes.find((n) => n.id === expandedNode));
+  const edgesCount = useCanvasStore((s) => s.edges.length);
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const canvasMode = useCanvasStore((s) => s.canvasMode);
   const isViewMode = canvasMode === 'view';
   const debounceRef = useRef<ReturnType<typeof setTimeout>>();
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  // NM-LOW-10: Persistent fullscreen preference
+  const [isFullscreen, setIsFullscreen] = useState(() => {
+    return localStorage.getItem('node_modal_fullscreen') === 'true';
+  });
+  useEffect(() => {
+    localStorage.setItem('node_modal_fullscreen', String(isFullscreen));
+  }, [isFullscreen]);
   const [showOutline, setShowOutline] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const editorRef = useRef<NoteEditorHandle>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const isMobile = useIsMobile();
-  
-  const expandableNodes = useMemo(() => nodes.filter(n => EXPANDABLE_TYPES.includes(n.type || '')), [nodes]);
-  const expandableIndex = useMemo(() => expandableNodes.findIndex(n => n.id === expandedNode), [expandableNodes, expandedNode]);
+  const latestContentRef = useRef<{ json: JSONContent, extraData?: Record<string, unknown> } | null>(null);
+  const expandedNodeRef = useRef(expandedNode); // NM-CRITICAL-2: Track node ID for debounced saves
+  expandedNodeRef.current = expandedNode;
 
-  const node = nodes.find((n) => n.id === expandedNode);
+  // Granular node list for navigation (NM-MED-1 fallback)
+  const expandableNodes = useCanvasStore((s) => s.nodes.filter(n => EXPANDABLE_TYPES.includes(n.type || '')));
+  const expandableIndex = useMemo(() => expandableNodes.findIndex(n => n.id === expandedNode), [expandableNodes, expandedNode]);
 
   // Cleanup debounce on unmount (NM1)
   useEffect(() => {
@@ -272,8 +392,12 @@ export function NodeExpandModal() {
 
   // Focus management when modal opens (NM9)
   useEffect(() => {
-    if (expandedNode && titleInputRef.current) {
-      titleInputRef.current.focus();
+    if (expandedNode) {
+      // NM-HIGH-4: Use requestAnimationFrame for reliable focus
+      const timer = requestAnimationFrame(() => {
+        titleInputRef.current?.focus();
+      });
+      return () => cancelAnimationFrame(timer);
     }
   }, [expandedNode]);
 
@@ -281,24 +405,30 @@ export function NodeExpandModal() {
   const handleClose = useCallback(() => { 
     if (debounceRef.current) {
       clearTimeout(debounceRef.current);
-      updateNodeData(expandedNode, {});
+      // NM-CRITICAL-1: Remove empty updateNodeData that caused data loss
     }
     setExpandedNode(null); 
     setIsFullscreen(false); 
     setShowOutline(false);
   }, [setExpandedNode, expandedNode, updateNodeData]);
 
-  const activeIdx = useMemo(() => nodes.findIndex(n => n.id === expandedNode), [nodes, expandedNode]);
-
-  // Use refs for navigation to avoid stale closures (NM3)
-  const nodesRef = useRef(nodes);
-  const edgesRef = useRef(edges);
-  nodesRef.current = nodes;
-  edgesRef.current = edges;
+  // NM-MED-2: Sync debounce cancellation when switched internally (NM3)
+  useEffect(() => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      // Flush if we switched nodes
+      if (latestContentRef.current) {
+        updateNodeData(expandedNodeRef.current!, { 
+          content: latestContentRef.current.json, 
+          ...latestContentRef.current.extraData 
+        });
+        latestContentRef.current = null;
+      }
+    }
+  }, [expandedNode, updateNodeData]);
 
   const handlePrev = useCallback(() => {
-    const currentNodes = nodesRef.current;
-    const currentEdges = edgesRef.current;
+    const { nodes: currentNodes, edges: currentEdges } = useCanvasStore.getState();
     // Validate current node still exists
     const currentNode = currentNodes.find(n => n.id === expandedNode);
     if (!currentNode) return;
@@ -311,7 +441,7 @@ export function NodeExpandModal() {
       
       // Sort source nodes by position: bottom-to-top, then right-to-left (reverse of reading)
       sourceNodes.sort((a, b) => {
-        if (Math.abs(a.position.y - b.position.y) > 20) {
+        if (Math.abs(a.position.y - b.position.y) > POSITION_THRESHOLD) {
           return b.position.y - a.position.y;
         }
         return b.position.x - a.position.x;
@@ -321,15 +451,15 @@ export function NodeExpandModal() {
     } else {
       // Fallback to expandable array order (NM7, NM16)
       const currentIdx = expandableNodes.findIndex(n => n.id === expandedNode);
-      if (currentIdx > 0) {
+      // NM-HIGH-1: Fix boundary check
+      if (currentIdx > 0 && currentIdx < expandableNodes.length) {
         setExpandedNode(expandableNodes[currentIdx - 1].id);
       }
     }
   }, [expandedNode, expandableNodes, setExpandedNode]);
 
   const handleNext = useCallback(() => {
-    const currentNodes = nodesRef.current;
-    const currentEdges = edgesRef.current;
+    const { nodes: currentNodes, edges: currentEdges } = useCanvasStore.getState();
     // Validate current node still exists
     const currentNode = currentNodes.find(n => n.id === expandedNode);
     if (!currentNode) return;
@@ -342,7 +472,7 @@ export function NodeExpandModal() {
       
       // Sort target nodes by position: top-to-bottom, then left-to-right
       targetNodes.sort((a, b) => {
-        if (Math.abs(a.position.y - b.position.y) > 20) {
+        if (Math.abs(a.position.y - b.position.y) > POSITION_THRESHOLD) {
           return a.position.y - b.position.y;
         }
         return a.position.x - b.position.x;
@@ -352,32 +482,43 @@ export function NodeExpandModal() {
     } else {
       // Fallback to expandable array order (NM7, NM16)
       const currentIdx = expandableNodes.findIndex(n => n.id === expandedNode);
-      if (currentIdx < expandableNodes.length - 1) {
+      // NM-HIGH-2: Fix boundary check
+      if (currentIdx >= 0 && currentIdx < expandableNodes.length - 1) {
         setExpandedNode(expandableNodes[currentIdx + 1].id);
       }
     }
   }, [expandedNode, expandableNodes, setExpandedNode]);
 
   const handleShare = useCallback(() => {
-    const url = window.location.href;
+    // NM-MED-6: Include node ID in shared URL
+    const url = new URL(window.location.href);
+    url.searchParams.set('node', expandedNode || '');
+    const shareUrl = url.toString();
+    
     const workspaceName = useCanvasStore.getState().workspaceName;
     const title = node?.data && typeof node.data === 'object' && 'title' in node.data 
       ? (node.data.title as string) 
       : (node?.data && typeof node.data === 'object' && 'year' in node.data ? (node.data.year as string) : 'Untitled');
+
     if (navigator.share) {
       navigator.share({
         title,
         text: `Check out this note from ${workspaceName}`,
-        url
+        url: shareUrl
       }).catch((err) => {
         if (err.name !== 'AbortError') {
           console.error('Error sharing:', err);
         }
       });
     } else {
-      navigator.clipboard.writeText(url).catch(() => {});
+      // NM-ADD-4: User feedback
+      import('sonner').then(({ toast }) => {
+        navigator.clipboard.writeText(shareUrl).then(() => {
+          toast.success('Link copied to clipboard');
+        }).catch(() => {});
+      });
     }
-  }, [node]);
+  }, [node, expandedNode]);
 
   // Better detection for Tiptap editor focus (NM5)
   const isEditorFocused = useCallback(() => {
@@ -417,6 +558,7 @@ export function NodeExpandModal() {
   }, [expandedNode, handleClose, handlePrev, handleNext, isEditorFocused]);
 
   if (!node || !expandedNode) return null;
+  if (!node.data || typeof node.data !== 'object') return null; // NM-CRITICAL-3, 4: Safety guards
 
   const nodeData = node.data as {
     title?: string;
@@ -447,8 +589,18 @@ export function NodeExpandModal() {
   const handleContentChange = (json: JSONContent, extraData?: Record<string, unknown>) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     setIsSaving(true);
+    latestContentRef.current = { json, extraData };
+    
+    // Capture current node ID to prevent stale closure saving to wrong node (NM-CRITICAL-2)
+    const targetNodeId = expandedNode;
+    
     debounceRef.current = setTimeout(() => {
-      updateNodeData(expandedNode, { content: json, ...extraData });
+      // Use targetNodeId instead of expandedNode from closure, but also check ref
+      const finalId = expandedNodeRef.current === targetNodeId ? targetNodeId : expandedNodeRef.current;
+      if (finalId) {
+        updateNodeData(finalId, { content: json, ...extraData });
+      }
+      latestContentRef.current = null;
       setIsSaving(false);
     }, 800);
   };
@@ -541,7 +693,13 @@ export function NodeExpandModal() {
         );
 
       case 'flashcard':
-        return <FlashcardFullscreen flashcards={nodeData.flashcards || []} />;
+        return (
+          <FlashcardFullscreen 
+            flashcards={nodeData.flashcards || []} 
+            onUpdate={(flashcards) => updateNodeData(expandedNode, { flashcards })}
+            editable={!isViewMode}
+          />
+        );
 
       case 'table':
         return (
@@ -562,12 +720,23 @@ export function NodeExpandModal() {
 
       case 'embed':
         return nodeData.url ? (
-          <iframe src={nodeData.url} title={nodeData.title || 'Embed'} className="w-full h-[70vh] border-0 rounded-lg" sandbox="allow-scripts allow-same-origin allow-popups allow-forms" />
+          <iframe 
+            src={nodeData.url} 
+            title="Embedded Content" 
+            aria-label="Embedded Website"
+            className="w-full h-[70vh] border-0 rounded-lg" 
+            sandbox="allow-scripts allow-same-origin allow-popups allow-forms" 
+          />
         ) : <span className="text-muted-foreground">No URL set</span>;
 
       case 'drawing':
         return (
-          <svg width={nodeData.width || 800} height={nodeData.height || 600} className="rounded-lg bg-muted">
+          // NM-LOW-6: Responsive SVG with viewBox
+          <svg 
+            viewBox={`0 0 ${nodeData.width || 800} ${nodeData.height || 600}`}
+            preserveAspectRatio="xMidYMid meet"
+            className="w-full h-auto rounded-lg bg-muted"
+          >
             {(nodeData.paths || []).map((p, i) => (
               <path key={i} d={p.d} stroke={p.color} strokeWidth={p.width} fill="none" strokeLinecap="round" strokeLinejoin="round" />
             ))}
@@ -583,7 +752,14 @@ export function NodeExpandModal() {
             ? `https://player.vimeo.com/video/${vimeoMatch[1]}?autoplay=1`
             : null;
         return embedUrl ? (
-          <iframe src={embedUrl} title={nodeData.title || 'Video'} className="w-full aspect-video rounded-lg border-0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
+          <iframe 
+            src={embedUrl} 
+            title="Video Player" 
+            aria-label="Embedded Video"
+            className="w-full aspect-video rounded-lg border-0" 
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+            allowFullScreen 
+          />
         ) : <span className="text-muted-foreground">No video URL set</span>;
       }
 
@@ -603,7 +779,15 @@ export function NodeExpandModal() {
         const src = isOffice
           ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(nodeData.storageUrl)}`
           : nodeData.storageUrl;
-        return <iframe src={src} title={nodeData.fileName || 'Document'} className="w-full h-[70vh] border-0 rounded-lg" allowFullScreen />;
+        return (
+          <iframe 
+            src={src} 
+            title="Document Viewer" 
+            aria-label="Embedded Document"
+            className="w-full h-[70vh] border-0 rounded-lg" 
+            allowFullScreen 
+          />
+        );
       }
 
       default:
@@ -709,8 +893,10 @@ export function NodeExpandModal() {
             className="flex-1 bg-transparent text-lg font-bold tracking-tight text-foreground outline-none placeholder:text-muted-foreground"
             value={getTitle()}
             onChange={(e) => {
+              // NM-HIGH-6: Basic sanitization for titles
+              const val = e.target.value.replace(/[<>]/g, ''); 
               const key = nodeType === 'termQuestion' ? 'year' : 'title';
-              updateNodeData(expandedNode, { [key]: e.target.value });
+              updateNodeData(expandedNode, { [key]: val });
             }}
             placeholder="Untitled"
             aria-label="Node title"
@@ -733,7 +919,19 @@ export function NodeExpandModal() {
                 : useCanvasStore.getState().isBlockEditorMode || (useSettingsStore.getState().enableHybridEditor && getEditorVersion(nodeData.content) === 2);
               return (
                 <button
-                  onClick={() => updateNodeData(expandedNode, { useBlockEditor: !isActive })}
+                  onClick={() => {
+                    let updates: any = { useBlockEditor: !isActive };
+                    if (latestContentRef.current) {
+                      if (debounceRef.current) clearTimeout(debounceRef.current);
+                      updates.content = latestContentRef.current.json;
+                      if (latestContentRef.current.extraData) {
+                        updates = { ...updates, ...latestContentRef.current.extraData };
+                      }
+                      latestContentRef.current = null;
+                      setIsSaving(false);
+                    }
+                    updateNodeData(expandedNode, updates);
+                  }}
                   className={cn(
                     "rounded-lg p-1.5 transition-all hidden sm:block",
                     isActive ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -782,7 +980,15 @@ export function NodeExpandModal() {
         <div className="flex-1 flex overflow-hidden">
           <div className="flex-1 overflow-y-auto px-6 py-4 scrollbar-hide">
              <div className="max-w-4xl mx-auto">
-                {renderContent()}
+                <ViewerErrorBoundary>
+                   {!node ? (
+                     <div className="flex items-center justify-center py-20">
+                       <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                     </div>
+                   ) : (
+                     renderContent()
+                   )}
+                </ViewerErrorBoundary>
              </div>
           </div>
           

@@ -149,7 +149,7 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
         linkify: false,
       }),
     ],
-    content: initialContent || undefined,
+    content: initialContent || { type: 'doc', content: [] },
     editable,
     editorProps: {
       attributes: {

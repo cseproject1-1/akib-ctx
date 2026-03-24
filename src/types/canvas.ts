@@ -35,6 +35,8 @@ export interface SharedNodeFields {
   dueDate?: string; // ISO date string
   opacity?: number; // 25-100, default 100
   createdAt?: string; // ISO datetime string
+  updatedAt?: string; // ISO datetime string - when content was last modified
+  lastSyncedAt?: string; // ISO datetime string - last successful sync timestamp
   blockVersion?: 1 | 2;
   color?: string; // Standard color string
   _v1Backup?: any; // Backup of Tiptap content before migration

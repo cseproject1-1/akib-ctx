@@ -61,6 +61,10 @@ interface CanvasState {
   activePanel: 'theme' | 'timer' | 'pinned' | 'stats' | null;
   _contentBacklinks: Record<string, string[]>;
   _syncAllBacklinks: () => void;
+  _dirtyNodeDataIds: Set<string>;
+  _markNodeDataDirty: (nodeId: string) => void;
+  _clearNodeDataDirty: (nodeId: string) => void;
+  _isNodeDataDirty: (nodeId: string) => boolean;
 
 
   // History
@@ -208,6 +212,18 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   activePalette: null,
   activePanel: null,
   _contentBacklinks: {},
+  _dirtyNodeDataIds: new Set(),
+  _markNodeDataDirty: (nodeId) => set((state) => {
+    const next = new Set(state._dirtyNodeDataIds);
+    next.add(nodeId);
+    return { _dirtyNodeDataIds: next };
+  }),
+  _clearNodeDataDirty: (nodeId) => set((state) => {
+    const next = new Set(state._dirtyNodeDataIds);
+    next.delete(nodeId);
+    return { _dirtyNodeDataIds: next };
+  }),
+  _isNodeDataDirty: (nodeId) => get()._dirtyNodeDataIds.has(nodeId),
   _syncAllBacklinks: () => {
     const { _contentBacklinks, edges } = get();
     // Deep clone to prevent mutating the _contentBacklinks arrays
@@ -375,7 +391,16 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       ? { x: safeCursor.x - 150, y: safeCursor.y - 50 }
       : isSafePosition ? node.position : { x: 0, y: 0 };
 
-    const positioned = { ...node, position: finalPosition };
+    // Ensure createdAt is set for new nodes
+    const now = new Date().toISOString();
+    const nodeData = node.data as any;
+    const enrichedData = {
+      ...nodeData,
+      createdAt: nodeData?.createdAt || now,
+      updatedAt: nodeData?.updatedAt || now,
+    };
+
+    const positioned = { ...node, position: finalPosition, data: enrichedData };
 
     set({ nodes: [...get().nodes, positioned] });
   },
@@ -426,6 +451,22 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const sanitizedData = Object.fromEntries(
       Object.entries(data).filter(([_, v]) => v !== undefined && v !== null)
     );
+
+    // Mark as dirty immediately to protect from remote overwrites
+    get()._markNodeDataDirty(id);
+
+    // Immediate write to IndexedDB for local-first persistence
+    const workspaceId = get().workspaceId;
+    if (workspaceId) {
+      import('@/lib/cache/indexedDB').then(async ({ cacheGet, cacheSet }) => {
+        const entry = await cacheGet<Node[]>('canvas-nodes', workspaceId);
+        if (entry) {
+          const nodes = entry.data.map(n => n.id === id ? { ...n, data: { ...n.data, ...sanitizedData } } : n);
+          await cacheSet('canvas-nodes', workspaceId, nodes);
+        }
+      });
+    }
+
     set({
       nodes: get().nodes.map((n) => {
         if (n.id === id) {

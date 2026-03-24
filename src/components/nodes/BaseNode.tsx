@@ -14,6 +14,13 @@ import { extractNodeContent } from '@/lib/utils/contentExtractor';
 const LOD_THRESHOLD = 0.45;
 const ULTIMATE_LOD_THRESHOLD = 0.2;
 
+function formatSafeDate(dateString: string | undefined, fallback: string = 'recently'): string {
+  if (!dateString) return fallback;
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return fallback;
+  return formatDistanceToNow(date, { addSuffix: true });
+}
+
 const NODE_COLORS: Record<string, { border: string; bg: string }> = {
   blue:    { border: 'border-l-blue-500',   bg: 'bg-blue-500/5' },
   green:   { border: 'border-l-green-500',  bg: 'bg-green-500/5' },
@@ -150,7 +157,8 @@ export const BaseNode = memo(({
   const zoom = useStore(useCallback((s) => s.transform[2], []));
   const isMobile = useIsMobile();
   const saveStatus = useCanvasStore((s) => s.saveStatus);
-  const globalIsSyncing = saveStatus === 'saving';
+  const isDirty = useCanvasStore((s) => nodeId && s._dirtyNodeDataIds.has(nodeId));
+  const nodeSyncing = saveStatus === 'saving' || isDirty || isSyncing;
   const hasSyncError = saveStatus === 'error';
   
   const handleCopyNodeContent = useCallback(async () => {
@@ -283,10 +291,10 @@ export const BaseNode = memo(({
               <div 
                 className={`h-1.5 w-1.5 rounded-full transition-all duration-500 ${
                   hasSyncError ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" :
-                  globalIsSyncing ? "bg-yellow-400 animate-pulse shadow-[0_0_8px_rgba(250,204,21,0.5)]" : 
+                  nodeSyncing ? "bg-yellow-400 animate-pulse shadow-[0_0_8px_rgba(250,204,21,0.5)]" : 
                   "bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.3)]"
                 }`} 
-                title={hasSyncError ? "Sync error" : globalIsSyncing ? "Syncing changes..." : "All changes saved"}
+                title={hasSyncError ? "Sync error" : nodeSyncing ? "Syncing changes..." : "All changes saved"}
               />
             </div>
           )}
@@ -401,7 +409,7 @@ export const BaseNode = memo(({
       {/* Created timestamp on hover */}
       {createdAt && (
         <div className="absolute -bottom-5 left-0 text-[9px] text-muted-foreground opacity-0 transition-opacity group-hover/node:opacity-100 whitespace-nowrap">
-          Created {formatDistanceToNow(new Date(createdAt), { addSuffix: true })}
+          Created {formatSafeDate(createdAt, 'recently')}
         </div>
       )}
 

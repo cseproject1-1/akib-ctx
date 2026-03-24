@@ -158,7 +158,13 @@ describe('canvasCache – saveNode write-through', () => {
     await saveNode('ws-test-123', node as unknown as Node);
 
     expect(serverSave).toHaveBeenCalledOnce();
-    expect(serverSave).toHaveBeenCalledWith('ws-test-123', node);
+    // Verify the workspace ID and that the node has date fields added
+    const calledWith = (serverSave as any).mock.calls[0];
+    expect(calledWith[0]).toBe('ws-test-123');
+    expect(calledWith[1].id).toBe(node.id);
+    expect(calledWith[1].data.createdAt).toBeDefined();
+    expect(calledWith[1].data.updatedAt).toBeDefined();
+    expect(calledWith[1].data.lastSyncedAt).toBeDefined();
   });
 
   it('updates the IndexedDB cache when saving a node', async () => {

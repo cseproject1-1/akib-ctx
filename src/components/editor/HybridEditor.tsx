@@ -47,8 +47,8 @@ export const HybridEditor = forwardRef<any, HybridEditorProps>(function HybridEd
   const enableHybridEditor = useSettingsStore((s) => s.enableHybridEditor);
   const isBlockEditorMode = useCanvasStore((s) => s.isBlockEditorMode);
 
-  // Detect version once on mount from initialContent
-  const [detectedVersion] = useState(() => getEditorVersion(initialContent));
+  // Detect version dynamically based on initialContent
+  const detectedVersion = useMemo(() => getEditorVersion(initialContent), [initialContent]);
 
   // Determine which editor to use
   const useBlockNote = useMemo(() => {
@@ -71,10 +71,12 @@ export const HybridEditor = forwardRef<any, HybridEditorProps>(function HybridEd
     return migrateToTiPTap(initialContent);
   }, [initialContent, detectedVersion]);
 
-  // Ghost content is always Tiptap format for rendering
+  // Bug 17: Ghost content respects editor format
   const ghostContent = useMemo(() => {
     if (!initialContent) return undefined;
     if (detectedVersion === 1) return initialContent as JSONContent;
+    // Return BlockNote format as-is for ghost rendering
+    if (Array.isArray(initialContent)) return initialContent;
     return migrateToTiPTap(initialContent);
   }, [initialContent, detectedVersion]);
 
@@ -91,14 +93,27 @@ export const HybridEditor = forwardRef<any, HybridEditorProps>(function HybridEd
   const handleContentChange = useMemo(() => {
     if (!onChange) return undefined;
     return (newContent: any, extraData?: any) => {
+      const now = new Date().toISOString();
       const finalExtra: any = {
         ...extraData,
-        blockVersion: useBlockNote ? 2 : 1
+        blockVersion: useBlockNote ? 2 : 1,
+        updatedAt: now,
       };
 
       // On first migration from v1 to BlockNote, backup original
       if (detectedVersion === 1 && useBlockNote && initialContent !== undefined) {
         finalExtra._v1Backup = initialContent;
+      }
+
+      // Preserve original createdAt from existing content
+      if (initialContent !== undefined) {
+        const existingCreatedAt = (initialContent as any)?.createdAt || 
+                                  (initialContent as any)?.data?.createdAt;
+        if (existingCreatedAt) {
+          finalExtra.createdAt = existingCreatedAt;
+        } else if (detectedVersion === 1 && (initialContent as any)?._v1Backup) {
+          finalExtra.createdAt = (initialContent as any)._v1Backup.createdAt || now;
+        }
       }
 
       onChange(newContent, finalExtra);

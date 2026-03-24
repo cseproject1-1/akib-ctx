@@ -218,18 +218,31 @@ const WorkspacePage = () => {
         return;
       }
       
+      // Hardening: If any nodes are marked as "dirty" locally (unsaved changes),
+      // merge those local changes into the fresh remote data so they aren't lost.
+      const dirtyIds = useCanvasStore.getState()._dirtyNodeDataIds;
+      const mergedNodes = freshNodes.map(fn => {
+        if (dirtyIds.has(fn.id)) {
+          const localNode = currentNodes.find(n => n.id === fn.id);
+          if (localNode) {
+            return { ...fn, data: { ...fn.data, ...localNode.data } };
+          }
+        }
+        return fn;
+      });
+
       // Deep compare to avoid unnecessary re-renders
-      const nodesChanged = currentNodes.length !== freshNodes.length || 
-                         JSON.stringify(currentNodes) !== JSON.stringify(freshNodes);
+      const nodesChanged = currentNodes.length !== mergedNodes.length || 
+                         JSON.stringify(currentNodes) !== JSON.stringify(mergedNodes);
       
       if (nodesChanged) {
-        console.log('[sync] Applying real-time node updates');
+        console.log('[sync] Applying real-time node updates (protected by dirty flags)');
         // Use a custom load that preserves history for real-time sync
         // to avoid clearing the undo/redo stack on every remote change
-        loadCanvas(freshNodes, currentEdges, true);
+        loadCanvas(mergedNodes, currentEdges, true);
         // Also update local cache
         import('@/lib/cache/indexedDB').then(({ cacheSet }) => {
-          cacheSet('canvas-nodes', workspaceId, freshNodes);
+          cacheSet('canvas-nodes', workspaceId, mergedNodes);
         });
       }
     });
@@ -309,9 +322,15 @@ const WorkspacePage = () => {
            dataTimers.current.set(
              node.id,
              setTimeout(() => {
-               const { nodes: latest } = useCanvasStore.getState();
+               const { nodes: latest, _clearNodeDataDirty } = useCanvasStore.getState();
                const n = latest.find((n) => n.id === node.id);
-               if (n) trackSave(updateNodeDataInDb(workspaceId, node.id, n.data as Record<string, unknown>));
+               if (n) {
+                 trackSave(
+                   updateNodeDataInDb(workspaceId, node.id, n.data as Record<string, unknown>).then(() => {
+                     _clearNodeDataDirty(node.id);
+                   })
+                 );
+               }
                dataTimers.current.delete(node.id);
              }, 800)
            );
@@ -566,7 +585,8 @@ const WorkspacePage = () => {
    
    // Vault password verification handler
    const handleVerifyVaultPassword = async (password: string): Promise<boolean> => {
-     const isValid = await useVaultStore.getState().unlockVault(password);
+     const result = await useVaultStore.getState().unlockVault(password);
+     const isValid = result === 'success';
      if (isValid) {
        setShowVaultPasswordDialog(false);
        // Now load the workspace data

@@ -90,8 +90,14 @@ export const BlockNoteEditor = ({
   // Configure the editor
   const editor = useCreateBlockNote({
     schema,
-    initialContent: undefined,
+    initialContent: undefined, // Handled in useEffect for stability
   });
+
+  // Ensure content is an array for BlockNote
+  const safeInitialContent = useMemo(() => {
+    if (!initialContent) return [];
+    return Array.isArray(initialContent) ? initialContent : [];
+  }, [initialContent]);
 
   // Handle image paste from clipboard
   const handlePaste = useCallback((e: ClipboardEvent) => {

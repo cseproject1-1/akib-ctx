@@ -11,6 +11,7 @@ export async function loadCanvasNodes(workspaceId: string): Promise<Node[]> {
     const snapshot = await getDocs(q);
     return snapshot.docs.map((docSnap) => {
         const row = docSnap.data();
+        const existingData = (row.data as Record<string, unknown>) || {};
         return {
             id: row.id,
             type: row.type || 'aiNote',
@@ -18,7 +19,11 @@ export async function loadCanvasNodes(workspaceId: string): Promise<Node[]> {
               x: typeof row.position_x === 'number' && isFinite(row.position_x) ? row.position_x : 0, 
               y: typeof row.position_y === 'number' && isFinite(row.position_y) ? row.position_y : 0 
             },
-            data: (row.data as Record<string, unknown>) || {},
+            data: {
+              ...existingData,
+              createdAt: existingData.createdAt || row.created_at || null,
+              updatedAt: existingData.updatedAt || row.updated_at || null,
+            } as Record<string, unknown>,
             style: { 
               width: typeof row.width === 'number' && isFinite(row.width) ? row.width : 300, 
               height: typeof row.height === 'number' && isFinite(row.height) ? row.height : 200, 
@@ -83,6 +88,10 @@ function sanitizeForFirestore(data: any): any {
 export async function saveNode(workspaceId: string, node: Node) {
     const nodeRef = doc(db, `workspaces/${workspaceId}/nodes`, node.id);
     const sanitizedData = sanitizeForFirestore(node.data);
+
+    const createdAt = (node.data as any)?.createdAt || new Date().toISOString();
+    const updatedAt = new Date().toISOString();
+
     await setDoc(nodeRef, {
         id: node.id,
         workspace_id: workspaceId,
@@ -93,6 +102,8 @@ export async function saveNode(workspaceId: string, node: Node) {
         height: typeof node.style?.height === 'number' ? node.style.height : 200,
         data: sanitizedData as unknown as Json,
         z_index: (node.style?.zIndex as number) || 0,
+        created_at: createdAt,
+        updated_at: updatedAt,
     }, { merge: true });
 }
 
@@ -212,11 +223,16 @@ export function subscribeCanvasNodes(workspaceId: string, onUpdate: (nodes: Node
 
         const nodes = snapshot.docs.map((docSnap) => {
             const row = docSnap.data();
+            const existingData = (row.data as Record<string, unknown>) || {};
             return {
                 id: row.id,
                 type: row.type,
                 position: { x: row.position_x, y: row.position_y },
-                data: (row.data as Record<string, unknown>) || {},
+                data: {
+                  ...existingData,
+                  createdAt: existingData.createdAt || row.created_at || null,
+                  updatedAt: existingData.updatedAt || row.updated_at || null,
+                } as Record<string, unknown>,
                 style: { width: row.width, height: row.height, zIndex: row.z_index },
             };
         });

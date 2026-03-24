@@ -814,6 +814,19 @@ function convertBlockNoteInlineToTiptap(content?: any): JSONContent[] {
 
 /* ──────────────── Helpers ──────────────── */
 
+/**
+ * Migrates date fields during editor content conversion.
+ * Preserves createdAt from source, sets updatedAt to now.
+ */
+export function migrateDateFields(source: any, target: any): any {
+  const now = new Date().toISOString();
+  return {
+    ...target,
+    createdAt: source?.createdAt || target?.createdAt || now,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 function createEmptyParagraph() {
   return {
     id: fastId(),
