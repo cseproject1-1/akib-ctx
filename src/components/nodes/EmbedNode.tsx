@@ -4,6 +4,7 @@ import { useCanvasStore } from '@/store/canvasStore';
 import { Globe, ExternalLink, X, Expand, Loader2 } from 'lucide-react';
 import { WORKER_URL } from '@/lib/firebase/client';
 import { EmbedNodeData } from '@/types/canvas';
+import { HANDLE_IDS } from '@/lib/constants/canvas';
 
 interface UrlMetadata {
   title: string | null;
@@ -323,10 +324,14 @@ export const EmbedNode = memo(({ id, data, selected }: NodeProps) => {
         )}
       </div>
 
-      <Handle type="target" position={Position.Top} className="!-top-1.5 !opacity-0 group-hover:!opacity-100" />
-      <Handle type="source" position={Position.Bottom} className="!-bottom-1.5 !opacity-0 group-hover:!opacity-100" />
-      <Handle type="target" position={Position.Left} className="!-left-1.5 !opacity-0 group-hover:!opacity-100" />
-      <Handle type="source" position={Position.Right} className="!-right-1.5 !opacity-0 group-hover:!opacity-100" />
+      <Handle type="target" position={Position.Top} id={HANDLE_IDS.TARGET.TOP} className="!-top-1.5 !opacity-0 group-hover:!opacity-100" />
+      <Handle type="source" position={Position.Top} id={HANDLE_IDS.SOURCE.TOP} className="!-top-1.5 !opacity-0 group-hover:!opacity-100" />
+      <Handle type="target" position={Position.Bottom} id={HANDLE_IDS.TARGET.BOTTOM} className="!-bottom-1.5 !opacity-0 group-hover:!opacity-100" />
+      <Handle type="source" position={Position.Bottom} id={HANDLE_IDS.SOURCE.BOTTOM} className="!-bottom-1.5 !opacity-0 group-hover:!opacity-100" />
+      <Handle type="target" position={Position.Left} id={HANDLE_IDS.TARGET.LEFT} className="!-left-1.5 !opacity-0 group-hover:!opacity-100" />
+      <Handle type="source" position={Position.Left} id={HANDLE_IDS.SOURCE.LEFT} className="!-left-1.5 !opacity-0 group-hover:!opacity-100" />
+      <Handle type="target" position={Position.Right} id={HANDLE_IDS.TARGET.RIGHT} className="!-right-1.5 !opacity-0 group-hover:!opacity-100" />
+      <Handle type="source" position={Position.Right} id={HANDLE_IDS.SOURCE.RIGHT} className="!-right-1.5 !opacity-0 group-hover:!opacity-100" />
     </div>
   );
 });

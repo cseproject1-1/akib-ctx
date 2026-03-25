@@ -96,8 +96,17 @@ const TYPE_LABELS: Record<string, string> = {
   termQuestion: '📖 Term', aiNote: '📝 Note',
 };
 
+/** Compute absolute position of a node, accounting for parent nesting */
+function getAbsolutePosition(node: Node, allNodes: Node[]): { x: number; y: number } {
+  if (!node.parentId) return node.position;
+  const parent = allNodes.find(n => n.id === node.parentId);
+  if (!parent) return node.position;
+  const parentPos = getAbsolutePosition(parent, allNodes);
+  return { x: parentPos.x + node.position.x, y: parentPos.y + node.position.y };
+}
+
 /** Compute the best source/target handle IDs based on relative node positions */
-function computeBestHandles(sourceNode: Node | undefined, targetNode: Node | undefined): { sourceHandle: string; targetHandle: string } {
+function computeBestHandles(sourceNode: Node | undefined, targetNode: Node | undefined, allNodes: Node[]): { sourceHandle: string; targetHandle: string } {
   if (!sourceNode || !targetNode) return { sourceHandle: HANDLE_IDS.SOURCE.RIGHT, targetHandle: HANDLE_IDS.TARGET.LEFT };
 
   const sw = (sourceNode.style?.width as number) || sourceNode.measured?.width || 300;
@@ -105,10 +114,13 @@ function computeBestHandles(sourceNode: Node | undefined, targetNode: Node | und
   const tw = (targetNode.style?.width as number) || targetNode.measured?.width || 300;
   const th = (targetNode.style?.height as number) || targetNode.measured?.height || 200;
 
-  const sCx = sourceNode.position.x + sw / 2;
-  const sCy = sourceNode.position.y + sh / 2;
-  const tCx = targetNode.position.x + tw / 2;
-  const tCy = targetNode.position.y + th / 2;
+  const sPos = getAbsolutePosition(sourceNode, allNodes);
+  const tPos = getAbsolutePosition(targetNode, allNodes);
+
+  const sCx = sPos.x + sw / 2;
+  const sCy = sPos.y + sh / 2;
+  const tCx = tPos.x + tw / 2;
+  const tCy = tPos.y + th / 2;
 
   const dx = tCx - sCx;
   const dy = tCy - sCy;
@@ -773,34 +785,8 @@ export function CanvasWrapper() {
     if (focusMode) setFocusedNodeId(null);
   }, [contextMenu, setContextMenu, setNodeContextMenu, focusMode, setFocusedNodeId]);
 
-  // Double-click on empty canvas to quick-create a note
-  const handlePaneDoubleClick = useCallback((event: React.MouseEvent) => {
-    if (isViewMode || !reactFlowInstance.current) return;
-
-    // Don't create a new node if double-clicking inside an existing node or interactive element
-    const target = event.target as HTMLElement;
-    const isInsideNode = target.closest('.react-flow__node');
-    const isInsideEditable = target.closest('.tiptap-editor, .tiptap-wrapper, textarea, input, [contenteditable="true"], .nodrag, .nowheel');
-    if (isInsideNode || isInsideEditable) return;
-
-    const position = reactFlowInstance.current.screenToFlowPosition({
-      x: event.clientX,
-      y: event.clientY,
-    });
-    
-    // Add a tiny bit of jitter so multiple clicks don't stack perfectly if user clicks fast
-    const jitterX = (Math.random() - 0.5) * 10;
-    const jitterY = (Math.random() - 0.5) * 10;
-
-    addNode({
-      id: crypto.randomUUID(),
-      type: 'aiNote',
-      position: { x: position.x + jitterX, y: position.y + jitterY },
-      data: { title: 'Untitled Note', content: null },
-      style: { width: 380, height: 500 },
-    });
-    toast.success('Note created');
-  }, [isViewMode, addNode]);
+  // Double-click on empty canvas disabled - was creating unwanted AINote nodes
+  const handlePaneDoubleClick = useCallback(() => {}, []);
 
   // In focus mode, clicking a node focuses it
   const handleNodeClick = useCallback((_: React.MouseEvent, node: Node) => {
@@ -818,7 +804,7 @@ export function CanvasWrapper() {
         // Compute best handles based on relative node positions
         const sourceNode = allNodes.find(n => n.id === connectSourceId);
         const targetNode = node;
-        const { sourceHandle, targetHandle } = computeBestHandles(sourceNode, targetNode);
+        const { sourceHandle, targetHandle } = computeBestHandles(sourceNode, targetNode, allNodes);
 
         useCanvasStore.setState({
           edges: [...currentEdges, {
@@ -1044,7 +1030,7 @@ export function CanvasWrapper() {
               const vy = parseFloat(y);
               const vz = parseFloat(z);
               
-              if (!isNaN(vx) && !isNaN(vy) && !isNaN(vz) && vz >= 0.1 && vz <= 4 && isFinite(vx) && isFinite(vy)) {
+              if (!isNaN(vx) && !isNaN(vy) && !isNaN(vz) && vz >= 0.1 && vz <= 2 && isFinite(vx) && isFinite(vy)) {
                 // use timeout to ensure nodes have rendered bounds
                 setTimeout(() => {
                   instance.setViewport({ x: vx, y: vy, zoom: vz });

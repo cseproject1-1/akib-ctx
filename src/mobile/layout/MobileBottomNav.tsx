@@ -17,7 +17,7 @@ export function MobileBottomNav() {
   const getCurrentPath = () => {
     const path = location.pathname;
     if (path === '/mobile-mode') return '/mobile-mode';
-    if (path.startsWith('/mobile-mode/workspace')) return '/mobile-mode/workspace';
+    if (path.startsWith('/mobile-mode/workspace/') && !path.includes('/settings')) return '/mobile-mode/workspace';
     if (path.startsWith('/mobile-mode/search')) return '/mobile-mode/search';
     if (path.startsWith('/mobile-mode/settings')) return '/mobile-mode/settings';
     return '/mobile-mode';
@@ -66,7 +66,8 @@ export function MobileBottomNav() {
         {/* Workspace tab (dynamically shown when in workspace) */}
         {location.pathname.startsWith('/mobile-mode/workspace') && (
           <button
-            className="flex flex-col items-center justify-center flex-1 h-full min-w-[64px] px-2 rounded-lg text-primary"
+            onClick={() => navigate('/mobile-mode')}
+            className="flex flex-col items-center justify-center flex-1 h-full min-w-[64px] px-2 rounded-lg text-primary transition-colors"
             aria-label="Current Workspace"
             aria-current="page"
           >

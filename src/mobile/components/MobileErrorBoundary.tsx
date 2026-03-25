@@ -35,8 +35,15 @@ export class MobileErrorBoundary extends Component<Props, State> {
     window.location.href = '/mobile-mode';
   };
 
+  isNetworkError(error: Error | null): boolean {
+    if (!error) return false;
+    const msg = error.message.toLowerCase();
+    return msg.includes('network') || msg.includes('fetch') || msg.includes('offline') || msg.includes('failed to load');
+  }
+
   render() {
     if (this.state.hasError) {
+      const isNetwork = this.isNetworkError(this.state.error);
       return this.props.fallback || (
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -50,9 +57,13 @@ export class MobileErrorBoundary extends Component<Props, State> {
             <AlertTriangle className="h-16 w-16 text-yellow-500 mb-4" />
           </motion.div>
           
-          <h2 className="text-xl font-semibold mb-2">Something went wrong</h2>
+          <h2 className="text-xl font-semibold mb-2">
+            {isNetwork ? 'Connection Error' : 'Something went wrong'}
+          </h2>
           <p className="text-muted-foreground mb-6 max-w-xs">
-            We encountered an unexpected error. Please try again or go back to home.
+            {isNetwork
+              ? 'Unable to connect. Please check your internet connection and try again.'
+              : 'We encountered an unexpected error. Please try again or go back to home.'}
           </p>
           
           <div className="flex gap-3">

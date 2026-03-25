@@ -97,6 +97,8 @@ export interface FlashcardNodeData extends SharedNodeFields {
 export interface StickyNoteNodeData extends SharedNodeFields {
   text: string;
   fontSize?: 'S' | 'M' | 'L';
+  width?: number;
+  height?: number;
 }
 
 export interface ChecklistNodeData extends SharedNodeFields {

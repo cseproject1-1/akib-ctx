@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, X, FileText, LayoutGrid, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -11,11 +11,19 @@ type SearchType = 'all' | 'nodes' | 'workspaces';
 export function MobileSearch() {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [searchType, setSearchType] = useState<SearchType>('all');
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   
   const nodes = useCanvasStore((s) => s.nodes);
   const workspaces = useCanvasStore((s) => s.openWorkspaces);
+  const currentWorkspaceId = useCanvasStore((s) => s.workspaceId);
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(query), 200);
+    return () => clearTimeout(timer);
+  }, [query]);
 
   // Load recent searches from localStorage
   useEffect(() => {
@@ -30,19 +38,19 @@ export function MobileSearch() {
   }, []);
 
   // Save search to recent
-  const saveSearch = (newQuery: string) => {
+  const saveSearch = useCallback((newQuery: string) => {
     if (!newQuery.trim()) return;
     
     const updated = [newQuery, ...recentSearches.filter(s => s !== newQuery)].slice(0, 10);
     setRecentSearches(updated);
     try { localStorage.setItem('crxnote-recent-searches', JSON.stringify(updated)); } catch { /* quota */ }
-  };
+  }, [recentSearches]);
 
   // Search results
   const results = useMemo(() => {
-    if (!query.trim()) return { nodes: [], workspaces: [] };
+    if (!debouncedQuery.trim()) return { nodes: [], workspaces: [] };
     
-    const q = query.toLowerCase();
+    const q = debouncedQuery.toLowerCase();
     
     const filteredNodes = nodes.filter(node => {
       const data = node.data as any;
@@ -56,7 +64,7 @@ export function MobileSearch() {
     );
     
     return { nodes: filteredNodes, workspaces: filteredWorkspaces };
-  }, [query, nodes, workspaces]);
+  }, [debouncedQuery, nodes, workspaces]);
 
   const handleClear = () => {
     setQuery('');
@@ -73,12 +81,12 @@ export function MobileSearch() {
     navigate(`/mobile-mode/workspace/${workspaceId}`);
   };
 
-  const handleNodeClick = (nodeId: string) => {
+  const handleNodeClick = useCallback((nodeId: string) => {
     saveSearch(query);
-    // Find which workspace contains this node and navigate there
-    // For now, just show info
-    console.log('Node clicked:', nodeId);
-  };
+    if (currentWorkspaceId) {
+      navigate(`/mobile-mode/workspace/${currentWorkspaceId}`);
+    }
+  }, [query, currentWorkspaceId, navigate, saveSearch]);
 
   return (
     <MobileLayout title="Search" showBottomNav={true}>
@@ -99,6 +107,7 @@ export function MobileSearch() {
             <button
               onClick={handleClear}
               className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-accent/50"
+              aria-label="Clear search"
             >
               <X className="h-4 w-4 text-muted-foreground" />
             </button>
@@ -126,7 +135,7 @@ export function MobileSearch() {
         {/* Results or Recent Searches */}
         <div className="flex-1 overflow-y-auto">
           <AnimatePresence mode="wait">
-            {query ? (
+            {debouncedQuery ? (
               <motion.div
                 key="results"
                 initial={{ opacity: 0 }}
@@ -215,9 +224,9 @@ export function MobileSearch() {
                   </div>
                 ) : (
                   <div className="space-y-1">
-                    {recentSearches.map((search, index) => (
+                    {recentSearches.map((search) => (
                       <button
-                        key={index}
+                        key={search}
                         onClick={() => {
                           setQuery(search);
                           saveSearch(search);
@@ -234,6 +243,7 @@ export function MobileSearch() {
                         localStorage.removeItem('crxnote-recent-searches');
                       }}
                       className="w-full text-center text-sm text-muted-foreground hover:text-foreground py-2"
+                      aria-label="Clear recent searches"
                     >
                       Clear recent searches
                     </button>

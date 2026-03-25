@@ -76,22 +76,22 @@ async function applyPendingOpsToNodes(nodes: Node[], workspaceId: string): Promi
       case 'updatePosition': {
         const [wsId, nodeId, x, y] = op.args as [string, string, number, number];
         if (wsId !== workspaceId) continue;
-        const node = result.find(n => n.id === nodeId);
-        if (node) node.position = { x, y };
+        const idx = result.findIndex(n => n.id === nodeId);
+        if (idx >= 0) result[idx] = { ...result[idx], position: { x, y } };
         break;
       }
       case 'updateData': {
         const [wsId, nodeId, data] = op.args as [string, string, Record<string, unknown>];
         if (wsId !== workspaceId) continue;
-        const node = result.find(n => n.id === nodeId);
-        if (node) node.data = { ...node.data, ...data };
+        const idx = result.findIndex(n => n.id === nodeId);
+        if (idx >= 0) result[idx] = { ...result[idx], data: { ...result[idx].data, ...data } };
         break;
       }
       case 'updateStyle': {
         const [wsId, nodeId, width, height, zIndex] = op.args as [string, string, number, number, number];
         if (wsId !== workspaceId) continue;
-        const node = result.find(n => n.id === nodeId);
-        if (node) node.style = { ...node.style, width, height, zIndex };
+        const idx = result.findIndex(n => n.id === nodeId);
+        if (idx >= 0) result[idx] = { ...result[idx], style: { ...result[idx].style, width, height, zIndex } };
         break;
       }
     }
@@ -132,10 +132,13 @@ async function applyPendingOpsToEdges(edges: Edge[], workspaceId: string): Promi
       case 'updateEdgeData': {
         const [wsId, edgeId, data, label] = op.args as [string, string, Record<string, unknown>, string | undefined];
         if (wsId !== workspaceId) continue;
-        const edge = result.find(e => e.id === edgeId);
-        if (edge) {
-          edge.data = { ...edge.data, ...data };
-          if (label !== undefined) edge.label = label;
+        const idx = result.findIndex(e => e.id === edgeId);
+        if (idx >= 0) {
+          result[idx] = {
+            ...result[idx],
+            data: { ...result[idx].data, ...data },
+            ...(label !== undefined ? { label } : {}),
+          };
         }
         break;
       }
@@ -149,11 +152,24 @@ async function applyPendingOpsToEdges(edges: Edge[], workspaceId: string): Promi
  * Validates that an operation still makes sense to perform.
  * e.g. don't try to update a node that has a pending delete operation.
  */
-async function validateAndFilterOps(ops: PendingOp[]): Promise<PendingOp[]> {
+async function validateAndFilterOps(ops: PendingOp[], cachedEdges?: Edge[]): Promise<PendingOp[]> {
   const deletedNodeIds = new Map<string, Set<string>>(); // workspaceId -> Set<nodeId>
   const deletedEdgeIds = new Map<string, Set<string>>(); // workspaceId -> Set<edgeId>
   
-  // First pass: identify all deletions
+  // Build edge source/target lookup from cached edges + pending saveEdge ops
+  const edgeNodes = new Map<string, { source: string; target: string; wsId: string }>();
+  if (cachedEdges) {
+    // We don't have workspaceId per edge from cache, so we collect all wsIds from ops
+    const wsIds = new Set<string>();
+    for (const op of ops) wsIds.add(op.args[0] as string);
+    for (const wsId of wsIds) {
+      for (const edge of cachedEdges) {
+        edgeNodes.set(edge.id, { source: edge.source, target: edge.target, wsId });
+      }
+    }
+  }
+  
+  // First pass: identify all deletions and build edge map from pending saves
   for (const op of ops) {
     if (op.type === 'deleteNode') {
       const [wsId, nodeId] = op.args as [string, string];
@@ -164,6 +180,10 @@ async function validateAndFilterOps(ops: PendingOp[]): Promise<PendingOp[]> {
       const [wsId, edgeId] = op.args as [string, string];
       if (!deletedEdgeIds.has(wsId)) deletedEdgeIds.set(wsId, new Set());
       deletedEdgeIds.get(wsId)!.add(edgeId);
+    }
+    if (op.type === 'saveEdge') {
+      const [wsId, edge] = [op.args[0] as string, op.args[1] as Edge];
+      edgeNodes.set(edge.id, { source: edge.source, target: edge.target, wsId });
     }
   }
 
@@ -186,8 +206,12 @@ async function validateAndFilterOps(ops: PendingOp[]): Promise<PendingOp[]> {
         const edgeId = edge ? edge.id : (args[1] as string);
         if (deletedEdgeIds.get(wsId)?.has(edgeId)) return false;
         
-        // If node is deleted, edge is orphaned
-        if (edge && (deletedNodeIds.get(wsId)?.has(edge.source) || deletedNodeIds.get(wsId)?.has(edge.target))) return false;
+        // Check if source or target node is deleted
+        const edgeInfo = edge ? { source: edge.source, target: edge.target } : edgeNodes.get(edgeId);
+        if (edgeInfo) {
+          if (deletedNodeIds.get(wsId)?.has(edgeInfo.source)) return false;
+          if (deletedNodeIds.get(wsId)?.has(edgeInfo.target)) return false;
+        }
         return true;
       }
       default:
@@ -405,10 +429,10 @@ async function ensureSession(): Promise<boolean> {
 
 function isAuthError(err: any): boolean {
   const msg = String(err?.message || '').toLowerCase();
-  const code = String(err?.code || '').toLowerCase();
+  const code = String(err?.code || '').toLowerCase().replace(/_/g, '-');
   return msg.includes('jwt') || msg.includes('not authenticated') ||
     msg.includes('unauthenticated') || msg.includes('permission-denied') ||
-    code === '401' || code === '403' || code === 'permission-denied' || 
+    code === '401' || code === '403' || code === 'permission-denied' ||
     code === 'unauthenticated' || code.includes('auth/');
 }
 
@@ -437,7 +461,7 @@ async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
 
       if (isAuthError(err)) {
         const refreshed = await ensureSession();
-        if (!refreshed && i === attempts - 1) throw err;
+        if (!refreshed) throw err;
       }
 
       if (i === attempts - 1) throw err;
@@ -618,8 +642,18 @@ export async function replayPendingOps(isRetry = false) {
       return;
     }
 
+    // Load cached edges for all workspaces referenced in pending ops (for orphan detection)
+    const wsIds = new Set(ops.map(op => op.args[0] as string));
+    let cachedEdges: Edge[] | undefined;
+    for (const wsId of wsIds) {
+      const edgeEntry = await cacheGet<Edge[]>('canvas-edges', wsId);
+      if (edgeEntry?.data) {
+        cachedEdges = cachedEdges ? [...cachedEdges, ...edgeEntry.data] : edgeEntry.data;
+      }
+    }
+
     // Filter out conflicting/orphaned ops
-    ops = await validateAndFilterOps(ops);
+    ops = await validateAndFilterOps(ops, cachedEdges);
     
     const now = Date.now();
     let purged = 0;
@@ -769,7 +803,10 @@ export async function replayPendingOps(isRetry = false) {
     console.error('[sync] Replay failed with unexpected error:', err);
   } finally {
     clearTimeout(safetyTimeout);
-    _replaying = false;
+    // Only reset if we are still the active generation
+    if (_replayGeneration === myGeneration) {
+      _replaying = false;
+    }
   }
 }
 

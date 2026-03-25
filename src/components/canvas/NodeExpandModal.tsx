@@ -714,7 +714,7 @@ export function NodeExpandModal() {
       case 'image':
         return (
           <div className="flex items-center justify-center">
-            {nodeData.url ? <img src={nodeData.url} alt={nodeData.title || 'Image'} className="max-w-full max-h-[70vh] object-contain rounded-lg" /> : <span className="text-muted-foreground">No image</span>}
+            {(nodeData.storageUrl || nodeData.url) ? <img src={nodeData.storageUrl || nodeData.url} alt={nodeData.title || 'Image'} className="max-w-full max-h-[70vh] object-contain rounded-lg" /> : <span className="text-muted-foreground">No image</span>}
           </div>
         );
 

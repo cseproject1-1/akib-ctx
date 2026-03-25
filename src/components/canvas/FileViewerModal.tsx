@@ -29,7 +29,7 @@ function isOffice(t?: string) {
 }
 function isCSV(t?: string) { return t === 'csv'; }
 function isTXT(t?: string) { return t === 'txt'; }
-function isPDF(t?: string) { return t === 'pdf' || !t; }
+function isPDF(t?: string) { return t === 'pdf'; }
 
 function fileIcon(t?: string) {
   if (isPDF(t)) return <FileText className="h-4 w-4" />;
@@ -45,6 +45,7 @@ function fmtSize(bytes: number) {
 }
 
 function officeUrl(url: string) {
+  if (!url || !/^https?:\/\//i.test(url)) return '';
   return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(url)}`;
 }
 
@@ -175,7 +176,8 @@ function PDFContent({ url, fileName, fileSize }: { url: string; fileName: string
     const handler = (e: WheelEvent) => {
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
-        setZoom((z) => Math.min(Math.max(z + (e.deltaY > 0 ? -0.1 : 0.1), 0.25), 4));
+        const step = Math.abs(e.deltaY) < 10 ? 0.02 : 0.1;
+        setZoom((z) => Math.min(Math.max(z + (e.deltaY > 0 ? -step : step), 0.25), 4));
       }
     };
     el.addEventListener('wheel', handler, { passive: false });
@@ -400,13 +402,14 @@ function FallbackContent({ fileName, fileType }: { fileName: string; fileType?: 
 
 export function FileViewerModal({ url, fileName, fileSize, fileType, onClose }: FileViewerModalProps) {
   const [showBar, setShowBar] = useState(true);
-  const [fsActive, setFsActive] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout>>();
 
   const handleClose = useCallback(() => {
     if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => { }).finally(onClose);
+      document.exitFullscreen()
+        .then(onClose)
+        .catch(() => onClose());
     } else {
       onClose();
     }
@@ -416,11 +419,7 @@ export function FileViewerModal({ url, fileName, fileSize, fileType, onClose }: 
   useEffect(() => {
     const el = containerRef.current;
     if (el?.requestFullscreen) {
-      el.requestFullscreen()
-        .then(() => setFsActive(true))
-        .catch(() => setFsActive(false));
-    } else {
-      setFsActive(true);
+      el.requestFullscreen().catch(() => {});
     }
     const onFs = () => {
       if (!document.fullscreenElement) handleClose();
@@ -471,7 +470,7 @@ export function FileViewerModal({ url, fileName, fileSize, fileType, onClose }: 
   return (
     <div
       ref={containerRef}
-      className={`flex flex-col bg-black text-white ${fsActive ? 'fixed inset-0 z-[100]' : 'fixed inset-0 z-[100]'}`}
+      className="flex flex-col bg-black text-white fixed inset-0 z-[100]"
       onMouseMove={resetTimer}
     >
       {/* Top bar */}

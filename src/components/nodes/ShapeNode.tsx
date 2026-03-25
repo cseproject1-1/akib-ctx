@@ -2,6 +2,7 @@ import { memo, useState, useCallback } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { ShapeNodeData } from '@/types/canvas';
+import { HANDLE_IDS } from '@/lib/constants/canvas';
 
 const shapeColors: Record<string, string> = {
   default: 'hsl(0 0% 25%)',
@@ -83,10 +84,14 @@ export const ShapeNode = memo(({ id, data, selected }: NodeProps) => {
       {selected && (
         <div className="absolute -top-0.5 -left-0.5 -right-0.5 -bottom-0.5 border-2 border-primary rounded pointer-events-none" />
       )}
-      <Handle type="source" position={Position.Top} id="top" className="perimeter-handle !-top-1 !left-0 !w-full !h-2.5 !rounded-none !transform-none" />
-      <Handle type="source" position={Position.Bottom} id="bottom" className="perimeter-handle !-bottom-1 !left-0 !w-full !h-2.5 !rounded-none !transform-none" />
-      <Handle type="source" position={Position.Left} id="left" className="perimeter-handle !-left-1 !top-0 !h-full !w-2.5 !rounded-none !transform-none" />
-      <Handle type="source" position={Position.Right} id="right" className="perimeter-handle !-right-1 !top-0 !h-full !w-2.5 !rounded-none !transform-none" />
+      <Handle type="target" position={Position.Top} id={HANDLE_IDS.TARGET.TOP} className="perimeter-handle !-top-1 !left-0 !w-full !h-2.5 !rounded-none !transform-none" />
+      <Handle type="source" position={Position.Top} id={HANDLE_IDS.SOURCE.TOP} className="perimeter-handle !-top-1 !left-0 !w-full !h-2.5 !rounded-none !transform-none" />
+      <Handle type="target" position={Position.Bottom} id={HANDLE_IDS.TARGET.BOTTOM} className="perimeter-handle !-bottom-1 !left-0 !w-full !h-2.5 !rounded-none !transform-none" />
+      <Handle type="source" position={Position.Bottom} id={HANDLE_IDS.SOURCE.BOTTOM} className="perimeter-handle !-bottom-1 !left-0 !w-full !h-2.5 !rounded-none !transform-none" />
+      <Handle type="target" position={Position.Left} id={HANDLE_IDS.TARGET.LEFT} className="perimeter-handle !-left-1 !top-0 !h-full !w-2.5 !rounded-none !transform-none" />
+      <Handle type="source" position={Position.Left} id={HANDLE_IDS.SOURCE.LEFT} className="perimeter-handle !-left-1 !top-0 !h-full !w-2.5 !rounded-none !transform-none" />
+      <Handle type="target" position={Position.Right} id={HANDLE_IDS.TARGET.RIGHT} className="perimeter-handle !-right-1 !top-0 !h-full !w-2.5 !rounded-none !transform-none" />
+      <Handle type="source" position={Position.Right} id={HANDLE_IDS.SOURCE.RIGHT} className="perimeter-handle !-right-1 !top-0 !h-full !w-2.5 !rounded-none !transform-none" />
       <div className="anchor-dot top-0 left-1/2 -translate-x-1/2 -translate-y-1/2" />
       <div className="anchor-dot bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2" />
       <div className="anchor-dot left-0 top-1/2 -translate-x-1/2 -translate-y-1/2" />

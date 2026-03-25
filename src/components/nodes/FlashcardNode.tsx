@@ -3,6 +3,7 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { RotateCcw, ChevronLeft, ChevronRight, Shuffle, Expand } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { FlashcardNodeData } from '@/types/canvas';
+import { HANDLE_IDS } from '@/lib/constants/canvas';
 
 interface Flashcard {
   question: string;
@@ -145,10 +146,14 @@ export const FlashcardNode = memo(({ id, data, selected }: NodeProps) => {
         <div className="p-4 text-center text-xs text-muted-foreground">No flashcards</div>
       )}
 
-      <Handle type="target" position={Position.Top} className="!-top-1.5 !opacity-0 group-hover:!opacity-100" />
-      <Handle type="source" position={Position.Bottom} className="!-bottom-1.5 !opacity-0 group-hover:!opacity-100" />
-      <Handle type="target" position={Position.Left} className="!-left-1.5 !opacity-0 group-hover:!opacity-100" />
-      <Handle type="source" position={Position.Right} className="!-right-1.5 !opacity-0 group-hover:!opacity-100" />
+      <Handle type="target" position={Position.Top} id={HANDLE_IDS.TARGET.TOP} className="!-top-1.5 !opacity-0 group-hover:!opacity-100" />
+      <Handle type="source" position={Position.Top} id={HANDLE_IDS.SOURCE.TOP} className="!-top-1.5 !opacity-0 group-hover:!opacity-100" />
+      <Handle type="target" position={Position.Bottom} id={HANDLE_IDS.TARGET.BOTTOM} className="!-bottom-1.5 !opacity-0 group-hover:!opacity-100" />
+      <Handle type="source" position={Position.Bottom} id={HANDLE_IDS.SOURCE.BOTTOM} className="!-bottom-1.5 !opacity-0 group-hover:!opacity-100" />
+      <Handle type="target" position={Position.Left} id={HANDLE_IDS.TARGET.LEFT} className="!-left-1.5 !opacity-0 group-hover:!opacity-100" />
+      <Handle type="source" position={Position.Left} id={HANDLE_IDS.SOURCE.LEFT} className="!-left-1.5 !opacity-0 group-hover:!opacity-100" />
+      <Handle type="target" position={Position.Right} id={HANDLE_IDS.TARGET.RIGHT} className="!-right-1.5 !opacity-0 group-hover:!opacity-100" />
+      <Handle type="source" position={Position.Right} id={HANDLE_IDS.SOURCE.RIGHT} className="!-right-1.5 !opacity-0 group-hover:!opacity-100" />
     </div>
   );
 });

@@ -10,6 +10,7 @@ export interface DeviceInfo {
   isMobile: boolean;
   isTablet: boolean;
   isDesktop: boolean;
+  isMobileDevice: boolean; // true for actual mobile/tablet (based on user agent only)
   isIOS: boolean;
   isAndroid: boolean;
   isTouchDevice: boolean;
@@ -24,6 +25,7 @@ export function useDeviceDetect(): DeviceInfo {
     isMobile: false,
     isTablet: false,
     isDesktop: true,
+    isMobileDevice: false,
     isIOS: false,
     isAndroid: false,
     isTouchDevice: false,
@@ -37,18 +39,18 @@ export function useDeviceDetect(): DeviceInfo {
     const height = typeof window !== 'undefined' ? window.innerHeight : 0;
     const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
 
-    // Detect platform
+    // Detect platform based on user agent only
     const isIOS = /iPad|iPhone|iPod/.test(userAgent) || 
       (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     const isAndroid = /Android/.test(userAgent);
     const isMobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(userAgent);
     const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
-    // Determine device type based on width and user agent
+    // Determine actual device type from user agent only
     let type: DeviceType = 'desktop';
-    if (width < MOBILE_BREAKPOINT || isMobileDevice) {
+    if (isMobileDevice || (width > 0 && width < MOBILE_BREAKPOINT)) {
       type = 'mobile';
-    } else if (width < TABLET_BREAKPOINT) {
+    } else if (width > 0 && width < TABLET_BREAKPOINT) {
       type = 'tablet';
     }
 
@@ -57,6 +59,7 @@ export function useDeviceDetect(): DeviceInfo {
       isMobile: type === 'mobile',
       isTablet: type === 'tablet',
       isDesktop: type === 'desktop',
+      isMobileDevice,
       isIOS,
       isAndroid,
       isTouchDevice,

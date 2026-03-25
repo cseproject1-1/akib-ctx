@@ -431,6 +431,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const newNodeProps = structuredClone(node);
     delete (newNodeProps as any).data.pinned;
     
+    // Set new timestamps for the duplicate
+    const now = new Date().toISOString();
+    (newNodeProps as any).data.createdAt = now;
+    (newNodeProps as any).data.updatedAt = now;
+    
     // Guard against NaN in original position
     const posX = isNaN(node.position.x) ? 0 : node.position.x;
     const posY = isNaN(node.position.y) ? 0 : node.position.y;
@@ -502,16 +507,21 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   setNodeContextMenu: (menu) => set({ nodeContextMenu: menu }),
   setEdgeContextMenu: (menu) => set({ edgeContextMenu: menu }),
   updateEdgeData: (id, data) => {
+    // Filter out null/undefined values to prevent Firestore sync errors (matches updateNodeData pattern)
+    const sanitizedData = Object.fromEntries(
+      Object.entries(data).filter(([_, v]) => v !== undefined && v !== null)
+    );
     // Hardening: Trim label if present to prevent empty labels or accidental spaces
-    const processedData = { ...data };
-    const label = typeof data.label === 'string' ? data.label.trim() : undefined;
+    const label = typeof sanitizedData.label === 'string' ? (sanitizedData.label as string).trim() : undefined;
+    // Strip label from data to avoid storing it redundantly in both edge.label and edge.data.label
+    const { label: _, ...cleanData } = sanitizedData;
     
     set((state) => ({
       edges: state.edges.map((e) => (
         e.id === id 
           ? { 
               ...e, 
-              data: { ...e.data, ...processedData }, 
+              data: { ...e.data, ...cleanData }, 
               label: label !== undefined ? label : e.label 
             } 
           : e
@@ -670,10 +680,27 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       }
     }));
 
+    // Migrate old handle IDs ("top","bottom","left","right") to new HANDLE_IDS format ("s-top","t-left", etc.)
+    // This fixes edges created before the handle ID fix without requiring a Firestore migration
+    const OLD_HANDLE_RE = /^(top|bottom|left|right)$/;
+    const safeEdges = (edges || []).map(e => {
+      let migrated = false;
+      const patch: Partial<Edge> = {};
+      if (e.sourceHandle && OLD_HANDLE_RE.test(e.sourceHandle)) {
+        patch.sourceHandle = `s-${e.sourceHandle}`;
+        migrated = true;
+      }
+      if (e.targetHandle && OLD_HANDLE_RE.test(e.targetHandle)) {
+        patch.targetHandle = `t-${e.targetHandle}`;
+        migrated = true;
+      }
+      return migrated ? { ...e, ...patch } : e;
+    });
+
     // Clear history ONLY if preserveHistory is false
     set({ 
       nodes: structuredClone(safeNodes), 
-      edges: structuredClone(edges || []), 
+      edges: structuredClone(safeEdges), 
       drawings: structuredClone(drawings || []),
       past: preserveHistory ? get().past : [], 
       future: preserveHistory ? get().future : [], 

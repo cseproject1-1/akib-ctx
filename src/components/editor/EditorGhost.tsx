@@ -7,13 +7,22 @@ import { toHtml } from 'hast-util-to-html';
 const lowlight = createLowlight(all);
 
 interface EditorGhostProps {
-  content: JSONContent | null | undefined;
+  content: JSONContent | Record<string, unknown>[] | null | undefined;
   className?: string;
   placeholder?: string;
 }
 
 export function EditorGhost({ content, className, placeholder }: EditorGhostProps) {
   const renderedContent = useMemo(() => {
+    // Handle BlockNote format (array of blocks)
+    if (Array.isArray(content)) {
+      if (content.length === 0) {
+        return <p className="text-muted-foreground italic text-sm">{placeholder || 'Empty note...'}</p>;
+      }
+      return renderNodes(content);
+    }
+
+    // Handle Tiptap format (object with .content)
     if (!content || !content.content || content.content.length === 0) {
       return <p className="text-muted-foreground italic text-sm">{placeholder || 'Empty note...'}</p>;
     }

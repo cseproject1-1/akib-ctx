@@ -201,7 +201,7 @@ function ReadOnlyVideo({ url, title }: { url: string; title?: string }) {
   const embedUrl = ytMatch
     ? `https://www.youtube.com/embed/${ytMatch[1]}?rel=0`
     : vimeoMatch
-      ? `https://player.vimeo.com/video/${vimeoMatch[1]}`
+      ? `https://player.vimeo.com/video/${vimeoMatch[1]}?autoplay=1`
       : null;
   return embedUrl ? (
     <iframe src={embedUrl} title={title || 'Video'} className="w-full aspect-video rounded-xl border-0" allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
@@ -249,7 +249,7 @@ function NodeContent({ node }: { node: Node }) {
     case 'table':
       return <ReadOnlyTable headers={data.headers || []} rows={data.rows || []} />;
     case 'image':
-      return <ReadOnlyImage url={data.url} title={data.title} />;
+      return <ReadOnlyImage url={data.storageUrl || data.url} title={data.title} />;
     case 'embed':
       return <ReadOnlyEmbed url={data.url} title={data.title} />;
     case 'drawing':
@@ -358,7 +358,7 @@ export function MobileViewMode({ nodes, onClose, initialNodeId }: MobileViewMode
   useEffect(() => {
     resetHeaderTimer();
     return () => { if (headerTimer.current) clearTimeout(headerTimer.current); };
-  }, [resetHeaderTimer]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const currentNode = sortedNodes[currentIndex];
   const canPrev = currentIndex > 0;
@@ -415,7 +415,9 @@ export function MobileViewMode({ nodes, onClose, initialNodeId }: MobileViewMode
 
   const handleTouchEnd = useCallback(() => {
     if (isSwiping) {
-      const velocity = Math.abs(swipeOffset) / Math.max(Date.now() - touchStart.current.time, 1) * 1000;
+      const elapsed = Math.max(Date.now() - touchStart.current.time, 1);
+      const rawVelocity = Math.abs(swipeOffset) / elapsed * 1000;
+      const velocity = Math.min(rawVelocity, 5000); // Cap velocity to prevent instability
       const threshold = velocity > 300 ? 30 : 60;
 
       if (swipeOffset < -threshold && canNext) {

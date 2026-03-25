@@ -31,9 +31,8 @@ export function MobileRouteGuard({ children }: MobileRouteGuardProps) {
       return;
     }
 
-    // Auto-redirect to mobile mode on mobile/tablet devices
-    // Check both screen width and user agent detection
-    const shouldRedirect = device.isMobile || device.isTablet;
+    // Auto-redirect to mobile mode on actual mobile/tablet devices (based on user agent only)
+    const shouldRedirect = device.isMobileDevice;
     
     if (shouldRedirect && !location.pathname.startsWith('/mobile-mode')) {
       // Construct mobile path matching current route

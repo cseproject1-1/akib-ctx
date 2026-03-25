@@ -141,8 +141,8 @@ export function MobileDashboard() {
       handleRefresh();
     } else {
       setRefreshY(0);
+      setIsPulling(false);
     }
-    setIsPulling(false);
     touchDeltaY.current = 0;
   };
 

@@ -58,6 +58,9 @@ const WorkspacePage = () => {
   const posTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const styleTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const edgeTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  // Queue node/edge deletions that occur during _skipSync window so they aren't silently lost
+  const deferredDeletes = useRef<{ type: 'node' | 'edge'; id: string }[]>([]);
+  const prevSkipSync = useRef(true); // track _skipSync transitions
 
   const loadWorkspaceData = useCallback(async () => {
     if (!workspaceId) return;
@@ -273,6 +276,17 @@ const WorkspacePage = () => {
     });
 
     const cursorsUnsub = subscribeCursors(workspaceId, (freshCursors) => {
+      const { cursors } = useCanvasStore.getState();
+      const freshIds = new Set(Object.keys(freshCursors));
+
+      // Remove cursors that are no longer present (user left or timed out)
+      Object.keys(cursors).forEach((id) => {
+        if (!freshIds.has(id)) {
+          removeCursor(id);
+        }
+      });
+
+      // Add/update remaining cursors
       Object.entries(freshCursors).forEach(([id, cursor]) => {
         updateCursorPosition(id, cursor.x, cursor.y, cursor.name, cursor.color);
       });
@@ -283,7 +297,7 @@ const WorkspacePage = () => {
       if (edgesUnsub) edgesUnsub();
       if (cursorsUnsub) cursorsUnsub();
     };
-  }, [workspaceId, updateCursorPosition, loadCanvas]);
+  }, [workspaceId, updateCursorPosition, removeCursor, loadCanvas]);
 
    // Subscribe to store changes and persist (using cached write-through wrappers)
    useEffect(() => {
@@ -296,10 +310,45 @@ const WorkspacePage = () => {
        promise.then(() => decSave()).catch(() => decSave(true));
      };
  
-     const unsub = useCanvasStore.subscribe((state, prev) => {
-       if (state._skipSync) return;
-       if (!loadComplete.current) return;
-       if (state.workspaceId !== workspaceId) return;
+      const unsub = useCanvasStore.subscribe((state, prev) => {
+        // When _skipSync transitions from true to false, flush any queued deletions
+        if (prevSkipSync.current && !state._skipSync) {
+          prevSkipSync.current = false;
+          const queued = deferredDeletes.current.splice(0);
+          for (const item of queued) {
+            if (item.type === 'node') {
+              trackSave(deleteCanvasNode(workspaceId, item.id));
+            } else {
+              trackSave(deleteCanvasEdge(workspaceId, item.id));
+            }
+          }
+        } else if (!prevSkipSync.current && state._skipSync) {
+          prevSkipSync.current = true;
+        }
+
+        if (state._skipSync) {
+          // During _skipSync, still track deletions so they aren't lost
+          const prevNodes = prev.nodes;
+          const currNodes = state.nodes;
+          const prevEdges = prev.edges;
+          const currEdges = state.edges;
+
+          prevNodes.forEach((pNode) => {
+            const stillExists = currNodes.find((c) => c.id === pNode.id);
+            if (!stillExists && serverNodeIds.current.has(pNode.id)) {
+              deferredDeletes.current.push({ type: 'node', id: pNode.id });
+            }
+          });
+          prevEdges.forEach((pEdge) => {
+            const stillExists = currEdges.find((c) => c.id === pEdge.id);
+            if (!stillExists && serverEdgeIds.current.has(pEdge.id)) {
+              deferredDeletes.current.push({ type: 'edge', id: pEdge.id });
+            }
+          });
+          return;
+        }
+        if (!loadComplete.current) return;
+        if (state.workspaceId !== workspaceId) return;
 
        const prevNodes = prev.nodes;
        const currNodes = state.nodes;
@@ -391,29 +440,35 @@ const WorkspacePage = () => {
          }
        });
 
-       // ── Edge additions ──
-       currEdges.forEach((edge) => {
-         const existed = prevEdges.find((p) => p.id === edge.id);
-         if (!existed) {
-           trackSave(saveEdge(workspaceId, edge));
-           return;
-         }
+        // ── Edge additions ──
+        currEdges.forEach((edge) => {
+          const existed = prevEdges.find((p) => p.id === edge.id);
+          if (!existed) {
+            trackSave(saveEdge(workspaceId, edge));
+            return;
+          }
 
-         // ── Edge data/label changes (debounced 800ms) ──
-         if (edge.data !== existed.data || edge.label !== existed.label) {
-           const prev = edgeTimers.current.get(edge.id);
-           if (prev) clearTimeout(prev);
-           edgeTimers.current.set(
-             edge.id,
-             setTimeout(() => {
-               const { edges: latest } = useCanvasStore.getState();
-               const e = latest.find((e) => e.id === edge.id);
-               if (e) trackSave(updateEdgeDataInDb(workspaceId, edge.id, (e.data as Record<string, unknown>) || {}, e.label as string | undefined));
-               edgeTimers.current.delete(edge.id);
-             }, 800)
-           );
-         }
-       });
+          // ── Edge source/target/handle changes (re-save entire edge) ──
+          if (edge.source !== existed.source || edge.target !== existed.target ||
+              edge.sourceHandle !== existed.sourceHandle || edge.targetHandle !== existed.targetHandle) {
+            trackSave(saveEdge(workspaceId, edge));
+          }
+
+          // ── Edge data/label changes (debounced 800ms) ──
+          if (edge.data !== existed.data || edge.label !== existed.label) {
+            const prev = edgeTimers.current.get(edge.id);
+            if (prev) clearTimeout(prev);
+            edgeTimers.current.set(
+              edge.id,
+              setTimeout(() => {
+                const { edges: latest } = useCanvasStore.getState();
+                const e = latest.find((e) => e.id === edge.id);
+                if (e) trackSave(updateEdgeDataInDb(workspaceId, edge.id, (e.data as Record<string, unknown>) || {}, e.label as string | undefined));
+                edgeTimers.current.delete(edge.id);
+              }, 800)
+            );
+          }
+        });
 
        // ── Edge deletions ──
        prevEdges.forEach((pEdge) => {
@@ -447,31 +502,36 @@ const WorkspacePage = () => {
      const curStyleTimers = styleTimers.current;
      const curEdgeTimers = edgeTimers.current;
  
-     return () => {
-       unsub();
-       // Flush pending debounced saves instead of just clearing timers (prevents data loss on navigation)
-       const { nodes, edges } = useCanvasStore.getState();
-       curDataTimers.forEach((_, nodeId) => {
-         const node = nodes.find(n => n.id === nodeId);
-         if (node) updateNodeDataInDb(workspaceId, nodeId, node.data as Record<string, unknown>);
-       });
-       curPosTimers.forEach((_, nodeId) => {
-         const node = nodes.find(n => n.id === nodeId);
-         if (node) updateNodePosition(workspaceId, nodeId, node.position.x, node.position.y);
-       });
-       curStyleTimers.forEach((_, nodeId) => {
-         const node = nodes.find(n => n.id === nodeId);
-         if (node) updateNodeStyle(workspaceId, nodeId, (node.style?.width as number) || 300, (node.style?.height as number) || 200, (node.style?.zIndex as number) || 0);
-       });
-       curEdgeTimers.forEach((_, edgeId) => {
-         const edge = edges.find(e => e.id === edgeId);
-         if (edge) updateEdgeDataInDb(workspaceId, edgeId, (edge.data as Record<string, unknown>) || {}, edge.label as string | undefined);
-       });
-       curDataTimers.clear();
-       curPosTimers.clear();
-       curStyleTimers.clear();
-       curEdgeTimers.clear();
-     };
+      return () => {
+        unsub();
+        // Clear all pending debounce timers to prevent duplicate writes
+        curDataTimers.forEach((timerId) => clearTimeout(timerId));
+        curPosTimers.forEach((timerId) => clearTimeout(timerId));
+        curStyleTimers.forEach((timerId) => clearTimeout(timerId));
+        curEdgeTimers.forEach((timerId) => clearTimeout(timerId));
+        // Flush pending debounced saves instead of just clearing timers (prevents data loss on navigation)
+        const { nodes, edges } = useCanvasStore.getState();
+        curDataTimers.forEach((_, nodeId) => {
+          const node = nodes.find(n => n.id === nodeId);
+          if (node) updateNodeDataInDb(workspaceId, nodeId, node.data as Record<string, unknown>);
+        });
+        curPosTimers.forEach((_, nodeId) => {
+          const node = nodes.find(n => n.id === nodeId);
+          if (node) updateNodePosition(workspaceId, nodeId, node.position.x, node.position.y);
+        });
+        curStyleTimers.forEach((_, nodeId) => {
+          const node = nodes.find(n => n.id === nodeId);
+          if (node) updateNodeStyle(workspaceId, nodeId, (node.style?.width as number) || 300, (node.style?.height as number) || 200, (node.style?.zIndex as number) || 0);
+        });
+        curEdgeTimers.forEach((_, edgeId) => {
+          const edge = edges.find(e => e.id === edgeId);
+          if (edge) updateEdgeDataInDb(workspaceId, edgeId, (edge.data as Record<string, unknown>) || {}, edge.label as string | undefined);
+        });
+        curDataTimers.clear();
+        curPosTimers.clear();
+        curStyleTimers.clear();
+        curEdgeTimers.clear();
+      };
    }, [workspaceId]);
 
   // ─── Resync after undo/redo ───

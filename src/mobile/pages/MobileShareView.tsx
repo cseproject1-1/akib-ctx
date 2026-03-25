@@ -16,6 +16,8 @@ export default function MobileShareView() {
   useEffect(() => {
     if (!workspaceId) return;
 
+    const originalTitle = document.title;
+
     const load = async () => {
       try {
         const wsRef = doc(db, 'workspaces', workspaceId);
@@ -57,7 +59,7 @@ export default function MobileShareView() {
     load();
 
     return () => {
-      document.title = 'CtxNote';
+      document.title = originalTitle;
     };
   }, [workspaceId]);
 

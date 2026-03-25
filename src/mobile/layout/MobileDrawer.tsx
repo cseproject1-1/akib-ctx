@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Home, 
   LayoutGrid, 
@@ -66,7 +66,13 @@ interface MobileDrawerProps {
 
 export function MobileDrawer({ onClose }: MobileDrawerProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
+
+  // Close drawer on route change
+  React.useEffect(() => {
+    onClose();
+  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="h-full flex flex-col bg-background" data-mobile-drawer>
@@ -120,7 +126,7 @@ export function MobileDrawer({ onClose }: MobileDrawerProps) {
         {/* Help */}
         <div className="px-3 py-2">
           <button
-            onClick={() => { /* TODO: Show help dialog */ onClose(); }}
+            onClick={() => { navigate('/mobile-mode/settings'); onClose(); }}
             className="w-full flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-accent/50 text-left transition-colors"
           >
             <HelpCircle className="h-5 w-5 text-muted-foreground" />

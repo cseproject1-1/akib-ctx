@@ -47,17 +47,13 @@ export function MobileLayout({
     }
   }, [location.pathname, navigate, onBack]);
 
-  // Prevent pull-to-refresh on mobile - only allow natural scroll
+  // Prevent pull-to-refresh on mobile - scroll behavior is handled naturally
   useEffect(() => {
-    const handleTouchMove = (e: TouchEvent) => {
-      // Let native scroll behavior work naturally
-      // Pull-to-refresh will be handled in the dashboard component
-    };
-
-    document.addEventListener('touchmove', handleTouchMove, { passive: true });
+    // Prevent iOS rubber band effect on scroll containers
+    document.body.style.overscrollBehavior = 'none';
     
     return () => {
-      document.removeEventListener('touchmove', handleTouchMove);
+      document.body.style.overscrollBehavior = '';
     };
   }, []);
 
@@ -77,13 +73,6 @@ export function MobileLayout({
         mobileMeta.setAttribute('content', 'yes');
         document.head.appendChild(mobileMeta);
       }
-      
-      // Prevent iOS rubber band effect on scroll containers
-      document.body.style.overscrollBehavior = 'none';
-      
-      return () => {
-        document.body.style.overscrollBehavior = '';
-      };
     }, []);
 
   return (

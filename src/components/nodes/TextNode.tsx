@@ -1,5 +1,5 @@
 import { memo, useState, useCallback, useMemo } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { BaseNode } from './BaseNode';
 import { TextNodeData } from '@/types/canvas';
@@ -81,17 +81,6 @@ export const TextNode = memo(({ id, data, selected }: NodeProps) => {
         {selected && (
           <div className="absolute -top-0.5 -left-0.5 -right-0.5 -bottom-0.5 border-2 border-primary rounded pointer-events-none" />
         )}
-        
-        {/* Connection Points */}
-        <Handle type="source" position={Position.Top} id="top" className="perimeter-handle !-top-1 !left-0 !w-full !h-2.5 !rounded-none !transform-none" />
-        <Handle type="source" position={Position.Bottom} id="bottom" className="perimeter-handle !-bottom-1 !left-0 !w-full !h-2.5 !rounded-none !transform-none" />
-        <Handle type="source" position={Position.Left} id="left" className="perimeter-handle !-left-1 !top-0 !h-full !w-2.5 !rounded-none !transform-none" />
-        <Handle type="source" position={Position.Right} id="right" className="perimeter-handle !-right-1 !top-0 !h-full !w-2.5 !rounded-none !transform-none" />
-        
-        <div className="anchor-dot top-0 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-        <div className="anchor-dot bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2" />
-        <div className="anchor-dot left-0 top-1/2 -translate-x-1/2 -translate-y-1/2" />
-        <div className="anchor-dot right-0 top-1/2 translate-x-1/2 -translate-y-1/2" />
       </div>
     </BaseNode>
   );

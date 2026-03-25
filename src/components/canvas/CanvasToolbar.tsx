@@ -24,7 +24,6 @@ import { replayPendingOps } from '@/lib/cache/canvasCache';
 import { NodeSearchPanel, openSearch } from './NodeSearchPanel';
 import { TemplateGallery } from './TemplateGallery';
 import { HistoryPanel, openHistory } from './HistoryPanel';
-import { PresenceList } from './PresenceList';
 import { ShortcutsDialog } from './ShortcutsDialog';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 
@@ -152,7 +151,7 @@ export function CanvasToolbar() {
   }, [lastSavedAt]);
 
   const zoom = useStore((s) => s.transform[2]);
-  const zoomPercent = Math.round(zoom * 100);
+  const zoomPercent = Math.max(0, Math.round(zoom * 100));
 
   const selectedCount = nodes.filter((n) => n.selected).length;
 
@@ -378,12 +377,14 @@ export function CanvasToolbar() {
             idMap.set(n.id, newId);
             return { ...n, id: newId };
           });
-          const remappedEdges = newEdges.map(e => ({
-            ...e,
-            id: crypto.randomUUID(),
-            source: idMap.get(e.source) || e.source,
-            target: idMap.get(e.target) || e.target,
-          }));
+          const remappedEdges = newEdges
+            .filter(e => idMap.has(e.source) && idMap.has(e.target))
+            .map(e => ({
+              ...e,
+              id: crypto.randomUUID(),
+              source: idMap.get(e.source)!,
+              target: idMap.get(e.target)!,
+            }));
 
           loadCanvas([...nodes, ...remappedNodes], [...edges, ...remappedEdges]);
           toast.success(`Imported ${remappedNodes.length} nodes and ${remappedEdges.length} edges from ZIP!`);
@@ -457,8 +458,6 @@ export function CanvasToolbar() {
           <TipBtn tip="Branch" onClick={() => setBranchOpen(true)} className="pro-btn flex items-center gap-2 rounded-xl glass-effect px-2.5 py-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 transition-all hover:text-foreground mr-2">
             <GitBranch className="h-3.5 w-3.5" />
           </TipBtn>
-          <div className="h-4 w-px bg-white/5 mx-0.5" />
-          <PresenceList />
           <div className="h-4 w-px bg-white/5 mx-0.5" />
           <TipBtn tip="Keyboard Shortcuts (/)" onClick={() => setShowShortcuts(true)} className="pro-btn flex items-center gap-2 rounded-xl glass-effect px-2.5 py-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 transition-all hover:text-foreground">
             <Keyboard className="h-3.5 w-3.5" />

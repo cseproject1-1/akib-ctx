@@ -21,24 +21,64 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { MobileLayout } from '@/mobile/layout/MobileLayout';
-import { MobileThemeProvider, useMobileTheme } from '@/mobile/layout/MobileDrawer';
+import { useMobileTheme } from '@/mobile/layout/MobileDrawer';
+
+const STORAGE_KEYS = {
+  notifications: 'crxnote-notifications',
+  offlineMode: 'crxnote-offline-mode',
+  autoSave: 'crxnote-auto-save',
+} as const;
+
+function loadSetting(key: string, defaultValue: boolean): boolean {
+  try {
+    const stored = localStorage.getItem(key);
+    if (stored === null) return defaultValue;
+    return stored === 'true';
+  } catch {
+    return defaultValue;
+  }
+}
+
+function saveSetting(key: string, value: boolean): void {
+  try { localStorage.setItem(key, String(value)); } catch { /* quota */ }
+}
 
 function SettingsContent() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { theme, setTheme } = useMobileTheme();
-  const [notifications, setNotifications] = React.useState(true);
-  const [offlineMode, setOfflineMode] = React.useState(true);
-  const [autoSave, setAutoSave] = React.useState(true);
+  const [notifications, setNotifications] = React.useState(() =>
+    loadSetting(STORAGE_KEYS.notifications, true)
+  );
+  const [offlineMode, setOfflineMode] = React.useState(() =>
+    loadSetting(STORAGE_KEYS.offlineMode, true)
+  );
+  const [autoSave, setAutoSave] = React.useState(() =>
+    loadSetting(STORAGE_KEYS.autoSave, true)
+  );
+  const [showClearConfirm, setShowClearConfirm] = React.useState(false);
+
+  const handleNotificationsChange = (value: boolean) => {
+    setNotifications(value);
+    saveSetting(STORAGE_KEYS.notifications, value);
+  };
+
+  const handleOfflineModeChange = (value: boolean) => {
+    setOfflineMode(value);
+    saveSetting(STORAGE_KEYS.offlineMode, value);
+  };
+
+  const handleAutoSaveChange = (value: boolean) => {
+    setAutoSave(value);
+    saveSetting(STORAGE_KEYS.autoSave, value);
+  };
 
   const handleSignOut = async () => {
     try {
       await signOut();
-      // Silent mode - navigation shows sign out
-      navigate('/login');
+      navigate('/login', { replace: true });
     } catch (error) {
       console.error('Failed to sign out:', error);
-      // Silent mode - error is logged
     }
   };
 
@@ -48,8 +88,12 @@ function SettingsContent() {
   };
 
   const handleClearCache = async () => {
+    setShowClearConfirm(true);
+  };
+
+  const confirmClearCache = async () => {
+    setShowClearConfirm(false);
     try {
-      // Clear IndexedDB cache for mobile
       const dbs = await indexedDB.databases?.();
       if (dbs) {
         for (const db of dbs) {
@@ -58,11 +102,9 @@ function SettingsContent() {
           }
         }
       }
-      // Silent mode - visual feedback shows cache cleared
       window.location.reload();
     } catch (error) {
       console.error('Failed to clear cache:', error);
-      // Silent mode - error is logged
     }
   };
 
@@ -132,7 +174,7 @@ function SettingsContent() {
             </div>
             <Switch
               checked={notifications}
-              onCheckedChange={setNotifications}
+              onCheckedChange={handleNotificationsChange}
             />
           </div>
 
@@ -143,7 +185,7 @@ function SettingsContent() {
             </div>
             <Switch
               checked={offlineMode}
-              onCheckedChange={setOfflineMode}
+              onCheckedChange={handleOfflineModeChange}
             />
           </div>
 
@@ -154,7 +196,7 @@ function SettingsContent() {
             </div>
             <Switch
               checked={autoSave}
-              onCheckedChange={setAutoSave}
+              onCheckedChange={handleAutoSaveChange}
             />
           </div>
         </div>
@@ -206,7 +248,7 @@ function SettingsContent() {
           Help & Support
         </h3>
         <div className="space-y-2">
-          <button className="w-full flex items-center justify-between p-4 rounded-xl border hover:bg-accent/50 transition-colors">
+          <button className="w-full flex items-center justify-between p-4 rounded-xl border hover:bg-accent/50 transition-colors" aria-label="Open Help Center">
             <div className="flex items-center gap-3">
               <HelpCircle className="h-5 w-5 text-muted-foreground" />
               <span>Help Center</span>
@@ -229,6 +271,25 @@ function SettingsContent() {
           Sign Out
         </Button>
       </section>
+      {/* Clear Cache Confirmation Dialog */}
+      {showClearConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-6">
+          <div className="bg-background rounded-2xl p-6 max-w-sm w-full shadow-xl">
+            <h3 className="text-lg font-bold mb-2">Clear Cache?</h3>
+            <p className="text-sm text-muted-foreground mb-6">
+              This will clear all locally cached data. The app will reload to fetch fresh data.
+            </p>
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setShowClearConfirm(false)}>
+                Cancel
+              </Button>
+              <Button variant="destructive" className="flex-1" onClick={confirmClearCache}>
+                Clear
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -105,16 +105,10 @@ export const HybridEditor = forwardRef<any, HybridEditorProps>(function HybridEd
         finalExtra._v1Backup = initialContent;
       }
 
-      // Preserve original createdAt from existing content
-      if (initialContent !== undefined) {
-        const existingCreatedAt = (initialContent as any)?.createdAt || 
-                                  (initialContent as any)?.data?.createdAt;
-        if (existingCreatedAt) {
-          finalExtra.createdAt = existingCreatedAt;
-        } else if (detectedVersion === 1 && (initialContent as any)?._v1Backup) {
-          finalExtra.createdAt = (initialContent as any)._v1Backup.createdAt || now;
-        }
-      }
+      // Preserve original createdAt from node data (not from content object)
+      // initialContent is the editor JSON (Tiptap or BlockNote), NOT node.data
+      // We rely on extraData.createdAt passed from AINoteNode's handleContentChange
+      // which gets it from nodeData.createdAt via validateExtraData
 
       onChange(newContent, finalExtra);
     };

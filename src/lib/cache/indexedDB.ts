@@ -95,7 +95,7 @@ export async function cacheSet<T>(store: StoreName, key: string, data: T): Promi
 async function purgeOldCaches() {
   // Clear non-critical caches to make room
   // We MUST keep 'pending-ops' as it contains unsynced user work!
-  const storesToClear: StoreName[] = ['canvas-nodes', 'canvas-edges', 'workspaces', 'node-counts'];
+  const storesToClear: StoreName[] = ['canvas-nodes', 'canvas-edges', 'canvas-drawings', 'workspaces', 'node-counts', 'file-blobs'];
   for (const store of storesToClear) {
     await cacheClear(store);
   }

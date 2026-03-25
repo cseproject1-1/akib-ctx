@@ -128,6 +128,9 @@ export const CustomEdge = memo(({
   const prevPos = useRef({ sx: sourceX, sy: sourceY, tx: targetX, ty: targetY });
   const velocity = useRef({ sx: 0, sy: 0, tx: 0, ty: 0 });
   const springOffset = useRef({ cx1: 0, cy1: 0, cx2: 0, cy2: 0 });
+  // Store latest positions in a ref to avoid stale closure in RAF callback
+  const posRef = useRef({ sourceX, sourceY, targetX, targetY });
+  posRef.current = { sourceX, sourceY, targetX, targetY };
   const rafId = useRef<number>(0);
   const [physicsPath, setPhysicsPath] = useState<string>('');
   const [physicsLabelPos, setPhysicsLabelPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -159,23 +162,24 @@ export const CustomEdge = memo(({
     const prev = prevPos.current;
     const vel = velocity.current;
     const off = springOffset.current;
+    // Read from ref to avoid stale closure when RAF fires after props change
+    const { sourceX: sx, sourceY: sy, targetX: tx, targetY: ty } = posRef.current;
 
     // Safety check for NaN
-    if (isNaN(sourceX) || isNaN(sourceY) || isNaN(targetX) || isNaN(targetY)) return;
+    if (isNaN(sx) || isNaN(sy) || isNaN(tx) || isNaN(ty)) return;
 
-    vel.sx = sourceX - prev.sx;
-    vel.sy = sourceY - prev.sy;
-    vel.tx = targetX - prev.tx;
-    vel.ty = targetY - prev.ty;
+    vel.sx = sx - prev.sx;
+    vel.sy = sy - prev.sy;
+    vel.tx = tx - prev.tx;
+    vel.ty = ty - prev.ty;
 
-    prev.sx = sourceX;
-    prev.sy = sourceY;
-    prev.tx = targetX;
-    prev.ty = targetY;
+    prev.sx = sx;
+    prev.sy = sy;
+    prev.tx = tx;
+    prev.ty = ty;
 
-    // Mass factor: longer edges feel heavier
     // Mass factor: longer edges feel heavier (pre-calculate mass to save cycles)
-    const edgeLen = Math.sqrt((targetX - sourceX) ** 2 + (targetY - sourceY) ** 2);
+    const edgeLen = Math.sqrt((tx - sx) ** 2 + (ty - sy) ** 2);
     const mass = Math.max(0.4, Math.min(1.0, 300 / (edgeLen + 150)));
 
     // Apply velocity impulse to spring offsets (perpendicular-ish sway)
@@ -197,18 +201,18 @@ export const CustomEdge = memo(({
     off.cy2 *= DAMPING;
 
     // Build custom bezier path with offset control points
-    const dx = targetX - sourceX;
+    const dx = tx - sx;
     const curvature = 0.4;
-    const cx1 = sourceX + dx * curvature + off.cx1;
-    const cy1 = sourceY + off.cy1;
-    const cx2 = targetX - dx * curvature + off.cx2;
-    const cy2 = targetY + off.cy2;
+    const cx1 = sx + dx * curvature + off.cx1;
+    const cy1 = sy + off.cy1;
+    const cx2 = tx - dx * curvature + off.cx2;
+    const cy2 = ty + off.cy2;
 
-    const path = `M${sourceX},${sourceY} C${cx1},${cy1} ${cx2},${cy2} ${targetX},${targetY}`;
+    const path = `M${sx},${sy} C${cx1},${cy1} ${cx2},${cy2} ${tx},${ty}`;
     setPhysicsPath(path);
     setPhysicsLabelPos({
-      x: (sourceX + targetX) / 2 + (off.cx1 + off.cx2) * 0.15,
-      y: (sourceY + targetY) / 2 + (off.cy1 + off.cy2) * 0.15,
+      x: (sx + tx) / 2 + (off.cx1 + off.cx2) * 0.15,
+      y: (sy + ty) / 2 + (off.cy1 + off.cy2) * 0.15,
     });
 
     // Keep animating if offsets are still significant or minimum frames not reached
@@ -228,7 +232,7 @@ export const CustomEdge = memo(({
     if (isMounted.current) {
       rafId.current = requestAnimationFrame(simulateSpring);
     }
-  }, [sourceX, sourceY, targetX, targetY]);
+  }, []); // Empty deps — reads from posRef to avoid stale closure
 
   // Kick off spring simulation when positions change (bezier only)
   useEffect(() => {
@@ -298,9 +302,7 @@ export const CustomEdge = memo(({
       return;
     }
     pushSnapshot('Update Edge Label');
-    const { edges, setEdges } = useCanvasStore.getState();
-    // Use an empty string if trimmed is empty to ensure Firestore updates the field
-    setEdges(edges.map((e) => e.id === id ? { ...e, label: trimmed } : e));
+    updateEdgeData(id, { label: trimmed });
     setEditingLabel(false);
   };
 

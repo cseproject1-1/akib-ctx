@@ -88,6 +88,7 @@ function MobileCanvasContent() {
   const onConnect = useCanvasStore((s) => s.onConnect);
   const setExpandedNode = useCanvasStore((s) => s.setExpandedNode);
   const fitViewCalled = useRef(false);
+  const prevWorkspaceId = useRef<string | undefined>(undefined);
   
   // These hooks MUST be used inside ReactFlowProvider
   const { zoomIn, zoomOut, fitView, setNodes } = useReactFlow();
@@ -108,6 +109,7 @@ function MobileCanvasContent() {
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
   const touchStartRef = useRef({ x: 0, y: 0, time: 0 });
   const hasLoadedWorkspace = useRef(false);
+  const retryCount = useRef(0);
 
   // Cleanup long press timer on unmount
   useEffect(() => {
@@ -119,29 +121,46 @@ function MobileCanvasContent() {
     };
   }, []);
 
+  // Reset loading state when workspaceId changes
+  useEffect(() => {
+    if (workspaceId !== prevWorkspaceId.current) {
+      hasLoadedWorkspace.current = false;
+      fitViewCalled.current = false;
+      retryCount.current = 0;
+      prevWorkspaceId.current = workspaceId;
+    }
+  }, [workspaceId]);
+
   // Load workspace data on mount - only once per workspace
   useEffect(() => {
     if (workspaceId && !hasLoadedWorkspace.current) {
       setIsLoading(true);
-      loadWorkspaceData(workspaceId)
-        .then(() => {
-          setIsLoading(false);
-          hasLoadedWorkspace.current = true;
-          // Automatically fit view once data is loaded
-          if (!fitViewCalled.current) {
-            setTimeout(() => {
-              fitView({ duration: 800, padding: 0.2 });
+      setLoadError(null);
+      const backoffDelay = Math.min(500 * Math.pow(2, retryCount.current), 5000);
+      const timer = setTimeout(() => {
+        loadWorkspaceData(workspaceId)
+          .then(() => {
+            setIsLoading(false);
+            hasLoadedWorkspace.current = true;
+            retryCount.current = 0;
+            // Automatically fit view once data is loaded
+            if (!fitViewCalled.current) {
               fitViewCalled.current = true;
-            }, 500);
-          }
-        })
-        .catch((error) => {
-          console.error('Failed to load workspace:', error);
-          setIsLoading(false);
-          hasLoadedWorkspace.current = true;
-          setLoadError(error?.message || 'Failed to load workspace data');
-        });
-    } else {
+              setTimeout(() => {
+                fitView({ duration: 800, padding: 0.2 });
+              }, 500);
+            }
+          })
+          .catch((error) => {
+            console.error('Failed to load workspace:', error);
+            setIsLoading(false);
+            hasLoadedWorkspace.current = true;
+            retryCount.current += 1;
+            setLoadError(error?.message || 'Failed to load workspace data');
+          });
+      }, retryCount.current > 0 ? backoffDelay : 0);
+      return () => clearTimeout(timer);
+    } else if (!workspaceId) {
       setIsLoading(false);
     }
   }, [workspaceId, loadWorkspaceData, fitView]);
@@ -298,7 +317,7 @@ function MobileCanvasContent() {
   return (
     <GestureOverlay onGesture={handleGesture}>
       <div 
-        className="h-full w-full bg-canvas-bg overflow-hidden relative"
+        className="h-full w-full bg-canvas-bg overflow-hidden relative safe-area-top safe-area-left safe-area-right"
         data-mobile-canvas
       >
       {/* Loading Overlay */}
@@ -326,6 +345,7 @@ function MobileCanvasContent() {
               <Button onClick={() => {
                 setLoadError(null);
                 hasLoadedWorkspace.current = false;
+                retryCount.current = 0;
                 if (workspaceId) {
                   setIsLoading(true);
                   loadWorkspaceData(workspaceId)
@@ -352,7 +372,7 @@ function MobileCanvasContent() {
           panOnScroll={false}
           zoomOnScroll={true}
           zoomOnPinch={true}
-          nodeDragThreshold={12}
+          nodeDragThreshold={8}
           selectionOnDrag={false}
           connectOnClick={false}
           defaultEdgeOptions={{ type: 'custom', animated: false }}
@@ -582,6 +602,18 @@ function MobileCanvasContent() {
         </Button>
       </motion.div>
 
+      {/* Connection Mode Indicator */}
+      {isConnectionMode && (
+        <motion.div
+          initial={{ y: -40, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: -40, opacity: 0 }}
+          className="absolute top-16 left-1/2 -translate-x-1/2 z-20 bg-primary/90 text-primary-foreground px-4 py-1.5 rounded-full text-xs font-bold shadow-lg"
+        >
+          {connectSourceId ? 'Tap target node' : 'Tap source node'}
+        </motion.div>
+      )}
+
       {/* Zoom Level Indicator */}
       <div className="absolute bottom-24 left-1/2 -translate-x-1/2 bg-background/80 backdrop-blur px-3 py-1 rounded-full text-xs text-muted-foreground">
         {Math.round(zoom * 100)}%
@@ -592,9 +624,18 @@ function MobileCanvasContent() {
         <motion.div
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
-          className="absolute bottom-4 right-4 bg-primary text-primary-foreground px-3 py-1 rounded-full text-xs font-medium shadow-lg"
+          className="absolute bottom-24 right-4 z-10"
         >
-          {selectedNodes.length} selected
+          <Button
+            size="sm"
+            onClick={() => selectedNodes.length > 0 ? setShowBatchOperations(true) : null}
+            className={cn(
+              "h-10 px-4 rounded-full shadow-lg",
+              selectedNodes.length > 0 ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+            )}
+          >
+            <span className="font-medium">{selectedNodes.length} selected</span>
+          </Button>
         </motion.div>
       )}
 
@@ -616,7 +657,10 @@ function MobileCanvasContent() {
         <MobileNodeContextMenu 
           isOpen={!!nodeContextMenu}
           nodeId={nodeContextMenu.nodeId}
-          position={{ x: nodeContextMenu.x, y: nodeContextMenu.y }}
+          position={{
+            x: Math.min(nodeContextMenu.x, window.innerWidth - 200),
+            y: Math.min(nodeContextMenu.y, window.innerHeight - 300),
+          }}
           onClose={() => setNodeContextMenu(null)}
         />
       )}
@@ -638,23 +682,6 @@ function MobileCanvasContent() {
         />
       )}
 
-      {/* Selection Mode Toggle Button */}
-      {selectedNodes.length > 0 && (
-        <motion.div
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          className="absolute bottom-4 right-4 z-10"
-        >
-          <Button
-            size="sm"
-            onClick={() => setShowBatchOperations(true)}
-            className="h-10 px-4 rounded-full shadow-lg"
-          >
-            <span className="font-medium">{selectedNodes.length} selected</span>
-          </Button>
-        </motion.div>
-      )}
-
       {/* Node List Quick-Switcher */}
       <AnimatePresence>
         {showNodeList && (
@@ -669,6 +696,7 @@ function MobileCanvasContent() {
               <button
                 onClick={() => setShowNodeList(false)}
                 className="p-2 rounded-full hover:bg-accent active:scale-95 transition-all"
+                aria-label="Close node list"
               >
                 <X className="h-5 w-5" />
               </button>

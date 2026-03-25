@@ -1,8 +1,9 @@
 import { memo, useCallback, useMemo, useRef, useEffect } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { Handle, Position, type NodeProps, NodeResizer } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { Expand } from 'lucide-react';
 import { StickyNoteNodeData } from '@/types/canvas';
+import { HANDLE_IDS } from '@/lib/constants/canvas';
 
 const STICKY_COLORS: Record<string, { bg: string; text: string }> = {
   yellow: { bg: 'hsl(52, 100%, 50%)', text: 'hsl(0, 0%, 0%)' },
@@ -53,6 +54,16 @@ export const StickyNoteNode = memo(({ id, data, selected }: NodeProps) => {
     updateNodeData(id, { fontSize: next });
   }, [id, fontSize, updateNodeData]);
 
+  const handleResizeEnd = useCallback(
+    (_event: unknown, params: { width: number; height: number }) => {
+      updateNodeData(id, {
+        width: Math.round(params.width),
+        height: Math.round(params.height),
+      });
+    },
+    [id, updateNodeData]
+  );
+
   const wordCount = useMemo(() => {
     if (!text.trim()) return null;
     const words = text.trim().split(/\s+/).length;
@@ -68,8 +79,18 @@ export const StickyNoteNode = memo(({ id, data, selected }: NodeProps) => {
         boxShadow: selected
           ? '4px 4px 0px hsl(var(--primary)), 0 0 20px hsla(52,100%,50%,0.15)'
           : 'var(--brutal-shadow)',
+        width: nodeData.width,
+        height: nodeData.height,
       }}
     >
+      <NodeResizer
+        isVisible={selected}
+        minWidth={150}
+        minHeight={100}
+        onResizeEnd={handleResizeEnd}
+        lineClassName="!border-primary/50"
+        handleClassName="!w-2.5 !h-2.5 !bg-primary !border-2 !border-background !rounded-sm"
+      />
       <textarea
         className="absolute inset-0 w-full h-full resize-none bg-transparent p-3 font-semibold outline-none placeholder:opacity-50 nodrag nowheel nopan"
         style={{ color: palette.text, fontSize: FONT_SIZES[fontSize], opacity: opacity / 100 }}
@@ -116,10 +137,14 @@ export const StickyNoteNode = memo(({ id, data, selected }: NodeProps) => {
         </span>
       )}
 
-      <Handle type="source" position={Position.Top} id="top" className="perimeter-handle !-top-1 !left-0 !w-full !h-2.5 !rounded-none !transform-none" />
-      <Handle type="source" position={Position.Bottom} id="bottom" className="perimeter-handle !-bottom-1 !left-0 !w-full !h-2.5 !rounded-none !transform-none" />
-      <Handle type="source" position={Position.Left} id="left" className="perimeter-handle !-left-1 !top-0 !h-full !w-2.5 !rounded-none !transform-none" />
-      <Handle type="source" position={Position.Right} id="right" className="perimeter-handle !-right-1 !top-0 !h-full !w-2.5 !rounded-none !transform-none" />
+      <Handle type="target" position={Position.Top} id={HANDLE_IDS.TARGET.TOP} className="perimeter-handle !-top-1 !left-0 !w-full !h-2.5 !rounded-none !transform-none" />
+      <Handle type="source" position={Position.Top} id={HANDLE_IDS.SOURCE.TOP} className="perimeter-handle !-top-1 !left-0 !w-full !h-2.5 !rounded-none !transform-none" />
+      <Handle type="target" position={Position.Bottom} id={HANDLE_IDS.TARGET.BOTTOM} className="perimeter-handle !-bottom-1 !left-0 !w-full !h-2.5 !rounded-none !transform-none" />
+      <Handle type="source" position={Position.Bottom} id={HANDLE_IDS.SOURCE.BOTTOM} className="perimeter-handle !-bottom-1 !left-0 !w-full !h-2.5 !rounded-none !transform-none" />
+      <Handle type="target" position={Position.Left} id={HANDLE_IDS.TARGET.LEFT} className="perimeter-handle !-left-1 !top-0 !h-full !w-2.5 !rounded-none !transform-none" />
+      <Handle type="source" position={Position.Left} id={HANDLE_IDS.SOURCE.LEFT} className="perimeter-handle !-left-1 !top-0 !h-full !w-2.5 !rounded-none !transform-none" />
+      <Handle type="target" position={Position.Right} id={HANDLE_IDS.TARGET.RIGHT} className="perimeter-handle !-right-1 !top-0 !h-full !w-2.5 !rounded-none !transform-none" />
+      <Handle type="source" position={Position.Right} id={HANDLE_IDS.SOURCE.RIGHT} className="perimeter-handle !-right-1 !top-0 !h-full !w-2.5 !rounded-none !transform-none" />
       <div className="anchor-dot top-0 left-1/2 -translate-x-1/2 -translate-y-1/2" title="Top anchor" aria-hidden="true" />
       <div className="anchor-dot bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2" title="Bottom anchor" aria-hidden="true" />
       <div className="anchor-dot left-0 top-1/2 -translate-x-1/2 -translate-y-1/2" title="Left anchor" aria-hidden="true" />

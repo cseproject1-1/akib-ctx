@@ -146,7 +146,7 @@ export function GestureOverlay({ onGesture, children }: GestureOverlayProps) {
 
   return (
     <div
-      className="relative w-full h-full touch-none"
+      className="relative w-full h-full"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
