@@ -22,6 +22,8 @@ interface VaultModalProps {
   onClose: () => void;
   /** Called when the vault is successfully unlocked */
   onUnlocked?: () => void;
+  /** Called when password is set (if provided, used instead of onUnlocked for set mode) */
+  onPasswordSet?: () => void;
   /** If true, shows a "Set Password" flow instead of unlock */
   initialMode?: ModalMode;
 }
@@ -46,7 +48,7 @@ const AUTO_LOCK_OPTIONS: { label: string; ms: number }[] = [
 ];
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export function VaultModal({ isOpen, onClose, onUnlocked, initialMode }: VaultModalProps) {
+export function VaultModal({ isOpen, onClose, onUnlocked, onPasswordSet, initialMode }: VaultModalProps) {
   const {
     isLocked,
     passwordHash,
@@ -142,11 +144,16 @@ export function VaultModal({ isOpen, onClose, onUnlocked, initialMode }: VaultMo
     try {
       await storeSetPassword(newPw);
       toast.success('Vault password set! Vault is now unlocked.');
-      onUnlocked?.();
+      // Call onPasswordSet if provided (for lock-then-set flow), otherwise call onUnlocked
+      if (onPasswordSet) {
+        onPasswordSet();
+      } else {
+        onUnlocked?.();
+      }
       onClose();
     } catch { toast.error('Failed to set vault password'); }
     finally { setIsLoading(false); }
-  }, [newPw, confirmPw, storeSetPassword, onUnlocked, onClose]);
+  }, [newPw, confirmPw, storeSetPassword, onUnlocked, onPasswordSet, onClose]);
 
   const handleChangeVerify = useCallback(async () => {
     if (!pw.trim()) return;

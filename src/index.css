@@ -635,6 +635,12 @@
   border: none !important;
 }
 
+/* Sticky Note specific overrides */
+.react-flow__node-stickyNote {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
 .react-flow__node-image:hover {
   box-shadow: none !important;
 }

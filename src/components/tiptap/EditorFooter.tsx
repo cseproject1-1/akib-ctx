@@ -22,7 +22,7 @@ export function EditorFooter({
   isTypewriterMode, 
   onToggleTypewriter,
 }: EditorFooterProps) {
-  const [stats, setStats] = useState({ words: 0, chars: 0, readTime: '0 min' });
+  const [stats, setStats] = useState({ words: 0, chars: 0, readTimeMinutes: 0 });
   const [showExport, setShowExport] = useState(false);
 
   useEffect(() => {
@@ -33,7 +33,7 @@ export function EditorFooter({
       const words = text.trim() ? text.trim().split(/\s+/).length : 0;
       const chars = text.length;
       const minutes = Math.max(1, Math.ceil(words / 200));
-      setStats({ words, chars, readTime: `${minutes} min read` });
+      setStats({ words, chars, readTimeMinutes: minutes });
     };
 
     update();
@@ -59,12 +59,12 @@ export function EditorFooter({
 
   return (
     <div className="flex items-center justify-between border-t border-border px-4 py-1.5 select-none">
-      <div className="flex items-center gap-3 text-[10px] font-mono text-muted-foreground">
-        <span>{stats.words} words</span>
+      <div className="flex items-center gap-2 text-[10px] font-mono text-muted-foreground">
+        <span>{stats.words}w</span>
         <span className="text-border">·</span>
-        <span>{stats.chars} chars</span>
+        <span>{stats.chars}c</span>
         <span className="text-border">·</span>
-        <span>{stats.readTime}</span>
+        <span>{stats.readTimeMinutes}m</span>
       </div>
 
       {/* Macro System */}
@@ -81,15 +81,14 @@ export function EditorFooter({
                 toast.info('Recording macro... interactions are being tracked.');
               }
             }}
-            className={`flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95 ${
-              (editor.storage as any).macro?.isRecording 
-                ? 'bg-destructive/10 text-destructive animate-pulse' 
+            className={`flex items-center justify-center rounded-md p-1 transition-all active:scale-95 ${
+              (editor.storage as any).macro?.isRecording
+                ? 'bg-destructive/10 text-destructive animate-pulse'
                 : 'text-muted-foreground hover:bg-accent hover:text-foreground'
             }`}
             title={(editor.storage as any).macro?.isRecording ? 'Stop Recording' : 'Record Macro'}
           >
             <div className={`h-2 w-2 rounded-full ${(editor.storage as any).macro?.isRecording ? 'bg-destructive' : 'bg-muted-foreground'}`} />
-            {(editor.storage as any).macro?.isRecording ? 'Rec ON' : 'Macro'}
           </button>
         </div>
 
@@ -121,25 +120,23 @@ export function EditorFooter({
         <button
           onClick={onToggleFocus}
           className={cn(
-            "flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95",
+            "flex items-center justify-center rounded-md p-1 transition-all active:scale-95",
             isFocusMode ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground"
           )}
           title="Focus Mode (Distraction-free)"
         >
-          <Eye className="h-3 w-3" />
-          <span className="hidden lg:inline">Focus</span>
+          <Eye className="h-3.5 w-3.5" />
         </button>
 
         <button
           onClick={onToggleTypewriter}
           className={cn(
-            "flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider transition-all active:scale-95",
+            "flex items-center justify-center rounded-md p-1 transition-all active:scale-95",
             isTypewriterMode ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-foreground"
           )}
           title="Typewriter Mode (Autoscroll cursor)"
         >
-          <Zap className="h-3 w-3" />
-          <span className="hidden lg:inline">Typewriter</span>
+          <Zap className="h-3.5 w-3.5" />
         </button>
 
         <div className="h-4 w-px bg-border mx-1" />
@@ -148,11 +145,10 @@ export function EditorFooter({
         <div className="relative">
           <button
             onClick={() => setShowExport(!showExport)}
-            className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground transition-all hover:bg-accent hover:text-foreground active:scale-95"
+            className="flex items-center justify-center rounded-md p-1 text-muted-foreground transition-all hover:bg-accent hover:text-foreground active:scale-95"
             title="Export"
           >
-            <Download className="h-3 w-3" />
-            <span className="hidden sm:inline">Export</span>
+            <Download className="h-3.5 w-3.5" />
           </button>
 
           {showExport && (

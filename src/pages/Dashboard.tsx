@@ -121,12 +121,12 @@ const Dashboard = () => {
 
    const folderCounts = useMemo(() => {
      const counts: Record<string, number> = {
-       all: workspaces.filter(ws => !ws.is_deleted).length,
-       unorganized: workspaces.filter(ws => !ws.is_deleted && !ws.folder).length,
+       all: workspaces.filter(ws => !ws.is_deleted && !ws.is_in_vault).length,
+       unorganized: workspaces.filter(ws => !ws.is_deleted && !ws.folder && !ws.is_in_vault).length,
        trash: workspaces.filter(ws => ws.is_deleted).length
      };
      allFolders.forEach(folder => {
-       counts[folder] = workspaces.filter(ws => !ws.is_deleted && ws.folder === folder).length;
+       counts[folder] = workspaces.filter(ws => !ws.is_deleted && ws.folder === folder && !ws.is_in_vault).length;
      });
      // Add vault count if vault is unlocked
      if (selectedFolder === 'vault' && !isVaultLocked) {
@@ -142,8 +142,8 @@ const Dashboard = () => {
        if (useVaultStore.getState().isLocked) {
          return []; // Return empty array if vault is locked
        }
-       // Filter workspaces that are in the vault
-       let filtered = workspaces.filter(ws => ws.is_in_vault && !ws.is_deleted);
+        // Use vaultWorkspaces (already contains only vault workspaces)
+        let filtered = vaultWorkspaces.filter(ws => !ws.is_deleted);
        
        // Apply search and tag filters
        filtered = filtered.filter((ws) =>
@@ -167,7 +167,11 @@ const Dashboard = () => {
      }
 
      // Determine the base filter based on whether we're in trash or not
-     let filtered = workspaces.filter(ws => selectedFolder === 'trash' ? ws.is_deleted : !ws.is_deleted);
+     // Also exclude vault workspaces from regular views (they have their own folder)
+     let filtered = workspaces.filter(ws => {
+       if (selectedFolder === 'trash') return ws.is_deleted;
+       return !ws.is_deleted && !ws.is_in_vault;
+     });
 
      // Apply folder filter
      if (selectedFolder !== 'trash') {
@@ -197,7 +201,7 @@ const Dashboard = () => {
          default: return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
        }
      });
-   }, [workspaces, searchQuery, sortMode, favorites, nodeCounts, vaultNodeCounts, selectedFolder, selectedTag, isVaultLocked]);
+   }, [workspaces, vaultWorkspaces, searchQuery, sortMode, favorites, nodeCounts, vaultNodeCounts, selectedFolder, selectedTag, isVaultLocked]);
 
    const loadRegularWorkspaces = useCallback(async () => {
      try {
@@ -438,42 +442,56 @@ const Dashboard = () => {
      setWorkspaces(prev => prev.map(w => w.id === passwordManageWorkspaceId ? { ...w, password_hash: undefined, is_password_protected: false } : w));
    };
 
-   const handleMoveToVault = async (workspaceId: string) => {
-     try {
-       await updateWorkspace(workspaceId, { is_in_vault: true });
-       // Optimistically update workspaces state
-       setWorkspaces(prev => prev.map(ws => ws.id === workspaceId ? { ...ws, is_in_vault: true } : ws));
-       // Optimistically update vaultWorkspaces state
-       setVaultWorkspaces(prev => {
-         const ws = prev.find(w => w.id === workspaceId);
-         if (ws) {
-           return prev.map(w => w.id === workspaceId ? { ...w, is_in_vault: true } : w);
-         } else {
-           const workspaceToAdd = workspaces.find(w => w.id === workspaceId);
-           if (workspaceToAdd) {
-             return [...prev, { ...workspaceToAdd, is_in_vault: true }];
-           }
-           return prev;
-         }
-       });
-       toast.success('Moved to Locked Folder');
-     } catch (err) {
-       toast.error('Failed to move to Locked Folder');
-       console.error(err);
-     }
-   };
+    const handleMoveToVault = async (workspaceId: string) => {
+      try {
+        await updateWorkspace(workspaceId, { is_in_vault: true });
+        // Invalidate cache so subsequent loads get the correct filtered list
+        await invalidateWorkspaceList();
+        // Remove from regular workspaces state (vault workspaces have their own view)
+        setWorkspaces(prev => prev.filter(ws => ws.id !== workspaceId));
+        // Add to vaultWorkspaces state
+        setVaultWorkspaces(prev => {
+          const ws = prev.find(w => w.id === workspaceId);
+          if (ws) {
+            return prev.map(w => w.id === workspaceId ? { ...w, is_in_vault: true } : w);
+          } else {
+            const workspaceToAdd = workspaces.find(w => w.id === workspaceId);
+            if (workspaceToAdd) {
+              return [...prev, { ...workspaceToAdd, is_in_vault: true }];
+            }
+            return prev;
+          }
+        });
+        toast.success('Moved to Locked Folder');
+      } catch (err) {
+        toast.error('Failed to move to Locked Folder');
+        console.error(err);
+      }
+    };
 
-   const handleMoveOutOfVault = async (workspaceId: string) => {
-     try {
-       await updateWorkspace(workspaceId, { is_in_vault: false });
-       // Optimistically update workspaces state
-       setWorkspaces(prev => prev.map(ws => ws.id === workspaceId ? { ...ws, is_in_vault: false } : ws));
-       // Remove from vaultWorkspaces state
-       setVaultWorkspaces(prev => prev.filter(ws => ws.id !== workspaceId));
-       toast.success('Moved out of Locked Folder');
-     } catch (err) {
-       toast.error('Failed to move out of Locked Folder');
-       console.error(err);
+    const handleMoveOutOfVault = async (workspaceId: string) => {
+      try {
+        await updateWorkspace(workspaceId, { is_in_vault: false });
+        // Invalidate cache
+        await invalidateWorkspaceList();
+        // Find the workspace to add back to regular workspaces
+        const workspaceToMove = vaultWorkspaces.find(ws => ws.id === workspaceId);
+        // Remove from vaultWorkspaces state
+        setVaultWorkspaces(prev => prev.filter(ws => ws.id !== workspaceId));
+        // Add back to regular workspaces if found
+        if (workspaceToMove) {
+          setWorkspaces(prev => {
+            // Check if already exists (shouldn't, but be safe)
+            if (prev.some(ws => ws.id === workspaceId)) {
+              return prev.map(ws => ws.id === workspaceId ? { ...ws, is_in_vault: false } : ws);
+            }
+            return [...prev, { ...workspaceToMove, is_in_vault: false }];
+          });
+        }
+        toast.success('Moved out of Locked Folder');
+      } catch (err) {
+        toast.error('Failed to move out of Locked Folder');
+        console.error(err);
      }
    };
 
@@ -692,18 +710,25 @@ const Dashboard = () => {
                    {isVaultLocked ? 'Locked' : vaultWorkspaces.length}
                  </span>
                </button>
-               {selectedFolder === 'vault' && !isVaultLocked && (
-                 <button
-                   onClick={() => {
-                     useVaultStore.getState().lockVault();
-                     setSelectedFolder(null);
-                   }}
-                   className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-border/50 bg-card/50 px-3 py-1.5 text-xs font-bold text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-all duration-200"
-                 >
-                   <Lock className="h-3.5 w-3.5" />
-                   Lock Vault
-                 </button>
-               )}
+                {selectedFolder === 'vault' && !isVaultLocked && (
+                  <button
+                    onClick={() => {
+                      const { passwordHash, lockVault } = useVaultStore.getState();
+                      if (!passwordHash) {
+                        // No password set — prompt user to create one
+                        setVaultModalMode('set');
+                        setShowVaultModal(true);
+                      } else {
+                        lockVault();
+                        setSelectedFolder(null);
+                      }
+                    }}
+                    className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-border/50 bg-card/50 px-3 py-1.5 text-xs font-bold text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-all duration-200"
+                  >
+                    <Lock className="h-3.5 w-3.5" />
+                    Lock Vault
+                  </button>
+                )}
              </section>
 
             <section>
@@ -1314,6 +1339,11 @@ const Dashboard = () => {
         initialMode={vaultModalMode}
         onUnlocked={() => {
           setSelectedFolder('vault');
+        }}
+        onPasswordSet={() => {
+          // After setting password via "Lock Vault" flow, lock the vault
+          useVaultStore.getState().lockVault();
+          setSelectedFolder(null);
         }}
       />
     </div>

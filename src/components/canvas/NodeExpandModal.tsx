@@ -94,13 +94,15 @@ function SummaryFullscreen({ bullets, onChange, editable }: { bullets: string[];
 /* ─── Code fullscreen ─── */
 function CodeFullscreen({ code, onChange, editable }: { code: string; onChange: (c: string) => void; editable: boolean }) {
   return (
-    <textarea
-      className={`w-full h-full min-h-[400px] resize-none bg-muted rounded-lg p-4 font-mono text-sm text-foreground outline-none ${!editable ? 'cursor-default' : ''}`}
-      value={code}
-      onChange={e => editable && onChange(e.target.value)}
-      spellCheck={false}
-      readOnly={!editable}
-    />
+    <div className="h-full min-h-[400px]">
+      <textarea
+        className={`w-full h-full resize-none bg-muted rounded-lg p-4 font-mono text-sm text-foreground outline-none ${!editable ? 'cursor-default' : ''}`}
+        value={code}
+        onChange={e => editable && onChange(e.target.value)}
+        spellCheck={false}
+        readOnly={!editable}
+      />
+    </div>
   );
 }
 
@@ -369,6 +371,8 @@ export function NodeExpandModal() {
   }, [isFullscreen]);
   const [showOutline, setShowOutline] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  // Local title state for immediate UI feedback during editing
+  const [localTitle, setLocalTitle] = useState<string | null>(null);
   const editorRef = useRef<NoteEditorHandle>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -426,6 +430,11 @@ export function NodeExpandModal() {
       }
     }
   }, [expandedNode, updateNodeData]);
+
+  // Clear local title state when switching nodes
+  useEffect(() => {
+    setLocalTitle(null);
+  }, [expandedNode]);
 
   const handlePrev = useCallback(() => {
     const { nodes: currentNodes, edges: currentEdges } = useCanvasStore.getState();
@@ -605,7 +614,11 @@ export function NodeExpandModal() {
     }, 800);
   };
 
-  const getTitle = () => nodeData.title || nodeData.year || 'Untitled';
+  const getTitle = () => {
+    // Use local state if user is actively editing, otherwise use store value
+    if (localTitle !== null) return localTitle;
+    return nodeData.title ?? nodeData.year ?? 'Untitled';
+  };
 
   // Format node type for display (NM12)
   const formatNodeType = (type: string | undefined) => {
@@ -894,9 +907,22 @@ export function NodeExpandModal() {
             value={getTitle()}
             onChange={(e) => {
               // NM-HIGH-6: Basic sanitization for titles
-              const val = e.target.value.replace(/[<>]/g, ''); 
-              const key = nodeType === 'termQuestion' ? 'year' : 'title';
-              updateNodeData(expandedNode, { [key]: val });
+              const val = e.target.value.replace(/[<>]/g, '');
+              setLocalTitle(val); // Update local state immediately for instant feedback
+            }}
+            onBlur={() => {
+              // Sync to store when input loses focus
+              if (localTitle !== null) {
+                const key = nodeType === 'termQuestion' ? 'year' : 'title';
+                updateNodeData(expandedNode, { [key]: localTitle });
+                setLocalTitle(null);
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                titleInputRef.current?.blur(); // Trigger blur to save
+              }
             }}
             placeholder="Untitled"
             aria-label="Node title"
@@ -977,9 +1003,9 @@ export function NodeExpandModal() {
         </div>
 
         {/* Body */}
-        <div className="flex-1 flex overflow-hidden">
-          <div className="flex-1 overflow-y-auto px-6 py-4 scrollbar-hide">
-             <div className="max-w-4xl mx-auto">
+        <div className="flex-1 flex overflow-hidden min-h-0">
+          <div className="flex-1 overflow-y-auto px-6 py-4 scrollbar-hide min-h-0">
+             <div className="max-w-4xl mx-auto h-full min-h-0">
                 <ViewerErrorBoundary>
                    {!node ? (
                      <div className="flex items-center justify-center py-20">

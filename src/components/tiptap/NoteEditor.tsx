@@ -498,7 +498,7 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
   );
 
   return (
-    <div className="tiptap-wrapper relative nodrag nowheel nopan" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} ref={wrapperRef}>
+    <div className="tiptap-wrapper relative nodrag nowheel nopan flex flex-col h-full" onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} ref={wrapperRef}>
       {showBubble && editable && (
         <div
           className="absolute z-50 flex items-center gap-0.5 rounded-lg border border-primary bg-card p-1 shadow-[var(--clay-shadow-sm)] animate-brutal-pop"

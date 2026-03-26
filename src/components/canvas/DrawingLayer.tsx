@@ -41,35 +41,84 @@ interface DrawingLayerProps {
   onFinish: () => void;
 }
 
-// Convert points to smooth bezier path
+// Convert points to smooth bezier path using Catmull-Rom to cubic Bezier conversion
+// This creates curves that pass through all control points for smoother results
 function pointsToSmoothPath(points: { x: number; y: number }[]): string {
   if (points.length === 0) return '';
   if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
   if (points.length === 2) return `M ${points[0].x} ${points[0].y} L ${points[1].x} ${points[1].y}`;
 
-  let path = `M ${points[0].x} ${points[0].y}`;
+  // Simplify points if too many (reduce noise while keeping shape)
+  const simplified = simplifyPoints(points, 1.5);
+  if (simplified.length < 2) {
+    return `M ${points[0].x} ${points[0].y}`;
+  }
+
+  let path = `M ${simplified[0].x.toFixed(1)} ${simplified[0].y.toFixed(1)}`;
   
-  for (let i = 1; i < points.length - 1; i++) {
-    const prev = points[i - 1];
-    const curr = points[i];
-    const next = points[i + 1];
+  // Use Catmull-Rom to cubic Bezier conversion for smooth curves through points
+  for (let i = 0; i < simplified.length - 1; i++) {
+    const p0 = simplified[Math.max(0, i - 1)];
+    const p1 = simplified[i];
+    const p2 = simplified[Math.min(simplified.length - 1, i + 1)];
+    const p3 = simplified[Math.min(simplified.length - 1, i + 2)];
     
-    // Control point for smooth curve
-    const cpX = curr.x;
-    const cpY = curr.y;
+    // Catmull-Rom to cubic Bezier conversion
+    // Tension factor (lower = smoother, higher = tighter to points)
+    const tension = 0.3;
     
-    // End point is midpoint to next
-    const endX = (curr.x + next.x) / 2;
-    const endY = (curr.y + next.y) / 2;
+    const cp1x = p1.x + (p2.x - p0.x) * tension;
+    const cp1y = p1.y + (p2.y - p0.y) * tension;
+    const cp2x = p2.x - (p3.x - p1.x) * tension;
+    const cp2y = p2.y - (p3.y - p1.y) * tension;
     
-    path += ` Q ${cpX} ${cpY} ${endX} ${endY}`;
+    path += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
   }
   
-  // Final line to last point
-  const last = points[points.length - 1];
-  path += ` L ${last.x} ${last.y}`;
-  
   return path;
+}
+
+// Simplify points using Douglas-Peucker algorithm to reduce noise
+function simplifyPoints(points: { x: number; y: number }[], tolerance: number): { x: number; y: number }[] {
+  if (points.length <= 2) return points;
+  
+  // Find the point with max distance from the line between first and last
+  let maxDist = 0;
+  let maxIndex = 0;
+  const first = points[0];
+  const last = points[points.length - 1];
+  
+  for (let i = 1; i < points.length - 1; i++) {
+    const dist = perpendicularDistance(points[i], first, last);
+    if (dist > maxDist) {
+      maxDist = dist;
+      maxIndex = i;
+    }
+  }
+  
+  // If max distance is greater than tolerance, recursively simplify
+  if (maxDist > tolerance) {
+    const left = simplifyPoints(points.slice(0, maxIndex + 1), tolerance);
+    const right = simplifyPoints(points.slice(maxIndex), tolerance);
+    return left.slice(0, -1).concat(right);
+  }
+  
+  return [first, last];
+}
+
+function perpendicularDistance(point: { x: number; y: number }, lineStart: { x: number; y: number }, lineEnd: { x: number; y: number }): number {
+  const dx = lineEnd.x - lineStart.x;
+  const dy = lineEnd.y - lineStart.y;
+  
+  if (dx === 0 && dy === 0) {
+    return Math.sqrt(Math.pow(point.x - lineStart.x, 2) + Math.pow(point.y - lineStart.y, 2));
+  }
+  
+  const t = ((point.x - lineStart.x) * dx + (point.y - lineStart.y) * dy) / (dx * dx + dy * dy);
+  const closestX = lineStart.x + t * dx;
+  const closestY = lineStart.y + t * dy;
+  
+  return Math.sqrt(Math.pow(point.x - closestX, 2) + Math.pow(point.y - closestY, 2));
 }
 
 // Check if point is near a path
