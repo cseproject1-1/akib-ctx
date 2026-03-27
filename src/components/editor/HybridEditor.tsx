@@ -1,4 +1,4 @@
-import { Suspense, lazy, useMemo, forwardRef, useImperativeHandle, useRef, useState, useEffect } from 'react';
+import { Suspense, lazy, useMemo, forwardRef, useImperativeHandle, useRef, useState, useEffect, useCallback } from 'react';
 import { NoteEditor, type NoteEditorHandle } from '@/components/tiptap/NoteEditor';
 import { EditorGhost } from './EditorGhost';
 import { migrateToBlockNote, migrateToTiPTap, getEditorVersion } from '@/lib/editor/migration';
@@ -46,17 +46,19 @@ export const HybridEditor = forwardRef<any, HybridEditorProps>(function HybridEd
   const tiptapRef = useRef<NoteEditorHandle>(null);
   const enableHybridEditor = useSettingsStore((s) => s.enableHybridEditor);
   const isBlockEditorMode = useCanvasStore((s) => s.isBlockEditorMode);
+  const [blockNoteFailed, setBlockNoteFailed] = useState(false);
 
   // Detect version dynamically based on initialContent
   const detectedVersion = useMemo(() => getEditorVersion(initialContent), [initialContent]);
 
   // Determine which editor to use
   const useBlockNote = useMemo(() => {
+    if (blockNoteFailed) return false;
     if (forceBlockNote && !forceTiptap) return true;
     if (forceTiptap && !forceBlockNote) return false;
     if (isBlockEditorMode) return true;
     return enableHybridEditor && detectedVersion === 2;
-  }, [isBlockEditorMode, enableHybridEditor, forceBlockNote, forceTiptap, detectedVersion]);
+  }, [blockNoteFailed, isBlockEditorMode, enableHybridEditor, forceBlockNote, forceTiptap, detectedVersion]);
 
   // Convert content for the appropriate editor format - memoized to prevent unnecessary re-conversions
   const blocks = useMemo(() => {
@@ -114,6 +116,12 @@ export const HybridEditor = forwardRef<any, HybridEditorProps>(function HybridEd
     };
   }, [onChange, useBlockNote, detectedVersion, initialContent]);
 
+  // BlockNote load failure — fallback to Tiptap so content is never silently lost
+  const handleBlockNoteLoadError = useCallback(() => {
+    console.warn('[HybridEditor] BlockNote failed to load content, falling back to Tiptap');
+    setBlockNoteFailed(true);
+  }, []);
+
   // Ghost mode - ultra-lightweight static preview
   if (isGhost && enableHybridEditor) {
     return <EditorGhost content={ghostContent} placeholder={placeholder} />;
@@ -148,6 +156,7 @@ export const HybridEditor = forwardRef<any, HybridEditorProps>(function HybridEd
           pasteContent={pasteContent}
           pasteFormat={pasteFormat}
           onChange={handleContentChange}
+          onLoadError={handleBlockNoteLoadError}
         />
       </Suspense>
     );

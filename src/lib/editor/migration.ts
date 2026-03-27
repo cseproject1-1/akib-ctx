@@ -73,6 +73,13 @@ export function migrateToTiPTap(blocks: any[]): JSONContent {
       }
     });
 
+    if (content.length === 0) {
+      return {
+        type: 'doc',
+        content: [{ type: 'paragraph' }]
+      };
+    }
+
     return { type: 'doc', content };
   } catch (error) {
     console.error('[Migration] Failed to migrate to Tiptap:', error);
@@ -524,6 +531,18 @@ function convertTiptapMarksToStyles(marks?: any[]): Record<string, any> {
 
 /* ──────────────── BlockNote → Tiptap Converters ──────────────── */
 
+/** Safely parse a value that may be a JSON-stringified array (from old sanitizeForFirestore) */
+function safeArray(val: any): any[] {
+  if (Array.isArray(val)) return val;
+  if (typeof val === 'string') {
+    try {
+      const parsed = JSON.parse(val);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch { return []; }
+  }
+  return [];
+}
+
 function convertBlockNoteToTiptapNode(block: any): JSONContent | JSONContent[] | null {
   if (!block || !block.type) return null;
 
@@ -541,7 +560,7 @@ function convertBlockNoteToTiptapNode(block: any): JSONContent | JSONContent[] |
     case 'bulletListItem':
     case 'numberedListItem': {
       const innerContent = convertBlockNoteInlineToTiptap(block.content);
-      const nestedChildren = (block.children || []).map(convertBlockNoteToTiptapNode).flat().filter(Boolean);
+      const nestedChildren = safeArray(block.children).map(convertBlockNoteToTiptapNode).flat().filter(Boolean);
 
       return {
         type: 'listItem',
@@ -557,7 +576,7 @@ function convertBlockNoteToTiptapNode(block: any): JSONContent | JSONContent[] |
         attrs: { checked: !!block.props?.checked },
         content: [
           { type: 'paragraph', content: convertBlockNoteInlineToTiptap(block.content) },
-          ...(block.children || []).map(convertBlockNoteToTiptapNode).flat().filter(Boolean)
+          ...safeArray(block.children).map(convertBlockNoteToTiptapNode).flat().filter(Boolean)
         ]
       };
     case 'codeBlock': {
@@ -679,7 +698,7 @@ function convertBlockNoteFileToTiptap(block: any): JSONContent {
 
 function convertBlockNoteToggleToTiptap(block: any): JSONContent {
   const summary = block.content?.[0]?.text || block.props?.summary || '';
-  const detailContent = (block.children || []).map(convertBlockNoteToTiptapNode).flat().filter(Boolean);
+  const detailContent = safeArray(block.children).map(convertBlockNoteToTiptapNode).flat().filter(Boolean);
 
   return {
     type: 'details',
@@ -709,14 +728,15 @@ function extractTextFromBlockNote(block: any): string {
       .map((c: any) => c.text || '')
       .join('');
   }
-  if (block.children && Array.isArray(block.children)) {
-    return block.children.map(extractTextFromBlockNote).filter(Boolean).join(' ');
+  const childArr = safeArray(block.children);
+  if (childArr.length > 0) {
+    return childArr.map(extractTextFromBlockNote).filter(Boolean).join(' ');
   }
   return '';
 }
 
 function convertBlockNoteTableToTiptap(tableBlock: any): JSONContent {
-  const children = tableBlock.children || [];
+  const children = safeArray(tableBlock.children);
   if (children.length === 0) {
     return {
       type: 'table',
@@ -763,6 +783,14 @@ function inferColumnCount(cells: any[]): number {
 }
 
 function convertBlockNoteInlineToTiptap(content?: any): JSONContent[] {
+  // Handle JSON-stringified arrays from old sanitizeForFirestore
+  if (typeof content === 'string') {
+    try {
+      const parsed = JSON.parse(content);
+      if (Array.isArray(parsed)) content = parsed;
+      else return [];
+    } catch { return []; }
+  }
   if (!content || !Array.isArray(content)) return [];
 
   return content.map(item => {

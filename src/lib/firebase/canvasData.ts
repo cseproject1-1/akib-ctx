@@ -52,17 +52,17 @@ export async function loadCanvasEdges(workspaceId: string): Promise<Edge[]> {
 }
 
 /**
- * Sanitizes an object for Firestore by removing nested arrays,
- * which Firestore does not support. Recursively flattens nested arrays.
+ * Sanitizes data for Firestore by removing unsupported types.
+ * Firestore supports nested arrays inside objects — only top-level
+ * arrays-of-arrays need special handling, which setDoc/updateDoc handle.
  */
 function sanitizeForFirestore(data: any): any {
     if (data === null || data === undefined) return data;
     if (typeof data === 'function' || typeof data === 'symbol') return undefined;
     if (Array.isArray(data)) {
-        return data.map(v => {
-            const result = sanitizeForFirestore(v);
-            return Array.isArray(result) ? JSON.stringify(result) : result;
-        });
+        return data
+            .map(v => sanitizeForFirestore(v))
+            .filter(v => v !== undefined);
     }
     if (typeof data === 'object') {
         // Reject Date-like objects that aren't actual Dates, and prototype pollution attempts

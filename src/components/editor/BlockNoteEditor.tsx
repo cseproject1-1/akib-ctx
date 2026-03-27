@@ -48,6 +48,7 @@ const supportedLanguages = {
 interface BlockNoteEditorProps {
   initialContent?: Block[];
   onChange?: (blocks: Block[]) => void;
+  onLoadError?: () => void;
   editable?: boolean;
   placeholder?: string;
   className?: string;
@@ -58,6 +59,7 @@ interface BlockNoteEditorProps {
 export const BlockNoteEditor = ({
   initialContent,
   onChange,
+  onLoadError,
   editable = true,
   placeholder,
   className,
@@ -69,6 +71,8 @@ export const BlockNoteEditor = ({
   const initialContentApplied = useRef(false);
   const pasteAppliedRef = useRef<string | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const onLoadErrorRef = useRef(onLoadError);
+  onLoadErrorRef.current = onLoadError;
 
   // Create custom block specs with highlighting
   const customBlockSpecs = useMemo(() => {
@@ -168,19 +172,65 @@ export const BlockNoteEditor = ({
     }
 
     try {
+      // Helper: parse a value that may be a JSON-stringified array
+      const tryParseArray = (val: any): any[] | null => {
+        if (Array.isArray(val)) return val;
+        if (typeof val === 'string') {
+          try {
+            const parsed = JSON.parse(val);
+            return Array.isArray(parsed) ? parsed : null;
+          } catch { return null; }
+        }
+        return null;
+      };
+
       // Recursively sanitize blocks to prevent BlockNote from crashing on malformed nodes
       const sanitizeBlocks = (blocks: any[]): any[] => {
         if (!Array.isArray(blocks)) return [];
-        return blocks.filter((b: any) => b && typeof b === 'object' && b.type).map((b: any) => {
-          const sanitized: any = { ...b };
-          if (b.content && Array.isArray(b.content)) {
-            sanitized.content = b.content.filter((c: any) => c && typeof c === 'object');
-          }
-          if (b.children && Array.isArray(b.children)) {
-            sanitized.children = sanitizeBlocks(b.children);
-          }
-          return sanitized;
-        });
+        return blocks
+          .filter((b: any) => b && typeof b === 'object' && b.type)
+          .map((b: any) => {
+            const sanitized: any = { ...b };
+
+            // Ensure id exists
+            if (!sanitized.id) sanitized.id = crypto.randomUUID();
+
+            // Sanitize props — handle JSON-stringified arrays (e.g. columnWidths)
+            if (sanitized.props && typeof sanitized.props === 'object') {
+              const props = { ...sanitized.props };
+              for (const key of Object.keys(props)) {
+                if (typeof props[key] === 'string') {
+                  try {
+                    const parsed = JSON.parse(props[key]);
+                    if (Array.isArray(parsed)) props[key] = parsed;
+                  } catch { /* keep original string value */ }
+                }
+              }
+              sanitized.props = props;
+            }
+
+            // Sanitize content — may be JSON-stringified from old sanitizeForFirestore
+            const contentArr = tryParseArray(b.content);
+            if (contentArr) {
+              sanitized.content = contentArr.filter((c: any) => c && typeof c === 'object');
+            } else if (b.content && Array.isArray(b.content)) {
+              sanitized.content = b.content.filter((c: any) => c && typeof c === 'object');
+            } else if (b.content === null || b.content === undefined) {
+              sanitized.content = undefined;
+            }
+
+            // Sanitize children — may be JSON-stringified from old sanitizeForFirestore
+            const childrenArr = tryParseArray(b.children);
+            if (childrenArr) {
+              sanitized.children = sanitizeBlocks(childrenArr);
+            } else if (b.children && Array.isArray(b.children)) {
+              sanitized.children = sanitizeBlocks(b.children);
+            } else {
+              sanitized.children = [];
+            }
+
+            return sanitized;
+          });
       };
       
       const safeContent = sanitizeBlocks(initialContent);
@@ -190,6 +240,8 @@ export const BlockNoteEditor = ({
       }
     } catch (error) {
       console.error('[BlockNote] Failed to apply initial content safely:', error);
+      // Signal parent to fallback to Tiptap — content will not be silently lost
+      onLoadErrorRef.current?.();
     }
 
     initialContentApplied.current = true;
