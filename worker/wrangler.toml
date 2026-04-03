@@ -9,31 +9,10 @@ enabled = true
 [vars]
 FIREBASE_PROJECT_ID = "ctxnote-crytonix"
 
-# ============================================
-# SECRET VARIABLES - Set via wrangler CLI
-# ============================================
-# Run these commands to set your secrets:
-# 
-# wrangler secret put GEMINI_API_KEY
-# wrangler secret put R2_ACCESS_KEY_ID
-# wrangler secret put R2_SECRET_ACCESS_KEY
-# wrangler secret put R2_ENDPOINT
-# wrangler secret put R2_BUCKET_NAME
-#
+# Secret vars — set via: wrangler secret put <NAME>
 # Required secrets:
-#   GEMINI_API_KEY         - Google Gemini API key for AI features
-#   R2_ACCESS_KEY_ID       - Cloudflare R2 access key ID
-#   R2_SECRET_ACCESS_KEY   - Cloudflare R2 secret access key
-#   R2_ENDPOINT            - Cloudflare R2 endpoint (e.g., https://ACCOUNT_ID.r2.cloudflarestorage.com)
-#   R2_BUCKET_NAME         - Cloudflare R2 bucket name (e.g., "ctxnote")
-#
-# ============================================
-# CORS ALLOWED ORIGINS
-# ============================================
-# To add new domains, edit the ALLOWED_ORIGINS array in src/index.ts:
-#   - https://ctxnote.app
-#   - https://www.akib-ctx.pro.bd
-#   - https://akib-ctx.pro.bd
-#   - localhost (development)
-#   - *.lovable.app (preview deployments)
-# ============================================
+#   GEMINI_API_KEY
+#   R2_ACCESS_KEY_ID
+#   R2_SECRET_ACCESS_KEY
+#   R2_ENDPOINT
+#   R2_BUCKET_NAME

@@ -14,9 +14,9 @@ export default defineConfig(({ mode }) => ({
       "akib-ctx-1.onrender.com",
       "akib-ctx.pro.bd"
     ],
-    hmr: {
+    hmr: mode === 'development' ? {
       overlay: false,
-    },
+    } : false,
   },
   preview: {
     host: true,

@@ -25,12 +25,19 @@ const app = new Hono<{ Bindings: Bindings, Variables: Variables }>();
 const JWKS = createRemoteJWKSet(
     new URL('https://www.googleapis.com/robot/v1/metadata/jwk/securetoken@system.gserviceaccount.com')
 );
-
-// Allowed origins for CORS - update this list with your production domains
+// Allowed origins and wildcard patterns
 const ALLOWED_ORIGINS = [
     'https://ctxnote.app',
     'https://www.akib-ctx.pro.bd',
     'https://akib-ctx.pro.bd',
+    'https://cn.akib-ctx.qzz.io',
+];
+
+const ALLOWED_PATTERNS = [
+    /\.vercel\.app$/,
+    /\.akib\.qzz\.io$/,
+    /\.pro\.bd$/,
+    /\.akib-ctx\.qzz\.io$/,
 ];
 
 // CORS middleware with proper origin validation
@@ -38,16 +45,21 @@ app.use('*', cors({
     origin: (origin) => {
         // Allow requests without origin (e.g., mobile apps, Postman)
         if (!origin) return '*';
-        
+
         // Allow localhost for development
         if (origin.includes('localhost') || origin.includes('127.0.0.1')) return origin;
-        
+
         // Allow lovable.app for preview deployments
         if (origin.includes('lovable.app')) return origin;
-        
+
         // Check against allowed origins list
         if (ALLOWED_ORIGINS.includes(origin)) return origin;
-        
+
+        // Check against wildcard patterns
+        if (ALLOWED_PATTERNS.some(pattern => pattern.test(origin))) {
+            return origin;
+        }
+
         // Log unexpected origin for debugging
         console.warn(`Blocked origin: ${origin}`);
         return 'https://ctxnote.app'; // Default safe origin for rejected requests

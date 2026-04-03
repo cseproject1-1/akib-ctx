@@ -77,6 +77,31 @@ function getEmbedUrl(url: string): string | null {
   return null;
 }
 
+/** Sites known to block framing via CSP/frame-ancestors */
+const RESTRICTED_SITES = [
+  'claude.ai',
+  'chat.qwen.ai',
+  'chatgpt.com',
+  'openai.com',
+  'perplexity.ai',
+  'github.com',
+  'twitter.com',
+  'x.com',
+  'facebook.com',
+  'instagram.com',
+  'linkedin.com'
+];
+
+/** Check if this URL is from a known restricted site */
+function isKnownRestricted(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return RESTRICTED_SITES.some(site => hostname === site || hostname.endsWith('.' + site));
+  } catch {
+    return false;
+  }
+}
+
 /** Check if this URL is from a known embeddable provider */
 function isKnownEmbeddable(url: string): boolean {
   return getEmbedUrl(url) !== null;
@@ -89,7 +114,7 @@ export const EmbedNode = memo(({ id, data, selected }: NodeProps) => {
   const nodeData = data as unknown as EmbedNodeData;
   const [inputUrl, setInputUrl] = useState(nodeData.url || '');
   const [editing, setEditing] = useState(!nodeData.url);
-  const [iframeFailed, setIframeFailed] = useState(false);
+  const [iframeFailed, setIframeFailed] = useState(isKnownRestricted(nodeData.url || ''));
   const [metadata, setMetadata] = useState<UrlMetadata | null>(null);
   const [loadingMeta, setLoadingMeta] = useState(false);
   const iframeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -103,26 +128,7 @@ export const EmbedNode = memo(({ id, data, selected }: NodeProps) => {
     };
   }, []);
 
-  const handleSubmit = useCallback(() => {
-    let url = inputUrl.trim();
-    if (!url) return;
-    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-    updateNodeData(id, { url, title: nodeData.title || url });
-    setEditing(false);
-    setIframeFailed(false);
-    setMetadata(null);
-    iframeLoadedRef.current = false;
-  }, [id, inputUrl, nodeData.title, updateNodeData]);
-
-  const handleClear = useCallback(() => {
-    updateNodeData(id, { url: '', title: '' });
-    setInputUrl('');
-    setEditing(true);
-    setIframeFailed(false);
-    setMetadata(null);
-  }, [id, updateNodeData]);
-
-  // Fetch metadata when iframe fails
+  // Fetch metadata logic...
   const fetchMetadata = useCallback(async (url: string) => {
     if (abortRef.current) abortRef.current.abort();
     const controller = new AbortController();
@@ -172,9 +178,42 @@ export const EmbedNode = memo(({ id, data, selected }: NodeProps) => {
     }
   }, []);
 
+  // Handle restricted sites on mount or data change
+  useEffect(() => {
+    if (nodeData.url && isKnownRestricted(nodeData.url) && !metadata && !loadingMeta) {
+      setIframeFailed(true);
+      fetchMetadata(nodeData.url);
+    }
+  }, [nodeData.url, metadata, loadingMeta, fetchMetadata]);
+
+  const handleSubmit = useCallback(() => {
+    let url = inputUrl.trim();
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    updateNodeData(id, { url, title: nodeData.title || url });
+    setEditing(false);
+    
+    const isRestricted = isKnownRestricted(url);
+    setIframeFailed(isRestricted);
+    setMetadata(null);
+    iframeLoadedRef.current = false;
+    
+    if (isRestricted) {
+      fetchMetadata(url);
+    }
+  }, [id, inputUrl, nodeData.title, updateNodeData, fetchMetadata]);
+
+  const handleClear = useCallback(() => {
+    updateNodeData(id, { url: '', title: '' });
+    setInputUrl('');
+    setEditing(true);
+    setIframeFailed(false);
+    setMetadata(null);
+  }, [id, updateNodeData]);
+
   // Timer to detect iframe blocking for non-known-embeddable URLs
   useEffect(() => {
-    if (!nodeData.url || editing || isKnownEmbeddable(nodeData.url)) return;
+    if (!nodeData.url || editing || isKnownEmbeddable(nodeData.url) || isKnownRestricted(nodeData.url)) return;
 
     iframeLoadedRef.current = false;
     setIframeFailed(false);
@@ -184,7 +223,7 @@ export const EmbedNode = memo(({ id, data, selected }: NodeProps) => {
         setIframeFailed(true);
         fetchMetadata(nodeData.url!);
       }
-    }, 4000);
+    }, 2000); // Reduced from 4000ms
 
     return () => {
       if (iframeTimerRef.current) clearTimeout(iframeTimerRef.current);
