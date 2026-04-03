@@ -5,7 +5,6 @@ import { S3Client, PutObjectCommand, DeleteObjectCommand, ListObjectsV2Command }
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import bcrypt from 'bcryptjs';
 
-
 type Bindings = {
     GEMINI_API_KEY: string;
     FIREBASE_PROJECT_ID: string;
@@ -25,29 +24,13 @@ const app = new Hono<{ Bindings: Bindings, Variables: Variables }>();
 const JWKS = createRemoteJWKSet(
     new URL('https://www.googleapis.com/robot/v1/metadata/jwk/securetoken@system.gserviceaccount.com')
 );
-// Allowed origins and wildcard patterns
-const ALLOWED_ORIGINS = [
-    'https://ctxnote.app',
-    'https://www.akib-ctx.pro.bd',
-    'https://akib-ctx.pro.bd',
-    'https://cn.akib-ctx.qzz.io',
-];
 
-const ALLOWED_PATTERNS = [
-    /\.vercel\.app$/,
-    /\.akib\.qzz\.io$/,
-    /\.pro\.bd$/,
-    /\.akib-ctx\.qzz\.io$/,
-];
-
-// Relaxed CORS middleware to allow all origins
+// Flexible CORS middleware — matches the manual fix for multi-domain support
 app.use('*', cors({
-    origin: '*',
+    origin: (origin: string) => origin, // Reflected origin
     allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-    allowMethods: ['POST', 'GET', 'OPTIONS', 'PUT', 'DELETE'],
-    exposeHeaders: ['Content-Length', 'X-R2-Request-Id'],
-    maxAge: 86400, // Cache preflight results for 24 hours
-    credentials: false,
+    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    maxAge: 86400,
 }));
 
 // Auth Middleware
