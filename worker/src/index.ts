@@ -40,29 +40,12 @@ const ALLOWED_PATTERNS = [
     /\.akib-ctx\.qzz\.io$/,
 ];
 
-// CORS middleware with proper origin validation
+// Permissive CORS middleware for dev and multi-domain testing
 app.use('*', cors({
     origin: (origin) => {
-        // Allow requests without origin (e.g., mobile apps, Postman)
+        // Allow all origins (return the origin itself to support credentials)
         if (!origin) return '*';
-
-        // Allow localhost for development
-        if (origin.includes('localhost') || origin.includes('127.0.0.1')) return origin;
-
-        // Allow lovable.app for preview deployments
-        if (origin.includes('lovable.app')) return origin;
-
-        // Check against allowed origins list
-        if (ALLOWED_ORIGINS.includes(origin)) return origin;
-
-        // Check against wildcard patterns
-        if (ALLOWED_PATTERNS.some(pattern => pattern.test(origin))) {
-            return origin;
-        }
-
-        // Log unexpected origin for debugging
-        console.warn(`Blocked origin: ${origin}`);
-        return 'https://ctxnote.app'; // Default safe origin for rejected requests
+        return origin;
     },
     allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     allowMethods: ['POST', 'GET', 'OPTIONS', 'PUT', 'DELETE'],
