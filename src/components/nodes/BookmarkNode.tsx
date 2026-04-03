@@ -1,4 +1,4 @@
-import { memo, useState, useCallback } from 'react';
+import { memo, useState, useCallback, useEffect, useRef } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { BaseNode } from './BaseNode';
@@ -19,6 +19,13 @@ export const BookmarkNode = memo(({ id, data, selected }: NodeProps) => {
   const [inputUrl, setInputUrl] = useState(nodeData.url || '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (abortRef.current) abortRef.current.abort();
+    };
+  }, []);
 
   const hasData = !!(nodeData.url && nodeData.ogTitle);
 
@@ -31,11 +38,15 @@ export const BookmarkNode = memo(({ id, data, selected }: NodeProps) => {
     let finalUrl = url.trim();
     if (!finalUrl.startsWith('http')) finalUrl = 'https://' + finalUrl;
 
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoading(true);
     setError('');
     try {
       const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(finalUrl)}`;
-      const res = await fetch(proxyUrl);
+      const res = await fetch(proxyUrl, { signal: controller.signal });
       if (!res.ok) throw new Error('Failed to fetch');
       const html = await res.text();
       const parser = new DOMParser();
@@ -52,10 +63,14 @@ export const BookmarkNode = memo(({ id, data, selected }: NodeProps) => {
       const favicon = `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`;
 
       updateNodeData(id, { url: finalUrl, ogTitle, ogDescription, ogImage, favicon, hostname });
-    } catch {
-      setError('Could not load preview. Check the URL and try again.');
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        setError('Could not load preview. Check the URL and try again.');
+      }
     } finally {
-      setLoading(false);
+      if (abortRef.current === controller) {
+        setLoading(false);
+      }
     }
   }, [id, updateNodeData]);
 

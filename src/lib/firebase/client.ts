@@ -1,7 +1,11 @@
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
-import { initializeFirestore, enableIndexedDbPersistence } from 'firebase/firestore';
+import { 
+  initializeFirestore, 
+  persistentLocalCache, 
+  persistentMultipleTabManager 
+} from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
 
 const firebaseConfig = {
@@ -16,20 +20,15 @@ const firebaseConfig = {
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
-export const db = initializeFirestore(app, {
-    ignoreUndefinedProperties: true
-}, '(default)');
 
-// Enable offline persistence for Firestore
-if (typeof window !== 'undefined') {
-    enableIndexedDbPersistence(db).catch((err) => {
-        if (err.code === 'failed-precondition') {
-            console.warn('[Firestore] Persistence failed: Multiple tabs open');
-        } else if (err.code === 'unimplemented') {
-            console.warn('[Firestore] Persistence not supported by browser');
-        }
-    });
-}
+// Enable offline persistence for Firestore using the modern v9+ API
+// This allows all browser tabs to sync efficiently using a shared IndexedDB cache.
+export const db = initializeFirestore(app, {
+    ignoreUndefinedProperties: true,
+    localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager()
+    })
+});
 
 export const functions = getFunctions(app);
 

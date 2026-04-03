@@ -422,10 +422,12 @@ export function NodeExpandModal() {
       clearTimeout(debounceRef.current);
       // Flush if we switched nodes
       if (latestContentRef.current) {
-        updateNodeData(expandedNodeRef.current!, { 
-          content: latestContentRef.current.json, 
-          ...latestContentRef.current.extraData 
-        });
+        if (expandedNodeRef.current) {
+          updateNodeData(expandedNodeRef.current, { 
+            content: latestContentRef.current.json, 
+            ...latestContentRef.current.extraData 
+          });
+        }
         latestContentRef.current = null;
       }
     }
@@ -559,7 +561,6 @@ export function NodeExpandModal() {
       if (!isEditorFocused()) {
         if (e.key === 'ArrowLeft') { e.preventDefault(); handlePrev(); }
         if (e.key === 'ArrowRight') { e.preventDefault(); handleNext(); }
-        if (e.key === 'f' || e.key === 'F') { e.preventDefault(); setIsFullscreen(f => !f); }
       }
     };
     window.addEventListener('keydown', handleKey);
@@ -813,11 +814,11 @@ export function NodeExpandModal() {
       <Drawer.Root open={!!expandedNode} onOpenChange={(open) => !open && handleClose()}>
         <Drawer.Portal>
           <Drawer.Overlay 
-            className="fixed inset-0 z-[150] bg-black/40 backdrop-blur-sm" 
+            className="fixed inset-0 z-expand-backdrop bg-black/40 backdrop-blur-sm" 
             aria-hidden="true"
           />
           <Drawer.Content 
-            className="fixed bottom-0 left-0 right-0 z-[160] flex h-[92vh] flex-col rounded-t-[20px] bg-card border-t shadow-2xl focus:outline-none"
+            className="fixed bottom-0 left-0 right-0 z-expand-modal flex h-[92vh] flex-col rounded-t-[20px] bg-card border-t shadow-2xl focus:outline-none"
             role="dialog"
             aria-modal="true"
             aria-labelledby="mobile-drawer-title"
@@ -883,7 +884,7 @@ export function NodeExpandModal() {
 
   return (
     <div 
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-background/90 backdrop-blur-sm"
+      className="fixed inset-0 z-expand-backdrop flex items-center justify-center bg-background/90 backdrop-blur-sm"
       role="presentation"
     >
       <div

@@ -47,7 +47,12 @@ export function migrateToBlockNote(tiptapJSON: JSONContent | null): any[] {
     return blocks.length > 0 ? blocks : [createEmptyParagraph()];
   } catch (error) {
     console.error('[Migration] Failed to migrate to BlockNote:', error);
-    return [createErrorParagraph('Error migrating content. Please check logs.')];
+    return [{
+      id: fastId(),
+      type: 'paragraph',
+      content: [{ type: 'text', text: 'Error migrating content. Please check console.', styles: { textColor: 'red' } }],
+      props: { _backup: JSON.stringify(tiptapJSON) }
+    }];
   }
 }
 
@@ -60,16 +65,52 @@ export function migrateToTiPTap(blocks: any[]): JSONContent {
   if (!blocks || !Array.isArray(blocks)) return { type: 'doc', content: [] };
 
   try {
-    const content: JSONContent[] = [];
+    const rawNodes: JSONContent[] = [];
 
     blocks.forEach((block) => {
       const node = convertBlockNoteToTiptapNode(block);
       if (node) {
         if (Array.isArray(node)) {
-          content.push(...node);
+          rawNodes.push(...node);
         } else {
-          content.push(node);
+          rawNodes.push(node);
         }
+      }
+    });
+
+    // Post-process to wrap consecutive listItems into bulletList/orderedList
+    const content: JSONContent[] = [];
+    let currentList: { type: 'bulletList' | 'orderedList' | 'taskList'; content: JSONContent[] } | null = null;
+
+    rawNodes.forEach((node) => {
+      // Determine if this is a list item and what type of list it belongs to
+      // We look at the original block type if we had it, but here we only have Tiptap nodes.
+      // So we'll check for 'listItem' and try to guess or use a default.
+      // However, convertBlockNoteToTiptapNode returns { type: 'listItem' } for both.
+      // Better: Update convertBlockNoteToTiptapNode to return temporary types like 'bulletListItem'
+      // and then wrap them here.
+      
+      if (node.type === 'listItem' || node.type === 'bulletListItem' || node.type === 'numberedListItem' || node.type === 'taskItem') {
+        let listType: 'bulletList' | 'orderedList' | 'taskList';
+        if (node.type === 'numberedListItem') {
+          listType = 'orderedList';
+        } else if (node.type === 'taskItem') {
+          listType = 'taskList';
+        } else {
+          listType = 'bulletList';
+        }
+        
+        const cleanNode = node.type === 'taskItem' ? node : { ...node, type: 'listItem' };
+        
+        if (currentList && currentList.type === listType) {
+          currentList.content.push(cleanNode);
+        } else {
+          currentList = { type: listType, content: [cleanNode] };
+          content.push(currentList as JSONContent);
+        }
+      } else {
+        currentList = null;
+        content.push(node);
       }
     });
 
@@ -85,7 +126,11 @@ export function migrateToTiPTap(blocks: any[]): JSONContent {
     console.error('[Migration] Failed to migrate to Tiptap:', error);
     return {
       type: 'doc',
-      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Error migrating content.' }] }]
+      content: [{ 
+        type: 'paragraph', 
+        content: [{ type: 'text', text: 'Error migrating content. Please check console.' }],
+        attrs: { _backup: JSON.stringify(blocks) }
+      }]
     };
   }
 }
@@ -97,7 +142,7 @@ function convertTiptapNodeToBlockNote(node: JSONContent): any | any[] | null {
 
   switch (node.type) {
     case 'heading': {
-      const level = Math.min(Math.max(node.attrs?.level || 1, 1), 3);
+      const level = Math.min(Math.max(node.attrs?.level || 1, 1), 6);
       return {
         id,
         type: 'heading',
@@ -150,7 +195,8 @@ function convertTiptapNodeToBlockNote(node: JSONContent): any | any[] | null {
       return convertTiptapBlockquoteToBlockNote(node);
     }
     case 'codeBlock': {
-      const codeText = node.content?.map((c: any) => c.text || '').join('\n') || '';
+      // M30 fix: avoid double newlines by being smarter about the join
+      const codeText = node.content?.map((c: any) => c.text || '').join('') || '';
       return {
         id,
         type: 'codeBlock',
@@ -161,12 +207,31 @@ function convertTiptapNodeToBlockNote(node: JSONContent): any | any[] | null {
         children: []
       };
     }
-    case 'horizontalRule': {
+    case 'math':
+    case 'mathBlock':
+    case 'inlineMath': {
+      // M23 fix: map math blocks to plain paragraphs or code blocks if not supported
+      const formula = node.attrs?.formula || node.content?.[0]?.text || '';
+      const isBlock = node.type === 'mathBlock';
       return {
         id,
-        type: 'divider',
-        props: {},
-        content: [],
+        type: 'paragraph',
+        props: { textColor: 'default', backgroundColor: 'default', textAlignment: 'left' },
+        content: [
+          { type: 'text', text: isBlock ? `$$${formula}$$` : `$${formula}$`, styles: { code: true } }
+        ],
+        children: []
+      };
+    }
+
+    case 'horizontalRule': {
+      // NOTE: 'divider' is not a registered block type in BlockNote's default schema.
+      // Map to a paragraph with a visual separator to prevent isInGroup TypeError.
+      return {
+        id,
+        type: 'paragraph',
+        props: { textColor: 'default', backgroundColor: 'default', textAlignment: 'left' },
+        content: [{ type: 'text', text: '─────────────────────────────────────', styles: {} }],
         children: []
       };
     }
@@ -187,14 +252,17 @@ function convertTiptapNodeToBlockNote(node: JSONContent): any | any[] | null {
     }
     case 'video':
     case 'audio': {
+      // NOTE: 'video' and 'audio' are not registered in BlockNote's default schema.
+      // Map to a paragraph with link so content is preserved and visible.
+      const mediaUrl = node.attrs?.src || node.attrs?.href || '';
+      const mediaName = node.attrs?.title || node.type;
       return {
         id,
-        type: node.type,
-        props: {
-          url: node.attrs?.src || node.attrs?.href || '',
-          name: node.attrs?.title || node.type
-        },
-        content: undefined,
+        type: 'paragraph',
+        props: { textColor: 'default', backgroundColor: 'default', textAlignment: 'left' },
+        content: mediaUrl
+          ? [{ type: 'text', text: `[${node.type === 'video' ? '🎬' : '🎵'} ${mediaName}]`, styles: { link: mediaUrl } }]
+          : [{ type: 'text', text: `[${node.type === 'video' ? '🎬' : '🎵'} ${mediaName}]`, styles: {} }],
         children: []
       };
     }
@@ -218,19 +286,6 @@ function convertTiptapNodeToBlockNote(node: JSONContent): any | any[] | null {
           language: 'mermaid'
         },
         content: [{ type: 'text', text: node.content?.[0]?.text || node.attrs?.source || '', styles: {} }],
-        children: []
-      };
-    }
-    case 'mathBlock': {
-      return {
-        id,
-        type: 'paragraph',
-        props: {
-          textColor: 'default',
-          backgroundColor: 'default',
-          textAlignment: 'left'
-        },
-        content: [{ type: 'text', text: `$$${node.content?.[0]?.text || node.attrs?.content || ''}$$`, styles: { code: true } }],
         children: []
       };
     }
@@ -274,11 +329,11 @@ function convertTiptapBlockquoteToBlockNote(node: JSONContent): any {
 }
 
 function convertTiptapCalloutToBlockNote(node: JSONContent): any {
-  const id = fastId();
-  const innerContent = node.content?.[0]?.content || node.content || [];
   const emoji = node.attrs?.emoji || '💡';
-  const title = node.attrs?.title || '';
-
+  const id = fastId();
+  
+  // M5 fix: Map back to a paragraph with styled emoji prefix since BlockNote 
+  // might not have a native callout block type registered yet.
   return {
     id,
     type: 'paragraph',
@@ -288,8 +343,8 @@ function convertTiptapCalloutToBlockNote(node: JSONContent): any {
       textAlignment: 'left'
     },
     content: [
-      { type: 'text', text: `${emoji} ${title ? title + ': ' : ''}`, styles: { bold: true } },
-      ...convertTiptapContentToInline(innerContent)
+      { type: 'text', text: emoji + ' ', styles: { bold: true } },
+      ...convertTiptapContentToInline(node.content || node.content?.[0]?.content)
     ],
     children: []
   };
@@ -385,27 +440,44 @@ function convertTiptapTableToBlockNote(tableNode: JSONContent): any[] {
   if (rows.length === 0) return [];
 
   const tableId = fastId();
-  const children: any[] = [];
-  const columnCount = rows[0]?.content?.length || 3;
+  const columnCount = rows[0]?.content?.length || 1;
 
-  rows.forEach((row: JSONContent, rowIndex: number) => {
+  // BlockNote table structure:
+  //   table
+  //     tableRow
+  //       tableCell | tableHead
+  // Each row becomes a tableRow child of the table.
+  // Each cell becomes a tableCell/tableHead child of the tableRow.
+  const tableRowChildren: any[] = rows.map((row: JSONContent) => {
     const cells = row.content || [];
-    cells.forEach((cell: JSONContent) => {
+    const cellChildren: any[] = cells.map((cell: JSONContent) => {
       const isHeader = cell.type === 'tableHeader';
       const cellContent = cell.content || [];
-      children.push({
+      return {
         id: fastId(),
         type: isHeader ? 'tableHead' : 'tableCell',
         props: {
           backgroundColor: cell.attrs?.backgroundColor || 'default',
           colspan: cell.attrs?.colspan || 1,
-          rowspan: cell.attrs?.rowspan || 1
+          rowspan: cell.attrs?.rowspan || 1,
         },
+        // Cell inline content (text runs)
         content: cellContent.flatMap((c: any) => convertTiptapContentToInline(c.content)),
-        children: []
-      });
+        children: [],
+      };
     });
+
+    return {
+      id: fastId(),
+      type: 'tableRow',
+      props: {},
+      content: [],
+      children: cellChildren,
+    };
   });
+
+  // Validate that we have at least one valid row with cells
+  if (tableRowChildren.length === 0) return [];
 
   return [{
     id: tableId,
@@ -413,10 +485,10 @@ function convertTiptapTableToBlockNote(tableNode: JSONContent): any[] {
     props: {
       columnWidths: Array(columnCount).fill(undefined),
       columnCount,
-      backgroundColor: 'default'
+      backgroundColor: 'default',
     },
     content: [],
-    children
+    children: tableRowChildren,
   }];
 }
 
@@ -560,13 +632,14 @@ function convertBlockNoteToTiptapNode(block: any): JSONContent | JSONContent[] |
     case 'bulletListItem':
     case 'numberedListItem': {
       const innerContent = convertBlockNoteInlineToTiptap(block.content);
-      const nestedChildren = safeArray(block.children).map(convertBlockNoteToTiptapNode).flat().filter(Boolean);
+      const nestedChildren = safeArray(block.children).map(convertBlockNoteToTiptapNode).flat().filter(Boolean) as JSONContent[];
 
+      // Grouping happens in migrateToTiPTap, but we tag them here
       return {
-        type: 'listItem',
+        type: block.type as any, // bulletListItem or numberedListItem
         content: [
           { type: 'paragraph', content: innerContent.length > 0 ? innerContent : undefined },
-          ...nestedChildren
+          ...(nestedChildren.length > 0 ? wrapNestedChildrenInList(nestedChildren) : [])
         ]
       };
     }
@@ -581,6 +654,7 @@ function convertBlockNoteToTiptapNode(block: any): JSONContent | JSONContent[] |
       };
     case 'codeBlock': {
       const language = block.props?.language || 'plaintext';
+      // M30: avoid adding extra \n since BlockNote content is already single-string
       const code = block.content?.[0]?.text || '';
       return {
         type: 'codeBlock',
@@ -588,18 +662,21 @@ function convertBlockNoteToTiptapNode(block: any): JSONContent | JSONContent[] |
         content: [{ type: 'text', text: code }]
       };
     }
+
     case 'quote': {
       const innerContent = convertBlockNoteInlineToTiptap(block.content);
       return {
         type: 'blockquote',
         content: [{
           type: 'paragraph',
+          // Ensure content is always an array or undefined (never null) for TipTap
           content: innerContent.length > 0 ? innerContent : undefined
         }]
       };
     }
     case 'divider':
     case 'horizontalRule': {
+      // BlockNote content that was stored as 'divider' maps back to TipTap horizontalRule
       return {
         type: 'horizontalRule'
       };
@@ -669,9 +746,12 @@ function convertBlockNoteImageToTiptap(block: any): JSONContent {
 function convertBlockNoteMediaToTiptap(block: any): JSONContent {
   const src = block.props?.url || block.props?.src || '';
   const title = block.props?.name || block.type;
+  
+  // M4 fix: use correct block type names for Tiptap
+  const type = block.type === 'video' ? 'videoBlock' : (block.type === 'audio' ? 'audioBlock' : block.type);
 
   return {
-    type: block.type,
+    type,
     attrs: {
       src,
       title,
@@ -698,14 +778,18 @@ function convertBlockNoteFileToTiptap(block: any): JSONContent {
 
 function convertBlockNoteToggleToTiptap(block: any): JSONContent {
   const summary = block.content?.[0]?.text || block.props?.summary || '';
-  const detailContent = safeArray(block.children).map(convertBlockNoteToTiptapNode).flat().filter(Boolean);
+  const detailContent = safeArray(block.children).map(convertBlockNoteToTiptapNode).flat().filter(Boolean) as JSONContent[];
 
+  // M1 fix: follow details -> detailsSummary -> detailsContent structure
   return {
     type: 'details',
     attrs: { open: block.props?.open !== false },
     content: [
-      { type: 'summary', content: [{ type: 'text', text: summary }] },
-      { type: 'paragraph', content: detailContent.length > 0 ? detailContent : undefined }
+      { type: 'detailsSummary', content: [{ type: 'text', text: summary }] },
+      { 
+        type: 'detailsContent', 
+        content: detailContent.length > 0 ? detailContent : [{ type: 'paragraph' }] 
+      }
     ]
   };
 }
@@ -796,7 +880,9 @@ function convertBlockNoteInlineToTiptap(content?: any): JSONContent[] {
   return content.map(item => {
     if (!item || item.type !== 'text') return null;
 
+    const text = item.text || '';
     const marks: any[] = [];
+
     if (item.styles?.bold) marks.push({ type: 'bold' });
     if (item.styles?.italic) marks.push({ type: 'italic' });
     if (item.styles?.underline) marks.push({ type: 'underline' });
@@ -806,15 +892,26 @@ function convertBlockNoteInlineToTiptap(content?: any): JSONContent[] {
       marks.push({ type: 'highlight', attrs: { color: item.styles.backgroundColor } });
     }
     if (item.styles?.link) {
-      marks.push({ type: 'link', attrs: { href: item.styles.link } });
+      const href = item.styles.link;
+      if (href.startsWith('node://') || text.startsWith('[[') && text.endsWith(']]')) {
+        marks.push({ 
+          type: 'wiki-link', 
+          attrs: { 
+            href, 
+            label: text.replace(/^\[\[|\]\]$/g, ''),
+            title: text.replace(/^\[\[|\]\]$/g, '') 
+          } 
+        });
+      } else {
+        marks.push({ type: 'link', attrs: { href } });
+      }
     }
     if (item.styles?.textColor) {
       marks.push({ type: 'textStyle', attrs: { color: item.styles.textColor } });
     }
 
-    const text = item.text || '';
-
     if (text.includes('\n')) {
+
       const parts = text.split('\n');
       const nodes: JSONContent[] = [];
       parts.forEach((part: string, i: number) => {
@@ -838,6 +935,30 @@ function convertBlockNoteInlineToTiptap(content?: any): JSONContent[] {
       ...(marks.length > 0 ? { marks } : {})
     };
   }).flat().filter(Boolean) as JSONContent[];
+}
+
+function wrapNestedChildrenInList(nodes: JSONContent[]): JSONContent[] {
+  const content: JSONContent[] = [];
+  let currentList: { type: 'bulletList' | 'orderedList'; content: JSONContent[] } | null = null;
+
+  nodes.forEach((node) => {
+    if (node.type === 'listItem' || node.type === 'bulletListItem' || node.type === 'numberedListItem') {
+      const listType = node.type === 'numberedListItem' ? 'orderedList' : 'bulletList';
+      const cleanNode = { ...node, type: 'listItem' };
+      
+      if (currentList && currentList.type === listType) {
+        currentList.content.push(cleanNode);
+      } else {
+        currentList = { type: listType, content: [cleanNode] };
+        content.push(currentList as JSONContent);
+      }
+    } else {
+      currentList = null;
+      content.push(node);
+    }
+  });
+
+  return content;
 }
 
 /* ──────────────── Helpers ──────────────── */

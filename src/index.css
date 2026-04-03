@@ -13,13 +13,15 @@
   --z-overlay: 30;
   --z-nav: 40;
   --z-drawing: 45;
+  --z-drawing-interactive: 48;
   --z-mobile-modal: 50;
   --z-toolbar: 60;
   --z-search: 70;
   --z-presentation: 80;
   --z-context-backdrop: 90;
   --z-context-menu: 95;
-  --z-modal: 100;
+  --z-magic-cursors: 100;
+  --z-modal: 105;
   --z-toast: 110;
   --z-expand-backdrop: 150;
   --z-expand-modal: 160;

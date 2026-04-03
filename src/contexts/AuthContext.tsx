@@ -12,6 +12,7 @@ import {
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase/client';
 import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { useVaultStore } from '@/store/vaultStore';
 
 interface AuthContextType {
   user: User | null;
@@ -37,8 +38,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (currentUser) {
         const token = await currentUser.getIdToken();
         setSession({ access_token: token });
+        // Sync vault password hash from Firestore — runs in background after auth resolves
+        useVaultStore.getState().syncFromFirestore().catch(e =>
+          console.warn('[Auth] Vault sync failed (non-fatal):', e)
+        );
       } else {
         setSession(null);
+        // Lock vault in memory when user signs out (don't clear localStorage hash)
+        const vaultState = useVaultStore.getState();
+        if (vaultState.passwordHash) vaultState.lockVault();
       }
       setLoading(false);
     });
@@ -112,9 +120,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    const { clearAllCaches } = await import('@/lib/cache/canvasCache');
-    await clearAllCaches();
-    await firebaseSignOut(auth);
+    try {
+      const { clearAllCaches } = await import('@/lib/cache/canvasCache');
+      await clearAllCaches();
+      
+      // In-memory state cleanup
+      try {
+        const { useCanvasStore } = await import('@/store/canvasStore');
+        useCanvasStore.getState().resetState();
+      } catch (e) {
+        console.warn('[Auth] Store reset failed (possibly already unmounted):', e);
+      }
+    } catch (err) {
+      console.error('[Auth] Failed to clear caches on sign out:', err);
+    }
+    try {
+      await firebaseSignOut(auth);
+    } catch (err) {
+      console.error('[Auth] Firebase sign out failed:', err);
+      throw err;
+    }
   };
 
   return (
@@ -135,7 +160,7 @@ export function useAuth() {
       signUp: async () => ({ error: new Error('Auth not ready') }),
       signIn: async () => ({ error: new Error('Auth not ready') }),
       signInWithGoogle: async () => ({ error: new Error('Auth not ready') }),
-      signOut: async () => { },
+      signOut: async () => { console.warn('[Auth] HMR fallback signOut — auth not ready'); },
       sendVerification: async () => ({ error: new Error('Auth not ready') }),
     } as AuthContextType;
   }

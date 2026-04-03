@@ -59,8 +59,14 @@ export const PDFNode = memo(({ id, data, selected }: NodeProps) => {
   const [dragOver, setDragOver] = useState(false);
   const nodeData = data as unknown as PDFNodeData;
 
-  const handleUpload = async (file: File) => {
+  const handleUpload = useCallback(async (file: File) => {
     if (!workspaceId) return;
+    const acceptedExts = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'csv', 'txt'];
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    if (!acceptedExts.includes(ext)) {
+      toast.error('Unsupported file type');
+      return;
+    }
     if (file.size > 20 * 1024 * 1024) {
       toast.error('File too large (max 20MB)');
       return;
@@ -77,7 +83,7 @@ export const PDFNode = memo(({ id, data, selected }: NodeProps) => {
       updateNodeData(id, { uploading: false, progress: 0 });
       toast.error('Upload failed');
     }
-  };
+  }, [workspaceId, id, updateNodeData]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -92,8 +98,7 @@ export const PDFNode = memo(({ id, data, selected }: NodeProps) => {
       const file = e.dataTransfer.files[0];
       if (file) handleUpload(file);
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [workspaceId]
+    [handleUpload, id, updateNodeData]
   );
 
   const handleDragOver = useCallback((e: DragEvent) => {

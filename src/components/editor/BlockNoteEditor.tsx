@@ -19,7 +19,14 @@ import "highlight.js/styles/github-dark.css";
 
 const lowlight = createLowlight(all);
 
-// Custom Highlighter for BlockNote
+/**
+ * @function highlightCode
+ * @description Syntax-highlights code for BlockNote's code block extension.
+ * Falls back to plain text if the language is not registered or highlighting fails.
+ * @param {string} code - Source code to highlight
+ * @param {string} language - Language identifier (e.g. 'typescript')
+ * @returns Lowlight HAST root
+ */
 const highlightCode = (code: string, language: string) => {
   try {
     const lang = language || 'plaintext';
@@ -44,6 +51,59 @@ const supportedLanguages = {
   cpp: { name: "C++" },
   csharp: { name: "C#" },
 };
+
+/**
+ * Block types that are valid as top-level blocks in BlockNote's default schema.
+ * Any block with a type NOT in this set will be converted to a paragraph to
+ * prevent BlockNote's schema resolver from receiving `undefined` and crashing
+ * with `TypeError: Cannot read properties of undefined (reading 'isInGroup')`.
+ */
+const VALID_BN_BLOCK_TYPES = new Set([
+  'paragraph',
+  'heading',
+  'bulletListItem',
+  'numberedListItem',
+  'checkListItem',
+  'codeBlock',
+  'image',
+  'video',
+  'audio',
+  'file',
+  'table',
+  // NOTE: tableRow / tableHead / tableCell are internal ProseMirror nodes.
+  // They are NOT valid as top-level BlockNote blocks and will crash the editor
+  // if passed to replaceBlocks directly. Leave them out so they get remapped
+  // to paragraph by the sanitizer.
+  'quote',
+  'toggleListItem',
+]);
+
+/**
+ * Block types that must NOT have a non-empty `children` array in BN's schema.
+ * These are leaf or inline-only blocks that cannot contain child blocks.
+ * NOTE: 'table' is intentionally excluded — tables need children (rows).
+ * tableHead/tableCell/tableRow ARE included: cells hold inline content, not child blocks.
+ */
+const LEAF_BN_BLOCK_TYPES = new Set([
+  'image',
+  'video',
+  'audio',
+  'file',
+  'codeBlock',
+]);
+
+/**
+ * Block types that must NOT have a `content` array in BN's schema
+ * (their content is derived from children or props).
+ * NOTE: 'table' is intentionally NOT here — the table block uses children,
+ * and deleting content from it triggers 'Invalid content for node table: <>'.
+ */
+const NO_CONTENT_BN_BLOCK_TYPES = new Set([
+  'image',
+  'video',
+  'audio',
+  'file',
+]);
 
 interface BlockNoteEditorProps {
   initialContent?: Block[];
@@ -74,14 +134,17 @@ export const BlockNoteEditor = ({
   const onLoadErrorRef = useRef(onLoadError);
   onLoadErrorRef.current = onLoadError;
 
-  // Create custom block specs with highlighting
+  // Trace: customBlockSpecs — O(1) memoized, only rebuilt if deps change
   const customBlockSpecs = useMemo(() => {
     return {
       ...defaultBlockSpecs,
       codeBlock: createCodeBlockSpec({
         supportedLanguages,
         createHighlighter: () => Promise.resolve({
-          codeToHast: highlightCode
+          codeToHast: highlightCode,
+          // BlockNote calls getLoadedLanguages() on the highlighter instance.
+          // Return the lowlight language list to satisfy this requirement.
+          getLoadedLanguages: () => lowlight.listLanguages(),
         } as any),
       }),
     };
@@ -91,17 +154,130 @@ export const BlockNoteEditor = ({
     blockSpecs: customBlockSpecs,
   }), [customBlockSpecs]);
 
-  // Configure the editor
+  // Configure the editor — initial content is handled in useEffect for stability
   const editor = useCreateBlockNote({
     schema,
-    initialContent: undefined, // Handled in useEffect for stability
+    initialContent: undefined,
   });
 
-  // Ensure content is an array for BlockNote
-  const safeInitialContent = useMemo(() => {
-    if (!initialContent) return [];
-    return Array.isArray(initialContent) ? initialContent : [];
-  }, [initialContent]);
+  // ─── Block Sanitizer ────────────────────────────────────────────────────────
+  /**
+   * Recursively sanitizes BlockNote blocks before passing them to replaceBlocks.
+   *
+   * This prevents the `TypeError: Cannot read properties of undefined (reading 'isInGroup')`
+   * crash which occurs when BN's ProseMirror schema resolver receives an unknown
+   * block type and returns `undefined` instead of a schema group descriptor.
+   *
+   * Sanitization rules (applied recursively):
+   *   1. Reject null/undefined/non-object blocks
+   *   2. Reject blocks without a `type` string
+   *   3. Ensure each block has a unique `id`
+   *   4. Remap unknown block types to 'paragraph' to keep content visible
+   *   5. Strip `content` from block types that don't accept inline content
+   *   6. Strip `children` from leaf block types that can't have child blocks
+   *   7. Normalize `content` null/undefined → [] for content-bearing blocks
+   *   8. Filter out null/undefined items inside content and children arrays
+   *   9. Parse JSON-stringified arrays in `props` (legacy Firestore serialization)
+   */
+  const sanitizeBlocks = useCallback((blocks: any[]): any[] => {
+    if (!Array.isArray(blocks)) return [];
+
+    return blocks
+      .filter((b: any) => b != null && typeof b === 'object' && typeof b.type === 'string')
+      .map((b: any) => {
+        const sanitized: any = { ...b };
+
+        // Step 1 — Ensure unique ID
+        if (!sanitized.id || typeof sanitized.id !== 'string') {
+          sanitized.id = crypto.randomUUID();
+        }
+
+        // Step 2 — Remap unknown types to paragraph (prevents isInGroup crash)
+        if (!VALID_BN_BLOCK_TYPES.has(sanitized.type)) {
+          // Try to preserve any text content
+          const textContent = extractTextFromUnknownBlock(b);
+          sanitized.type = 'paragraph';
+          sanitized.props = {
+            textColor: 'default',
+            backgroundColor: 'default',
+            textAlignment: 'left',
+          };
+          sanitized.content = textContent
+            ? [{ type: 'text', text: textContent, styles: {} }]
+            : [];
+          sanitized.children = [];
+          return sanitized;
+        }
+
+        // Step 3 — Sanitize props (expand JSON-stringified arrays)
+        if (sanitized.props && typeof sanitized.props === 'object') {
+          const props = { ...sanitized.props };
+          for (const key of Object.keys(props)) {
+            if (typeof props[key] === 'string') {
+              try {
+                const parsed = JSON.parse(props[key]);
+                if (Array.isArray(parsed)) props[key] = parsed;
+              } catch { /* keep original string value */ }
+            }
+          }
+          sanitized.props = props;
+        }
+
+        // Step 4 — Handle content
+        if (NO_CONTENT_BN_BLOCK_TYPES.has(sanitized.type)) {
+          // These block types must not have an inline content array
+          delete sanitized.content;
+        } else {
+          // Parse JSON-stringified content (legacy Firestore)
+          let contentArr = sanitized.content;
+          if (typeof contentArr === 'string') {
+            try {
+              const parsed = JSON.parse(contentArr);
+              contentArr = Array.isArray(parsed) ? parsed : [];
+            } catch { contentArr = []; }
+          }
+          sanitized.content = Array.isArray(contentArr)
+            ? contentArr.filter((c: any) => c != null && typeof c === 'object')
+            : [];
+        }
+
+        // Step 5 — Handle children
+        if (LEAF_BN_BLOCK_TYPES.has(sanitized.type)) {
+          // Leaf blocks must not have children
+          sanitized.children = [];
+        } else if (sanitized.type === 'table') {
+          // Table children must be tableRow blocks. Any other child type is invalid
+          // and will cause 'Invalid content for node table: <>' in ProseMirror.
+          // Clear all children — if the table has no valid rows, step 6 converts it
+          // to a paragraph.
+          sanitized.children = [];
+        } else {
+          let childrenArr = sanitized.children;
+          if (typeof childrenArr === 'string') {
+            try {
+              const parsed = JSON.parse(childrenArr);
+              childrenArr = Array.isArray(parsed) ? parsed : [];
+            } catch { childrenArr = []; }
+          }
+          sanitized.children = Array.isArray(childrenArr)
+            ? sanitizeBlocks(childrenArr)
+            : [];
+        }
+
+        // Step 6 — Validate table blocks have at least one row
+        if (sanitized.type === 'table' && (!sanitized.children || sanitized.children.length === 0)) {
+          sanitized.type = 'paragraph';
+          sanitized.props = {
+            textColor: 'default',
+            backgroundColor: 'default',
+            textAlignment: 'left',
+          };
+          sanitized.content = [];
+        }
+
+        return sanitized;
+      });
+  }, []);
 
   // Handle image paste from clipboard
   const handlePaste = useCallback((e: ClipboardEvent) => {
@@ -132,15 +308,18 @@ export const BlockNoteEditor = ({
               }
             };
 
-            const lastBlock = editor.document[editor.document.length - 1];
-            if (lastBlock) {
-              editor.insertBlocks([imageBlock], lastBlock, "after");
-            } else {
-              editor.insertBlocks([imageBlock], editor.document[0], "before");
+            try {
+              const lastBlock = editor.document[editor.document.length - 1];
+              if (lastBlock) {
+                editor.insertBlocks([imageBlock], lastBlock, "after");
+              } else {
+                editor.insertBlocks([imageBlock], editor.document[0], "before");
+              }
+              lastEmittedContent.current = JSON.stringify(editor.document);
+              onChange?.(editor.document);
+            } catch (err) {
+              console.error('[BlockNote] Image paste failed:', err);
             }
-
-            lastEmittedContent.current = JSON.stringify(editor.document);
-            onChange?.(editor.document);
           }
         };
         reader.readAsDataURL(file);
@@ -161,7 +340,19 @@ export const BlockNoteEditor = ({
     };
   }, [editor, handlePaste]);
 
-  // Apply initial content once when editor is ready
+  /**
+   * Apply initial content once when editor is ready.
+   *
+   * Fix for `isInGroup` crash (PRIMARY):
+   * ProseMirror needs one full event loop turn after `useCreateBlockNote` to
+   * commit its initial empty-document transaction to the view. Calling
+   * `replaceBlocks` synchronously in the same render violates this and causes
+   * the schema group resolver to receive `undefined`.
+   *
+   * We use `requestAnimationFrame` to defer the call to after the browser has
+   * painted the initial empty editor, at which point all internal ProseMirror
+   * state is fully committed and safe to mutate.
+   */
   useEffect(() => {
     if (!editor || initialContentApplied.current) return;
 
@@ -171,82 +362,80 @@ export const BlockNoteEditor = ({
       return;
     }
 
-    try {
-      // Helper: parse a value that may be a JSON-stringified array
-      const tryParseArray = (val: any): any[] | null => {
-        if (Array.isArray(val)) return val;
-        if (typeof val === 'string') {
-          try {
-            const parsed = JSON.parse(val);
-            return Array.isArray(parsed) ? parsed : null;
-          } catch { return null; }
-        }
-        return null;
-      };
+    let cancelled = false;
+    let rafHandle: number;
 
-      // Recursively sanitize blocks to prevent BlockNote from crashing on malformed nodes
-      const sanitizeBlocks = (blocks: any[]): any[] => {
-        if (!Array.isArray(blocks)) return [];
-        return blocks
-          .filter((b: any) => b && typeof b === 'object' && b.type)
-          .map((b: any) => {
-            const sanitized: any = { ...b };
+    const applyContent = () => {
+      if (cancelled) return;
 
-            // Ensure id exists
-            if (!sanitized.id) sanitized.id = crypto.randomUUID();
-
-            // Sanitize props — handle JSON-stringified arrays (e.g. columnWidths)
-            if (sanitized.props && typeof sanitized.props === 'object') {
-              const props = { ...sanitized.props };
-              for (const key of Object.keys(props)) {
-                if (typeof props[key] === 'string') {
-                  try {
-                    const parsed = JSON.parse(props[key]);
-                    if (Array.isArray(parsed)) props[key] = parsed;
-                  } catch { /* keep original string value */ }
-                }
-              }
-              sanitized.props = props;
-            }
-
-            // Sanitize content — may be JSON-stringified from old sanitizeForFirestore
-            const contentArr = tryParseArray(b.content);
-            if (contentArr) {
-              sanitized.content = contentArr.filter((c: any) => c && typeof c === 'object');
-            } else if (b.content && Array.isArray(b.content)) {
-              sanitized.content = b.content.filter((c: any) => c && typeof c === 'object');
-            } else if (b.content === null || b.content === undefined) {
-              sanitized.content = undefined;
-            }
-
-            // Sanitize children — may be JSON-stringified from old sanitizeForFirestore
-            const childrenArr = tryParseArray(b.children);
-            if (childrenArr) {
-              sanitized.children = sanitizeBlocks(childrenArr);
-            } else if (b.children && Array.isArray(b.children)) {
-              sanitized.children = sanitizeBlocks(b.children);
-            } else {
-              sanitized.children = [];
-            }
-
-            return sanitized;
-          });
-      };
-      
-      const safeContent = sanitizeBlocks(initialContent);
-
-      if (safeContent.length > 0) {
-        editor.replaceBlocks(editor.document, safeContent);
+      const safeContent = sanitizeBlocks(initialContent as any[]);
+      if (safeContent.length === 0) {
+        initialContentApplied.current = true;
+        return;
       }
-    } catch (error) {
-      console.error('[BlockNote] Failed to apply initial content safely:', error);
-      // Signal parent to fallback to Tiptap — content will not be silently lost
-      onLoadErrorRef.current?.();
-    }
 
-    initialContentApplied.current = true;
-    lastEmittedContent.current = JSON.stringify(editor.document);
-  }, [editor, initialContent]);
+      // Phase 1: Optimistic batch — fast path for well-formed content
+      try {
+        editor.replaceBlocks(editor.document, safeContent);
+        if (!cancelled) {
+          initialContentApplied.current = true;
+          lastEmittedContent.current = JSON.stringify(editor.document);
+        }
+        return;
+      } catch (batchError) {
+        console.warn(
+          '[BlockNote] Batch replaceBlocks failed, switching to resilient one-by-one mode:',
+          (batchError as Error)?.message ?? batchError
+        );
+      }
+
+      // Phase 2: Resilient one-by-one insertion — isolates bad blocks instead of
+      // falling back to Tiptap entirely. Skips any block that throws.
+      if (cancelled) return;
+
+      let inserted = 0;
+      for (let i = 0; i < safeContent.length; i++) {
+        if (cancelled) break;
+        try {
+          const block = safeContent[i];
+          if (i === 0) {
+            // Replace the initial empty document with the first block
+            editor.replaceBlocks(editor.document, [block]);
+          } else {
+            // Append after the last block in the document
+            const lastDoc = editor.document;
+            const anchor = lastDoc[lastDoc.length - 1];
+            if (anchor) editor.insertBlocks([block], anchor, 'after');
+          }
+          inserted++;
+        } catch (blockError) {
+          console.warn(
+            `[BlockNote] Skipping block ${i} (type="${safeContent[i]?.type}") — schema error:`,
+            (blockError as Error)?.message ?? blockError
+          );
+        }
+      }
+
+      if (!cancelled) {
+        if (inserted === 0 && safeContent.length > 0) {
+          // Every single block failed — nothing we can do, signal fallback
+          console.error('[BlockNote] All blocks failed to insert — falling back to Tiptap');
+          onLoadErrorRef.current?.();
+        } else {
+          initialContentApplied.current = true;
+          lastEmittedContent.current = JSON.stringify(editor.document);
+        }
+      }
+    };
+
+    // Defer by one animation frame to let ProseMirror commit its initial transaction
+    rafHandle = requestAnimationFrame(applyContent);
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(rafHandle);
+    };
+  }, [editor, initialContent, sanitizeBlocks]);
 
   // Handle paste content separately - only once per unique paste
   useEffect(() => {
@@ -348,5 +537,40 @@ export const BlockNoteEditor = ({
     </MantineProvider>
   );
 };
+
+/**
+ * @function extractTextFromUnknownBlock
+ * @description Best-effort text extraction from any block type not in the
+ * valid set, so we don't silently discard user content.
+ * @param {any} block - Any block-like object
+ * @returns {string} Extracted text or empty string
+ */
+function extractTextFromUnknownBlock(block: any): string {
+  if (!block) return '';
+
+  // Try content array first
+  if (Array.isArray(block.content)) {
+    const text = block.content
+      .filter((c: any) => c?.type === 'text' && typeof c.text === 'string')
+      .map((c: any) => c.text)
+      .join('');
+    if (text) return text;
+  }
+
+  // Try children
+  if (Array.isArray(block.children)) {
+    return block.children.map(extractTextFromUnknownBlock).filter(Boolean).join(' ');
+  }
+
+  // Try props.text or props.content
+  if (block.props) {
+    if (typeof block.props.text === 'string') return block.props.text;
+    if (typeof block.props.content === 'string') return block.props.content;
+    if (typeof block.props.caption === 'string') return block.props.caption;
+    if (typeof block.props.url === 'string') return `[File: ${block.props.name || block.props.url}]`;
+  }
+
+  return '';
+}
 
 export default BlockNoteEditor;

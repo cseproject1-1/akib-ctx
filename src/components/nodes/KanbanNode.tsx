@@ -144,12 +144,11 @@ export const KanbanNode = memo(({ id, data, selected }: NodeProps) => {
       bodyClassName="p-2"
       summary={columns.map(c => `${c.title}: ${c.cards.length}`).join(' · ')}
     >
-      <div className="flex gap-2 min-w-[480px]">
+      <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-primary/20 scrollbar-track-transparent">
         {columns.map((col) => (
           <div
             key={col.id}
-            className="flex flex-col gap-1.5 flex-1 min-w-[140px] rounded-lg border-2 border-border bg-accent/30 p-2 transition-colors hover:bg-accent/50 group/col"
-            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }}
             onDrop={(e) => {
               const rfData = e.dataTransfer.getData('application/reactflow');
               if (rfData) {
@@ -158,11 +157,23 @@ export const KanbanNode = memo(({ id, data, selected }: NodeProps) => {
                 handleDrop(e, col.id);
               }
             }}
+            className="flex w-64 shrink-0 flex-col gap-3 rounded-2xl bg-background/40 backdrop-blur-md border border-white/5 p-3 shadow-sm hover:shadow-md transition-all duration-300 group/column"
           >
-            {/* Column header */}
-            <div className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${col.color}`}>
-              {col.title}
-              <span className="ml-1 opacity-60">({col.cards.length})</span>
+            {/* Column Header */}
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2">
+                <div className={`h-2.5 w-2.5 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.1)] ${
+                  col.id === 'todo' ? 'bg-muted-foreground/40' : 
+                  col.id === 'inprogress' ? 'bg-primary shadow-primary/20' : 
+                  'bg-green-500 shadow-green-500/20'
+                }`} />
+                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-foreground/70">
+                  {col.title}
+                </h4>
+                <span className="rounded-full bg-foreground/5 px-2 py-0.5 text-[9px] font-bold text-muted-foreground/60 transition-colors group-hover/column:bg-primary/10 group-hover/column:text-primary/60">
+                  {col.cards.length}
+                </span>
+              </div>
             </div>
 
             {/* Cards */}
@@ -200,7 +211,7 @@ export const KanbanNode = memo(({ id, data, selected }: NodeProps) => {
             {addingIn === col.id ? (
               <div className="flex flex-col gap-1">
                 <textarea
-                  autoFocus
+                  ref={(el) => { if (el && addingIn === col.id) el.focus(); }}
                   rows={2}
                   value={newCardText}
                   onChange={(e) => setNewCardText(e.target.value)}

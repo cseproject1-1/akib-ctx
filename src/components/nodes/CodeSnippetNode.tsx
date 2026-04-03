@@ -6,6 +6,7 @@ import { useCanvasStore } from '@/store/canvasStore';
 import { toast } from 'sonner';
 import { createLowlight, all } from 'lowlight';
 import { toHtml } from 'hast-util-to-html';
+import DOMPurify from 'dompurify';
 import { CodeSnippetNodeData } from '@/types/canvas';
 
 const lowlight = createLowlight(all);
@@ -21,12 +22,20 @@ export const CodeSnippetNode = memo(({ id, data, selected }: NodeProps) => {
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
   const nodeData = data as unknown as CodeSnippetNodeData;
   const [editing, setEditing] = useState(!nodeData.code);
+  const [editValue, setEditValue] = useState(nodeData.code || '');
   const [copied, setCopied] = useState(false);
   const [showLangPicker, setShowLangPicker] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const langPickerRef = useRef<HTMLDivElement>(null);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const language = nodeData.language || 'plaintext';
+
+  useEffect(() => {
+    if (!editing) {
+      setEditValue(nodeData.code || '');
+    }
+  }, [nodeData.code, editing]);
 
   useEffect(() => {
     if (editing && textareaRef.current) {
@@ -34,16 +43,26 @@ export const CodeSnippetNode = memo(({ id, data, selected }: NodeProps) => {
     }
   }, [editing]);
 
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
+
   // Close language picker on outside click
   useEffect(() => {
     if (!showLangPicker) return;
-    const handler = (e: MouseEvent) => {
+    const handler = (e: MouseEvent | TouchEvent) => {
       if (langPickerRef.current && !langPickerRef.current.contains(e.target as Node)) {
         setShowLangPicker(false);
       }
     };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('touchstart', handler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('touchstart', handler);
+    };
   }, [showLangPicker]);
 
   const handleCopy = useCallback(() => {
@@ -51,17 +70,17 @@ export const CodeSnippetNode = memo(({ id, data, selected }: NodeProps) => {
       navigator.clipboard.writeText(nodeData.code).then(() => {
         setCopied(true);
         toast.success('Code copied');
-        setTimeout(() => setCopied(false), 2000);
+        copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
       }).catch(() => {
         toast.error('Failed to copy code');
       });
     }
   }, [nodeData.code]);
 
-  const handleBlur = useCallback((e: React.FocusEvent<HTMLTextAreaElement>) => {
-    updateNodeData(id, { code: e.target.value });
-    if (e.target.value.trim()) setEditing(false);
-  }, [id, updateNodeData]);
+  const handleBlur = useCallback(() => {
+    updateNodeData(id, { code: editValue });
+    if (editValue.trim()) setEditing(false);
+  }, [id, updateNodeData, editValue]);
 
   return (
     <BaseNode
@@ -119,7 +138,8 @@ export const CodeSnippetNode = memo(({ id, data, selected }: NodeProps) => {
         {editing ? (
           <textarea
             ref={textareaRef}
-            defaultValue={nodeData.code || ''}
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
             onBlur={handleBlur}
             onKeyDown={(e) => {
               e.stopPropagation();
@@ -128,8 +148,27 @@ export const CodeSnippetNode = memo(({ id, data, selected }: NodeProps) => {
                 const ta = e.currentTarget;
                 const start = ta.selectionStart;
                 const end = ta.selectionEnd;
-                ta.value = ta.value.substring(0, start) + '  ' + ta.value.substring(end);
-                ta.selectionStart = ta.selectionEnd = start + 2;
+                const isShift = e.shiftKey;
+                
+                if (isShift) {
+                  // N55: Dedent
+                  const lines = editValue.substring(0, start).split('\n');
+                  const currentLine = lines[lines.length - 1];
+                  if (currentLine.endsWith('  ')) {
+                    const newVal = editValue.substring(0, start - 2) + editValue.substring(start);
+                    setEditValue(newVal);
+                    requestAnimationFrame(() => {
+                      ta.selectionStart = ta.selectionEnd = Math.max(0, start - 2);
+                    });
+                  }
+                } else {
+                  // Indent
+                  const newVal = editValue.substring(0, start) + '  ' + editValue.substring(end);
+                  setEditValue(newVal);
+                  requestAnimationFrame(() => {
+                    ta.selectionStart = ta.selectionEnd = start + 2;
+                  });
+                }
               }
             }}
             className="w-full flex-1 min-h-[120px] resize-none bg-muted p-4 font-mono text-xs text-foreground outline-none placeholder:text-muted-foreground"
@@ -168,7 +207,8 @@ function HighlightedCode({ code, language, onDoubleClick }: { code: string; lang
       className="code-highlight w-full flex-1 overflow-auto bg-muted p-4 font-mono text-xs text-foreground cursor-text"
       onDoubleClick={onDoubleClick}
     >
-      <code dangerouslySetInnerHTML={{ __html: html }} />
+      {/* N3 fix: Sanitize highlighted HTML */}
+      <code dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }} />
     </pre>
   );
 }

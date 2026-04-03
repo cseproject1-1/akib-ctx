@@ -6,6 +6,10 @@ type StoreName = (typeof STORES)[number];
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error('IndexedDB open timeout (10s)'));
+    }, 10000);
+
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
@@ -16,6 +20,7 @@ function openDB(): Promise<IDBDatabase> {
       });
     };
     req.onsuccess = () => {
+      clearTimeout(timeout);
       const db = req.result;
       db.onversionchange = () => {
         db.close();
@@ -26,7 +31,10 @@ function openDB(): Promise<IDBDatabase> {
       };
       resolve(db);
     };
-    req.onerror = () => reject(req.error);
+    req.onerror = () => {
+      clearTimeout(timeout);
+      reject(req.error);
+    };
   });
 }
 
@@ -155,6 +163,18 @@ export async function clearAllCaches(): Promise<void> {
   }
 }
 
+/** 
+ * Clears all cached data (nodes, edges, drawings, counts) for a specific workspace.
+ * Does NOT clear pending operations (use deleteWorkspacePendingOps for that).
+ */
+export async function deleteWorkspaceCache(workspaceId: string): Promise<void> {
+  const stores: StoreName[] = ['canvas-nodes', 'canvas-edges', 'canvas-drawings', 'node-counts'];
+  for (const store of stores) {
+    await cacheDel(store, workspaceId);
+  }
+}
+
+
 // Pending ops for offline queue
 export interface PendingOp {
   id: string;
@@ -191,6 +211,25 @@ export async function getAllPendingOps(): Promise<PendingOp[]> {
 export async function removePendingOp(id: string): Promise<void> {
   await cacheDel('pending-ops', id);
 }
+
+/**
+ * Removes all pending operations associated with a specific workspace.
+ * Used when a workspace is permanently deleted to prevent replaying orphaned ops.
+ */
+export async function deleteWorkspacePendingOps(workspaceId: string): Promise<void> {
+  try {
+    const ops = await getAllPendingOps();
+    for (const op of ops) {
+      // args[0] is typically the workspaceId in our pending ops
+      if (op.args && op.args[0] === workspaceId) {
+        await removePendingOp(op.id);
+      }
+    }
+  } catch (err) {
+    console.error('[DB] Failed to clear pending ops for workspace:', workspaceId, err);
+  }
+}
+
 
 // File blob caching for offline viewing
 export interface CachedBlob {

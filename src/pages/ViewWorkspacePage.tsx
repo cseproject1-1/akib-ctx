@@ -26,12 +26,18 @@ const ViewWorkspacePage = () => {
         const wsSnap = await getDoc(wsRef);
 
         if (!wsSnap.exists()) {
-          setError('This workspace is not publicly shared or does not exist.');
+          setError('This workspace does not exist.');
           setLoading(false);
           return;
         }
 
         const wsData = wsSnap.data();
+        if (!wsData.is_public) {
+          setError('This workspace is private.');
+          setLoading(false);
+          return;
+        }
+
         setWorkspaceMeta(wsData.name, wsData.color);
 
         // Update meta data for SEO & Social Sharing
@@ -63,12 +69,18 @@ const ViewWorkspacePage = () => {
 
         const nodes: Node[] = nodesSnap.docs.map(docSnap => {
           const row = docSnap.data();
+          const positionX = isFinite(row.position_x) ? row.position_x : 0;
+          const positionY = isFinite(row.position_y) ? row.position_y : 0;
           return {
             id: docSnap.id,
             type: row.type,
-            position: { x: row.position_x, y: row.position_y },
+            position: { x: positionX, y: positionY },
             data: row.data || {},
-            style: { width: row.width, height: row.height, zIndex: row.z_index },
+            style: { 
+              width: isFinite(row.width) ? row.width : undefined, 
+              height: isFinite(row.height) ? row.height : undefined, 
+              zIndex: row.z_index 
+            },
           };
         });
 

@@ -25,10 +25,9 @@ export const DrawingNode = memo(({ id, data, selected }: NodeProps) => {
   // Initialize original dimensions if missing (healing legacy nodes)
   useEffect(() => {
     if (nodeData.originalWidth === undefined || nodeData.originalHeight === undefined) {
-      updateNodeData(id, {
-        originalWidth: nodeData.originalWidth ?? w,
-        originalHeight: nodeData.originalHeight ?? h,
-      });
+      if (nodeData.originalWidth === undefined && nodeData.originalHeight === undefined) {
+        updateNodeData(id, { originalWidth: w, originalHeight: h });
+      }
     }
   }, [id, nodeData.originalWidth, nodeData.originalHeight, w, h, updateNodeData]);
 
@@ -59,16 +58,16 @@ export const DrawingNode = memo(({ id, data, selected }: NodeProps) => {
         width={w} 
         height={h} 
         viewBox={`0 0 ${origW} ${origH}`}
-        preserveAspectRatio="none"
+        preserveAspectRatio="xMidYMid meet"
         className="rounded-lg" 
         style={{ background: 'transparent' }}
       >
         {((nodeData.paths as unknown as PathData[]) || []).map((p, i) => (
           <path
-            key={i}
+            key={p.id || i}
             d={p.d}
             stroke={p.color}
-            strokeWidth={p.width / Math.max(scaleX, scaleY)}
+            strokeWidth={p.width / Math.sqrt(scaleX * scaleY)}
             fill="none"
             strokeLinecap="round"
             strokeLinejoin="round"

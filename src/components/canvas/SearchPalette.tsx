@@ -70,7 +70,7 @@ export function SearchPalette() {
   const inputRef = useRef<HTMLInputElement>(null);
   const nodes = useNodes();
   const reactFlow = useReactFlow();
-  const setHighlightedNodes = useCanvasStore((s) => s.setHighlightedNodes);
+  const searchIndex = useCanvasStore((s) => s.searchIndex);
   const activePalette = useCanvasStore((s) => s.activePalette);
   const setActivePalette = useCanvasStore((s) => s.setActivePalette);
 
@@ -78,19 +78,19 @@ export function SearchPalette() {
   const setOpen = useCallback((val: boolean) => setActivePalette(val ? 'search' : null), [setActivePalette]);
 
   const fuse = useMemo(() => {
-    return new Fuse(nodes, {
+    return new Fuse(searchIndex, {
       keys: [
-        { name: 'data.title', weight: 0.7 },
-        { name: 'data.text', weight: 0.5 },
-        { name: 'data.fileName', weight: 0.5 },
-        { name: 'data.label', weight: 0.5 },
-        { name: 'type', weight: 0.2 },
+        { name: 'title', weight: 0.8 },
+        { name: 'content', weight: 0.5 },
+        { name: 'tags', weight: 0.4 },
+        { name: 'type', weight: 0.1 },
       ],
-      threshold: 0.4,
+      threshold: 0.35,
       ignoreLocation: true,
+      includeMatches: true,
     });
-  }, [nodes]);
-
+  }, [searchIndex]);
+  
   const toggle = useCallback(() => {
     if (!open) {
       setQuery('');
@@ -173,13 +173,15 @@ export function SearchPalette() {
     if (query.length > 0) {
       const fuseResults = fuse.search(query);
       return fuseResults
-        .map(r => r.item)
-        .filter(n => filtered.some(fn => fn.id === n.id))
+        .map(r => nodes.find(n => n.id === r.item.id))
+        .filter((n): n is Node => !!n && (scope === 'all' || filtered.some(fn => fn.id === n.id))) 
         .slice(0, 10);
     }
     
     return filtered.slice(0, 5);
-  }, [nodes, query, filterType, fuse, scope, reactFlow]);
+  }, [nodes, query, filterType, fuse, scope, reactFlow, searchIndex]);
+
+  const setHighlightedNodes = useCanvasStore((s) => s.setHighlightedNodes);
 
   const handleSelect = (nodeId: string) => {
     const node = nodes.find(n => n.id === nodeId);
@@ -226,14 +228,14 @@ export function SearchPalette() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[70] bg-background/20 backdrop-blur-xl" 
+            className="fixed inset-0 z-search bg-background/20 backdrop-blur-xl" 
             onClick={() => setOpen(false)} 
           />
           <motion.div 
             initial={{ opacity: 0, scale: 0.95, y: -20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -20 }}
-            className="fixed left-1/2 top-[15%] z-[71] w-full max-w-lg -translate-x-1/2 rounded-[32px] glass-effect pro-shadow border border-white/10 overflow-hidden"
+            className="fixed left-1/2 top-[15%] z-search-panel w-full max-w-lg -translate-x-1/2 rounded-[32px] glass-effect pro-shadow border border-white/10 overflow-hidden"
           >
             <div className="flex items-center gap-4 border-b border-white/5 px-6 py-5 bg-white/5">
               <Search className="h-5 w-5 text-primary" />

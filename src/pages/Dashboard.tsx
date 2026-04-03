@@ -4,7 +4,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import type { Node } from '@xyflow/react';
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { createWorkspace, deleteWorkspace, duplicateWorkspace, updateWorkspace, restoreWorkspace, permanentlyDeleteWorkspace, emptyTrash, type Workspace } from '@/lib/firebase/workspaces';
+import { createWorkspace, deleteWorkspace, duplicateWorkspace, updateWorkspace, restoreWorkspace, permanentlyDeleteWorkspace, emptyTrash } from '@/lib/firebase/workspaces';
+import { type Workspace } from '@/types/canvas';
+
+import { verifyWorkspacePassword } from '@/lib/aiService';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
 import { cachedGetWorkspaces, cachedGetNodeCount, invalidateWorkspaceList, invalidateWorkspaceCache, saveNode } from '@/lib/cache/canvasCache';
 import { formatDistanceToNow } from 'date-fns';
@@ -217,7 +220,6 @@ const Dashboard = () => {
        // Instant render from cache
        if (cached) {
          setWorkspaces(cached);
-         setLoading(false);
          // Load cached node counts incrementally
          await Promise.all(cached.map(async (ws) => {
            const count = await cachedGetNodeCount(ws.id);
@@ -229,7 +231,6 @@ const Dashboard = () => {
        if (!cached) {
          const data = await fresh;
          setWorkspaces(data);
-         setLoading(false);
          // Load fresh node counts
          await Promise.all(data.map(async (ws) => {
            const count = await cachedGetNodeCount(ws.id);
@@ -237,9 +238,9 @@ const Dashboard = () => {
          }));
        }
      } catch (error) {
-       setLoading(false);
        toast.error('Failed to load workspaces');
        console.error('Workspace loading error:', error);
+       throw error;
      }
    }, []);
 
@@ -260,7 +261,6 @@ const Dashboard = () => {
        if (cached) {
          const vaultCached = cached.filter(ws => ws.is_in_vault);
          setVaultWorkspaces(vaultCached);
-         setLoading(false);
          // Load cached node counts for vault workspaces
          await Promise.all(vaultCached.map(async (ws) => {
            const count = await cachedGetNodeCount(ws.id);
@@ -273,7 +273,6 @@ const Dashboard = () => {
          const data = await fresh;
          const vaultFresh = data.filter(ws => ws.is_in_vault);
          setVaultWorkspaces(vaultFresh);
-         setLoading(false);
          // Load fresh node counts for vault workspaces
          await Promise.all(vaultFresh.map(async (ws) => {
            const count = await cachedGetNodeCount(ws.id);
@@ -281,17 +280,22 @@ const Dashboard = () => {
          }));
        }
      } catch (error) {
-       setLoading(false);
        toast.error('Failed to load vault workspaces');
        console.error('Vault workspace loading error:', error);
+       throw error;
      }
    }, []);
 
    useEffect(() => {
      if (!user) return;
-     loadRegularWorkspaces();
-     loadVaultWorkspaces();
+     Promise.all([
+       loadRegularWorkspaces(),
+       loadVaultWorkspaces()
+     ]).finally(() => {
+       setLoading(false);
+     });
    }, [user, loadRegularWorkspaces, loadVaultWorkspaces]);
+
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
@@ -359,9 +363,9 @@ const Dashboard = () => {
       const password = prompt('This workspace is password protected. Please enter the password to delete it:');
       if (!password) return; // User cancelled
       
-      // Import password verification function
-      const { verifyPassword } = await import('@/lib/utils/password');
-      const isValid = await verifyPassword(password, workspace.password_hash || '');
+      // Verify password via worker
+      const isValid = await verifyWorkspacePassword(password, workspace.password_hash || '');
+
       if (!isValid) {
         toast.error('Incorrect password');
         return;
@@ -401,9 +405,9 @@ const Dashboard = () => {
       const password = prompt('This workspace is password protected. Please enter the password to permanently delete it:');
       if (!password) return; // User cancelled
       
-      // Import password verification function
-      const { verifyPassword } = await import('@/lib/utils/password');
-      const isValid = await verifyPassword(password, workspace.password_hash || '');
+      // Verify password via worker
+      const isValid = await verifyWorkspacePassword(password, workspace.password_hash || '');
+
       if (!isValid) {
         toast.error('Incorrect password');
         return;
@@ -411,13 +415,26 @@ const Dashboard = () => {
     }
     
     if (!confirm('Permanently delete this workspace? This action CANNOT be undone.')) return;
+    
+    // Store backup for rollback if needed
+    const backup = [...workspaces];
+    
+    // Optimistic UI update
+    setWorkspaces((prev) => prev.filter((w) => w.id !== id));
+    
     try {
-      await permanentlyDeleteWorkspace(id);
+      // Run the heavy deletion in background
+      permanentlyDeleteWorkspace(id).catch(err => {
+          console.error('Background permanent delete failed:', err);
+          setWorkspaces(backup);
+          toast.error('Failed to permanently delete workspace');
+      });
+      
       await Promise.all([invalidateWorkspaceList(), invalidateWorkspaceCache(id)]);
-      setWorkspaces((prev) => prev.filter((w) => w.id !== id));
-      toast.success('Workspace permanently deleted');
+      toast.success('Workspace deletion started');
     } catch (err) {
-      toast.error('Failed to delete workspace');
+      setWorkspaces(backup);
+      toast.error('Failed to initiate deletion');
     }
   };
 
@@ -501,12 +518,18 @@ const Dashboard = () => {
     if (!confirm(`Permanently delete all ${trashCount} items in the trash? This action CANNOT be undone.`)) return;
     
     setLoading(true);
+    // Store backup for rollback
+    const backup = [...workspaces];
+    
+    // Optimistic UI update
+    setWorkspaces(prev => prev.filter(ws => !ws.is_deleted));
+    
     try {
       await emptyTrash();
       await invalidateWorkspaceList();
-      setWorkspaces(prev => prev.filter(ws => !ws.is_deleted));
       toast.success('Trash emptied');
     } catch (err) {
+      setWorkspaces(backup);
       toast.error('Failed to empty trash');
     } finally {
       setLoading(false);

@@ -60,13 +60,17 @@ describe('Migration', () => {
       expect(result[0].content[0].text).toBe('Quote text');
     });
 
-    it('should convert horizontalRule to divider (not null)', () => {
+    it('should convert horizontalRule to a paragraph separator (not the invalid divider type)', () => {
       const tiptap = {
         type: 'doc',
         content: [{ type: 'horizontalRule' }]
       };
       const result = migrateToBlockNote(tiptap);
-      expect(result[0].type).toBe('divider');
+      // NOTE: 'divider' is NOT in BlockNote's default schema — using it crashes with
+      // TypeError: Cannot read properties of undefined (reading 'isInGroup')
+      // We map to a paragraph with a visual separator character instead.
+      expect(result[0].type).toBe('paragraph');
+      expect(result[0].content[0].text).toContain('─');
     });
 
     it('should convert image node to image block', () => {
@@ -137,6 +141,16 @@ describe('Migration', () => {
       };
       const result = migrateToBlockNote(tiptap);
       expect(result[0].content[0].styles.link).toBe('https://test.com');
+    });
+
+    it('should preserve original payload in fallback when migration crashes (M27)', () => {
+      // Pass something that has content but will crash (e.g., content is not an array)
+      const tiptapCrash = { type: 'doc', content: {} as any };
+      const result = migrateToBlockNote(tiptapCrash);
+      
+      expect(result[0].type).toBe('paragraph');
+      expect(result[0].content[0].text).toContain('Error migrating content');
+      expect(result[0].props._backup).toBe(JSON.stringify(tiptapCrash));
     });
   });
 
@@ -211,21 +225,40 @@ describe('Migration', () => {
       expect(result.content[0].content[0].marks[0].attrs.href).toBe('https://test.com');
     });
 
-    it('should convert bulletListItem to listItem', () => {
+    it('should convert bulletListItem to a bulletList wrapping a listItem', () => {
       const blocknote = [
         { id: '1', type: 'bulletListItem', props: {}, content: [{ type: 'text', text: 'Item', styles: {} }], children: [] }
       ];
       const result = migrateToTiPTap(blocknote);
-      expect(result.content[0].type).toBe('listItem');
+      // bulletListItem gets grouped into a bulletList by the post-processor
+      expect(result.content[0].type).toBe('bulletList');
+      expect(result.content[0].content[0].type).toBe('listItem');
     });
 
-    it('should convert checkListItem to taskItem', () => {
+    it('should convert checkListItem to a taskList wrapping a taskItem', () => {
       const blocknote = [
         { id: '1', type: 'checkListItem', props: { checked: true }, content: [{ type: 'text', text: 'Done', styles: {} }], children: [] }
       ];
       const result = migrateToTiPTap(blocknote);
-      expect(result.content[0].type).toBe('taskItem');
-      expect(result.content[0].attrs.checked).toBe(true);
+      expect(result.content[0].type).toBe('taskList');
+      expect(result.content[0].content[0].type).toBe('taskItem');
+      expect(result.content[0].content[0].attrs.checked).toBe(true);
+    });
+
+    it('should handle undefined content gracefully', () => {
+      const blocknoteWithUndefined = [{ type: 'paragraph', content: undefined as any }];
+      const result = migrateToTiPTap(blocknoteWithUndefined);
+      
+      expect(result.type).toBe('doc');
+      expect(result.content).toBeDefined();
+    });
+
+    it('should handle invalid blocks (not an array) with early return', () => {
+      const blocknoteCrash = {} as any[];
+      const result = migrateToTiPTap(blocknoteCrash);
+      
+      expect(result.type).toBe('doc');
+      expect(result.content).toEqual([]);
     });
   });
 
@@ -284,10 +317,13 @@ describe('Migration', () => {
       ];
 
       const tiptap = migrateToTiPTap(original);
+      // 'divider' BN block (if stored from old data) -> Tiptap horizontalRule
       expect(tiptap.content[0].type).toBe('horizontalRule');
 
       const backToBlockNote = migrateToBlockNote(tiptap);
-      expect(backToBlockNote[0].type).toBe('divider');
+      // horizontalRule comes back as a paragraph separator (safe – no isInGroup crash)
+      expect(backToBlockNote[0].type).toBe('paragraph');
+      expect(backToBlockNote[0].content[0].text).toContain('─');
     });
   });
 });

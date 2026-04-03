@@ -1,4 +1,4 @@
-import { memo, useState, useCallback, useMemo } from 'react';
+import { memo, useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { BaseNode } from './BaseNode';
@@ -9,11 +9,23 @@ export const TextNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const nodeData = data as unknown as TextNodeData;
   const [editing, setEditing] = useState(false);
+  const [editValue, setEditValue] = useState(nodeData.text || '');
+  const heightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleBlur = useCallback((e: React.FocusEvent<HTMLTextAreaElement>) => {
+  useEffect(() => {
+    return () => { if (heightTimerRef.current) clearTimeout(heightTimerRef.current); };
+  }, []);
+
+  useEffect(() => {
+    if (!editing) {
+      setEditValue(nodeData.text || '');
+    }
+  }, [nodeData.text, editing]);
+
+  const handleBlur = useCallback(() => {
     setEditing(false);
-    updateNodeData(id, { text: e.target.value });
-  }, [id, updateNodeData]);
+    updateNodeData(id, { text: editValue });
+  }, [id, updateNodeData, editValue]);
 
   const text = nodeData.text || '';
   const wordCount = useMemo(() => {
@@ -46,15 +58,27 @@ export const TextNode = memo(({ id, data, selected }: NodeProps) => {
           <textarea
             className="w-full flex-1 bg-transparent text-foreground outline-none resize-none overflow-hidden custom-scrollbar"
             style={{ fontSize: nodeData.fontSize || 16 }}
-            defaultValue={text}
-            onBlur={handleBlur}
-            onInput={(e) => {
+            value={editValue}
+            onChange={(e) => {
+              const val = e.target.value;
+              setEditValue(val);
+              
+              // Auto-resize logic
               const target = e.target as HTMLTextAreaElement;
               target.style.height = 'auto';
               target.style.height = `${target.scrollHeight}px`;
               const newHeight = Math.max(80, target.scrollHeight + 32);
-              updateNodeData(id, { height: newHeight });
+
+              if (heightTimerRef.current) clearTimeout(heightTimerRef.current);
+              heightTimerRef.current = setTimeout(() => {
+                // Debounce content + height sync to store
+                updateNodeData(id, { 
+                  text: val,
+                  height: newHeight 
+                });
+              }, 400);
             }}
+            onBlur={handleBlur}
             onKeyDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
             autoFocus
@@ -77,9 +101,6 @@ export const TextNode = memo(({ id, data, selected }: NodeProps) => {
           <div className="mt-1 text-[9px] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
             {wordCount}
           </div>
-        )}
-        {selected && (
-          <div className="absolute -top-0.5 -left-0.5 -right-0.5 -bottom-0.5 border-2 border-primary rounded pointer-events-none" />
         )}
       </div>
     </BaseNode>

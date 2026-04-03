@@ -245,7 +245,8 @@ export function CanvasWrapper() {
         prevNodes.current = storeNodes;
       }
     }
-  }, [nodes]); // Depend on nodes array from hook to trigger check
+  }, [nodes]); 
+
 
   const debouncedSyncToStore = useMemo(
     () => debounce((n: Node[]) => setStoreNodes(n), 150),
@@ -290,8 +291,6 @@ export function CanvasWrapper() {
   const drawingMode = useCanvasStore((s) => s.drawingMode);
   const setDrawingMode = useCanvasStore((s) => s.setDrawingMode);
   const setViewport = useCanvasStore((s) => s.setViewport);
-  const [drawColor, setDrawColor] = useState('hsl(52, 100%, 50%)'); // kept for future use
-  const [drawWidth, setDrawWidth] = useState(3); // kept for future use
 
   const SNAP_THRESHOLD = 8;
   const isViewMode = canvasMode === 'view';
@@ -423,11 +422,17 @@ export function CanvasWrapper() {
     isDraggingRef.current = false;
     debouncedSyncToStore.cancel();
     
-    setLocalNodes((current) => {
-      setStoreNodes(current);
-      return current;
-    });
-  }, [debouncedSyncToStore, setStoreNodes]);
+    // We don't need a manual setStoreNodes here because onNodesChange 
+    // will be called with the final position change (dragging: false)
+    // which triggers the store update automatically.
+  }, [debouncedSyncToStore]);
+
+  // Sync repulsed nodes to store during drag
+  const handleNodeDragSync = useCallback(() => {
+    if (isDraggingRef.current) {
+      // Keep local state in sync with dragging positions
+    }
+  }, []);
 
   // Apply locked state, view mode, focus mode
   const processedNodes = useMemo(() => {
@@ -1036,8 +1041,16 @@ export function CanvasWrapper() {
                   instance.setViewport({ x: vx, y: vy, zoom: vz });
                   setViewport({ x: vx, y: vy, zoom: vz });
                 }, 150);
+                return; // Prioritize hash over auto-fit
               }
             }
+          }
+
+          // Mobile Responsive Zoom: If no hash and on mobile, fit view with more padding
+          if (isMobile && nodes.length > 0) {
+            setTimeout(() => {
+              instance.fitView({ padding: 0.5, duration: 400 });
+            }, 300);
           }
         }}
         onNodeDoubleClick={(_e, node) => {

@@ -71,7 +71,7 @@ export function AISynthesisDialog({ selectedNodes, onClose }: AISynthesisDialogP
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-background/40 backdrop-blur-xl"
+      className="fixed inset-0 z-synthesis flex items-center justify-center p-4 bg-background/40 backdrop-blur-xl"
     >
       <motion.div 
         initial={{ opacity: 0, scale: 0.9, y: 20 }}

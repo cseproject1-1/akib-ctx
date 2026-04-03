@@ -1,6 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
+import { subscribeWithSelector } from 'zustand/middleware';
 import {
   type Node,
   type Edge,
@@ -10,9 +10,22 @@ import {
   applyNodeChanges,
   applyEdgeChanges,
   addEdge,
+  type NodeChange,
+  MarkerType,
 } from '@xyflow/react';
 import { extractText } from '@/lib/utils/contentParser';
+import { extractNodeText } from '@/lib/utils/nodeUtils';
+import { debounce } from 'lodash-es';
+import { deleteCanvasFile } from '@/lib/r2/storage';
 import type { DrawingOverlay } from '@/types/canvas';
+
+export interface SearchIndexItem {
+  id: string;
+  type: string;
+  title: string;
+  content: string;
+  tags?: string[];
+}
 
 interface HistorySnapshot {
   nodes: Node[];
@@ -65,6 +78,8 @@ interface CanvasState {
   _markNodeDataDirty: (nodeId: string) => void;
   _clearNodeDataDirty: (nodeId: string) => void;
   _isNodeDataDirty: (nodeId: string) => boolean;
+  searchIndex: SearchIndexItem[];
+  updateSearchIndex: () => void;
 
 
   // History
@@ -90,6 +105,7 @@ interface CanvasState {
   addNode: (node: Node) => void;
   deleteNode: (id: string) => void;
   duplicateNode: (id: string) => void;
+  duplicateSelected: () => void;
   updateNodeData: (id: string, data: Record<string, unknown>) => void;
   updateNodeStyle: (id: string, style: Record<string, unknown>) => void;
   deleteEdge: (id: string) => void;
@@ -164,10 +180,32 @@ interface CanvasState {
   setVersionHistoryOpen: (open: boolean) => void;
   resetState: () => void;
   loadCanvas: (nodes: Node[], edges: Edge[], preserveHistory?: boolean, drawings?: DrawingOverlay[]) => void;
+  applySnapshot: (snapshot: HistorySnapshot) => void;
   addNodesAndEdges: (nodes: Node[], edges: Edge[]) => void;
 }
 
-export const useCanvasStore = create<CanvasState>((set, get) => ({
+const debouncedUpdateSearchIndex = debounce((nodes: Node[], set: (state: Partial<CanvasState>) => void) => {
+  const { searchIndex } = useCanvasStore.getState();
+  
+  const newIndex: SearchIndexItem[] = nodes.map(n => ({
+    id: n.id,
+    type: n.type || 'note',
+    title: (n.data as any)?.title || 'Untitled',
+    content: extractNodeText(n),
+    tags: (n.data as any)?.tags || []
+    }));
+
+  // Only update if lengths differ or content hash changes (simple heuristic to avoid heavy re-renders)
+  const isDiff = newIndex.length !== searchIndex.length || 
+                JSON.stringify(newIndex.slice(0, 5)) !== JSON.stringify(searchIndex.slice(0, 5));
+
+  if (isDiff) {
+    set({ searchIndex: newIndex });
+  }
+}, 1500);
+
+export const useCanvasStore = create<CanvasState>()(
+  subscribeWithSelector((set, get) => ({
   nodes: [],
   edges: [],
   workspaceId: null,
@@ -211,6 +249,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   hoveredLink: null,
   activePalette: null,
   activePanel: null,
+  searchIndex: [],
   _contentBacklinks: {},
   _dirtyNodeDataIds: new Set(),
   _markNodeDataDirty: (nodeId) => set((state) => {
@@ -322,7 +361,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     });
   },
 
-  setNodes: (nodes) => set({ nodes }),
+  setNodes: (nodes) => {
+    set({ nodes });
+    get().updateSearchIndex();
+  },
   setEdges: (edges) => set({ edges }),
 
   highlightedNodeIds: [],
@@ -332,13 +374,34 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   _skipSyncTimeout: null,
   _loadCounter: 0,
   
-  onNodesChange: (changes) => {
-    const nodes = get().nodes;
+  onNodesChange: (changes: NodeChange[]) => {
+    const { nodes, updateSearchIndex } = get();
     const removedIds = changes
       .filter((c) => c.type === 'remove')
       .map((c) => (c as { id: string }).id);
 
     if (removedIds.length > 0) {
+      const removedNodes = nodes.filter(n => removedIds.includes(n.id));
+      removedNodes.forEach(node => {
+        // Image node deletion
+        const data = node.data as any;
+        if (data.storageKey) {
+          deleteCanvasFile(data.storageKey).catch(e => console.error('Failed to delete R2 file:', e));
+        }
+        // File attachment node deletion
+        if (data.files && Array.isArray(data.files)) {
+          data.files.forEach((f: any) => {
+            if (f.path) {
+              deleteCanvasFile(f.path).catch(e => console.error('Failed to delete R2 file:', e));
+            }
+          });
+        }
+        // Video/PDF etc. usually store in storageKey as well
+        if (data.key) {
+           deleteCanvasFile(data.key).catch(e => console.error('Failed to delete R2 file:', e));
+        }
+      });
+
       const newContentBacklinks = { ...get()._contentBacklinks };
       removedIds.forEach(id => {
         delete newContentBacklinks[id];
@@ -350,12 +413,31 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       set({ _contentBacklinks: newContentBacklinks });
     }
 
-    set({ nodes: applyNodeChanges(changes, nodes) });
+    const nextNodes = applyNodeChanges(changes, nodes);
+    set({ nodes: nextNodes });
+
+    const workspaceId = get().workspaceId;
+    if (workspaceId && !get()._skipSync) {
+      import('@/lib/cache/indexedDB').then(({ cacheSet }) => {
+        cacheSet('canvas-nodes', workspaceId, nextNodes);
+      });
+    }
+
+    updateSearchIndex();
     if (removedIds.length > 0) get()._syncAllBacklinks();
   },
 
   onEdgesChange: (changes) => {
-    set({ edges: applyEdgeChanges(changes, get().edges) });
+    const nextEdges = applyEdgeChanges(changes, get().edges);
+    set({ edges: nextEdges });
+
+    const workspaceId = get().workspaceId;
+    if (workspaceId && !get()._skipSync) {
+      import('@/lib/cache/indexedDB').then(({ cacheSet }) => {
+        cacheSet('canvas-edges', workspaceId, nextEdges);
+      });
+    }
+
     const hasRemoval = changes.some(c => c.type === 'remove');
     if (hasRemoval) get()._syncAllBacklinks();
   },
@@ -369,6 +451,64 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     );
     set({ edges: newEdges });
     get()._syncAllBacklinks();
+  },
+
+  duplicateSelected: () => {
+    const { nodes, edges, pushSnapshot, _syncAllBacklinks } = get();
+    const selectedNodes = nodes.filter(n => n.selected);
+    if (selectedNodes.length === 0) return;
+    
+    pushSnapshot('Duplicate Selection');
+    const nodeMapping: Record<string, string> = {};
+    const now = new Date().toISOString();
+    
+    // 1. Clone nodes
+    const newNodes = selectedNodes.map(node => {
+      const newNodeId = crypto.randomUUID();
+      nodeMapping[node.id] = newNodeId;
+      
+      const newNodeProps = structuredClone(node);
+      if ((newNodeProps as any).data) {
+        delete (newNodeProps as any).data.pinned;
+        (newNodeProps as any).data.createdAt = now;
+        (newNodeProps as any).data.updatedAt = now;
+      }
+      
+      const posX = isNaN(node.position.x) ? 0 : node.position.x;
+      const posY = isNaN(node.position.y) ? 0 : node.position.y;
+      
+      return {
+        ...newNodeProps,
+        id: newNodeId,
+        position: { x: posX + 30, y: posY + 30 },
+        selected: true,
+        measured: undefined,
+      } as Node;
+    });
+    
+    // 2. Clone edges connected to duplicated nodes
+    const selectedIds = new Set(selectedNodes.map(n => n.id));
+    const duplicatedEdges: Edge[] = [];
+    
+    edges.forEach(edge => {
+      const isSourceSelected = selectedIds.has(edge.source);
+      const isTargetSelected = selectedIds.has(edge.target);
+      
+      if (isSourceSelected || isTargetSelected) {
+        duplicatedEdges.push({
+          ...edge,
+          id: crypto.randomUUID(),
+          source: isSourceSelected ? nodeMapping[edge.source] : edge.source,
+          target: isTargetSelected ? nodeMapping[edge.target] : edge.target,
+        });
+      }
+    });
+
+    set({
+      nodes: [...nodes.map(n => ({ ...n, selected: false })), ...newNodes],
+      edges: [...edges, ...duplicatedEdges]
+    });
+    _syncAllBacklinks();
   },
 
   setHoveredLink: (link) => set({ hoveredLink: link }),
@@ -440,15 +580,29 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const posX = isNaN(node.position.x) ? 0 : node.position.x;
     const posY = isNaN(node.position.y) ? 0 : node.position.y;
 
+    const newNodeId = crypto.randomUUID();
     const newNode: Node = {
       ...newNodeProps,
-      id: crypto.randomUUID(),
+      id: newNodeId,
       position: { x: posX + 30, y: posY + 30 },
       selected: true,
       measured: undefined,
     };
     
-    set({ nodes: [...get().nodes.map(n => ({ ...n, selected: false })), newNode] });
+    // Find edges connected to this node and duplicate them too
+    const connectedEdges = get().edges.filter(e => e.source === id || e.target === id);
+    const newEdges = connectedEdges.map(e => ({
+      ...e,
+      id: crypto.randomUUID(),
+      source: e.source === id ? newNodeId : e.source,
+      target: e.target === id ? newNodeId : e.target,
+    }));
+    
+    set({ 
+      nodes: [...get().nodes.map(n => ({ ...n, selected: false })), newNode],
+      edges: [...get().edges, ...newEdges]
+    });
+    get()._syncAllBacklinks();
   },
 
   updateNodeData: (id, data) => {
@@ -496,11 +650,17 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const sanitizedStyle = Object.fromEntries(
       Object.entries(style).filter(([_, v]) => v !== undefined && v !== null)
     );
-    set({
-      nodes: get().nodes.map((n) =>
-        n.id === id ? { ...n, style: { ...n.style, ...sanitizedStyle } } : n
-      ),
-    });
+    const nextNodes = get().nodes.map((n) =>
+      n.id === id ? { ...n, style: { ...n.style, ...sanitizedStyle } } : n
+    );
+    set({ nodes: nextNodes });
+
+    const workspaceId = get().workspaceId;
+    if (workspaceId && !get()._skipSync) {
+      import('@/lib/cache/indexedDB').then(({ cacheSet }) => {
+        cacheSet('canvas-nodes', workspaceId, nextNodes);
+      });
+    }
   },
 
   setContextMenu: (menu) => set({ contextMenu: menu }),
@@ -516,17 +676,23 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     // Strip label from data to avoid storing it redundantly in both edge.label and edge.data.label
     const { label: _, ...cleanData } = sanitizedData;
     
-    set((state) => ({
-      edges: state.edges.map((e) => (
-        e.id === id 
-          ? { 
-              ...e, 
-              data: { ...e.data, ...cleanData }, 
-              label: label !== undefined ? label : e.label 
-            } 
-          : e
-      )),
-    }));
+    const nextEdges = get().edges.map((e) => (
+      e.id === id 
+        ? { 
+            ...e, 
+            data: { ...e.data, ...cleanData }, 
+            label: label !== undefined ? label : e.label 
+          } 
+        : e
+    ));
+    set({ edges: nextEdges });
+
+    const workspaceId = get().workspaceId;
+    if (workspaceId && !get()._skipSync) {
+      import('@/lib/cache/indexedDB').then(({ cacheSet }) => {
+        cacheSet('canvas-edges', workspaceId, nextEdges);
+      });
+    }
   },
   setExpandedNode: (id) => set({ expandedNode: id }),
 
@@ -705,12 +871,13 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       past: preserveHistory ? get().past : [], 
       future: preserveHistory ? get().future : [], 
       _skipSync: true, 
-      _resyncNeeded: false,
-      _loadCounter: currentLoadId
+      _resyncNeeded: false
     });
     
+    get().updateSearchIndex();
+
     const timeout = setTimeout(() => {
-      if (currentLoadId === get()._loadCounter) {
+      if (get()._loadCounter === currentLoadId) {
         set({ _skipSync: false, _skipSyncTimeout: null });
       }
     }, 200);
@@ -751,6 +918,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       edges: [...get().edges, ...processedEdges]
     });
     get()._syncAllBacklinks();
+    get().updateSearchIndex();
   },
 
   toggleMinimap: () => set({ showMinimap: !get().showMinimap }),
@@ -776,7 +944,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   pasteNodes: () => {
-    const { clipboard, lastCursorFlowPosition: cursor } = get();
+    const { clipboard, lastCursorFlowPosition: cursor, updateSearchIndex } = get();
     if (clipboard.length === 0) return;
     get().pushSnapshot('Paste Nodes');
 
@@ -805,6 +973,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set({ 
       nodes: [...get().nodes.map(n => ({ ...n, selected: false })), ...newNodes] 
     });
+    updateSearchIndex();
   },
 
   selectAllNodes: () => {
@@ -865,6 +1034,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       _contentBacklinks: newContentBacklinks,
     });
     get()._syncAllBacklinks();
+    get().updateSearchIndex();
   },
 
   duplicateEdge: (id) => {
@@ -943,7 +1113,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   undo: () => {
-    const { past, nodes, edges, drawings, future } = get();
+    const { past, nodes, edges, drawings, future, updateSearchIndex } = get();
     if (past.length === 0) return;
     const prev = past[past.length - 1];
     
@@ -964,11 +1134,12 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       edges: structuredClone(prev.edges),
       drawings: structuredClone(prev.drawings),
     });
+    updateSearchIndex();
     queueMicrotask(() => set({ _skipSync: false, _resyncNeeded: true }));
   },
 
   redo: () => {
-    const { future, nodes, edges, drawings, past } = get();
+    const { future, nodes, edges, drawings, past, updateSearchIndex } = get();
     if (future.length === 0) return;
     const next = future[0];
     
@@ -989,32 +1160,102 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       edges: structuredClone(next.edges),
       drawings: structuredClone(next.drawings),
     });
+    updateSearchIndex();
     queueMicrotask(() => set({ _skipSync: false, _resyncNeeded: true }));
   },
 
   clearResyncNeeded: () => set({ _resyncNeeded: false }),
+  forceSync: () => {
+    set({ _resyncNeeded: true });
+    // Keep it true for a moment to ensure subscribers catch it
+    setTimeout(() => get().clearResyncNeeded(), 500);
+  },
   setVersionHistoryOpen: (open) => set({ versionHistoryOpen: open }),
 
   setConnectMode: (on) => set({ connectMode: on, connectSourceId: null }),
   setConnectSourceId: (id) => set({ connectSourceId: id }),
   setLastCursorFlowPosition: (pos) => set({ lastCursorFlowPosition: pos }),
 
-  resetState: () => set({
-    nodes: [],
-    edges: [],
-    drawings: [],
-    past: [],
-    future: [],
-    workspaceId: null,
-    saveStatus: 'idle',
-    _saveCounter: 0,
-    _skipSyncTimeout: null,
-    _loadCounter: 0,
-    clipboard: [],
-    bookmarks: [],
-    isBlockEditorMode: false,
-    mobileMode: false,
-  }),
+  resetState: () => {
+    const { _skipSyncTimeout } = get();
+    if (_skipSyncTimeout) clearTimeout(_skipSyncTimeout);
+
+    set({
+      nodes: [],
+      edges: [],
+      drawings: [],
+      past: [],
+      future: [],
+      workspaceId: null,
+      workspaceName: 'Untitled',
+      workspaceColor: '#3b82f6',
+      saveStatus: 'idle',
+      _saveCounter: 0,
+      _skipSync: false,
+      _resyncNeeded: false,
+      lastSavedAt: null,
+      clipboard: [],
+      bookmarks: [],
+      isBlockEditorMode: false,
+      mobileMode: false,
+      contextMenu: null,
+      nodeContextMenu: null,
+      edgeContextMenu: null,
+      expandedNode: null,
+      canvasMode: 'edit',
+      zenMode: false,
+      focusMode: false,
+      focusedNodeId: null,
+      allLocked: false,
+      connectMode: false,
+      connectSourceId: null,
+      lastCursorFlowPosition: null,
+      cursors: {},
+      backlinks: {},
+      _contentBacklinks: {},
+      highlightedNodeIds: [],
+      isDeepWorkActive: false,
+      viewport: { x: 0, y: 0, zoom: 1 },
+      drawingMode: false,
+      activePalette: null,
+      activePanel: null,
+      searchIndex: [],
+      isAISynthesisOpen: false,
+      hoveredLink: null,
+      _loadCounter: 0,
+      exportProgress: null,
+      versionHistoryOpen: false,
+      _skipSyncTimeout: null,
+    });
+  },
+
+  updateSearchIndex: () => {
+    debouncedUpdateSearchIndex(get().nodes, set);
+  },
+
+  applySnapshot: (snapshot) => {
+    if (!snapshot) return;
+    const { updateSearchIndex } = get();
+    
+    // Push current state to 'past' BEFORE applying, so user can 'undo' the revert
+    get().pushSnapshot(`Revert: ${snapshot.label}`);
+
+    set({
+      _skipSync: true,
+      nodes: structuredClone(snapshot.nodes),
+      edges: structuredClone(snapshot.edges),
+      drawings: structuredClone(snapshot.drawings || []),
+      future: [], // Reset future
+    });
+
+    updateSearchIndex();
+    // Use timeout to let the state settle before re-enabling sync
+    if (get()._skipSyncTimeout) clearTimeout(get()._skipSyncTimeout);
+    const timeout = setTimeout(() => {
+      set({ _skipSync: false, _resyncNeeded: true, _skipSyncTimeout: null });
+    }, 1000);
+    set({ _skipSyncTimeout: timeout });
+  },
 
   addBookmark: (name, viewport) => set({ bookmarks: [...get().bookmarks, { id: crypto.randomUUID(), name, viewport }] }),
   removeBookmark: (id) => set({ bookmarks: get().bookmarks.filter(b => b.id !== id) }),
@@ -1073,7 +1314,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   setExportProgress: (p) => set({ exportProgress: p }),
   setActivePalette: (palette) => set({ activePalette: palette }),
   setActivePanel: (panel) => set({ activePanel: panel }),
-}));
+  }))
+);
 
 // Custom Selector Hooks
 export const useNodes = () => useCanvasStore(useShallow((s) => s.nodes));

@@ -1,4 +1,4 @@
-import { memo, useState, useCallback } from 'react';
+import { memo, useState, useCallback, useEffect } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { ShapeNodeData } from '@/types/canvas';
@@ -52,13 +52,19 @@ export const ShapeNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const nodeData = data as unknown as ShapeNodeData;
   const [editing, setEditing] = useState(false);
+  const [labelValue, setLabelValue] = useState(nodeData.label || '');
   const w = 160;
   const h = 120;
 
-  const handleLabelChange = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
+  // Sync label when not editing
+  useEffect(() => {
+    if (!editing) setLabelValue(nodeData.label || '');
+  }, [editing, nodeData.label]);
+
+  const handleLabelChange = useCallback(() => {
     setEditing(false);
-    updateNodeData(id, { label: e.target.value });
-  }, [id, updateNodeData]);
+    updateNodeData(id, { label: labelValue });
+  }, [id, updateNodeData, labelValue]);
 
   return (
     <div className="relative" style={{ width: w, height: h }}>
@@ -67,7 +73,8 @@ export const ShapeNode = memo(({ id, data, selected }: NodeProps) => {
         {editing ? (
           <input
             className="bg-transparent text-center text-sm font-bold text-foreground outline-none w-[80%]"
-            defaultValue={nodeData.label || ''}
+            value={labelValue}
+            onChange={(e) => setLabelValue(e.target.value)}
             onBlur={handleLabelChange}
             onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
             autoFocus

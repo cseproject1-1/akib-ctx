@@ -71,10 +71,54 @@ function getNodeTextContent(node: Node): string {
   return parts.join('\n');
 }
 
+const ContextMenuItem = React.memo(({ 
+  icon, 
+  label, 
+  onClick, 
+  variant = 'default', 
+  shortcut, 
+  active,
+  disabled,
+  loading
+}: { 
+  icon: React.ReactNode; 
+  label: string; 
+  onClick: (e: React.MouseEvent) => void; 
+  variant?: 'default' | 'destructive' | 'primary';
+  shortcut?: string;
+  active?: boolean;
+  disabled?: boolean;
+  loading?: boolean;
+}) => (
+  <button
+    onClick={(e) => {
+      e.stopPropagation();
+      if (!disabled && !loading) onClick(e);
+    }}
+    disabled={disabled || loading}
+    className={cn(
+      "flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-xs font-bold transition-all active:scale-95",
+      variant === 'default' && "text-foreground hover:bg-accent",
+      variant === 'destructive' && "text-destructive hover:bg-destructive/10",
+      variant === 'primary' && "text-primary hover:bg-primary/10",
+      active && "bg-accent",
+      disabled && "opacity-50 cursor-not-allowed"
+    )}
+  >
+    <div className="flex items-center gap-2.5">
+      {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <span className={cn("transition-transform group-hover:scale-110", variant === 'primary' && "text-primary")}>{icon}</span>}
+      <span>{label}</span>
+      {active && <div className="ml-1 h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />}
+    </div>
+    {shortcut && <span className="ml-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">{shortcut}</span>}
+  </button>
+));
+
 export function NodeContextMenu() {
   const nodeContextMenu = useCanvasStore((s) => s.nodeContextMenu);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
   const duplicateNode = useCanvasStore((s) => s.duplicateNode);
+  const duplicateSelected = useCanvasStore((s) => s.duplicateSelected);
   const deleteNode = useCanvasStore((s) => s.deleteNode);
   const bringToFront = useCanvasStore((s) => s.bringToFront);
   const sendToBack = useCanvasStore((s) => s.sendToBack);
@@ -96,13 +140,25 @@ export function NodeContextMenu() {
     const { x, y } = nodeContextMenu;
     const menuWidth = 260;
     const estimatedMenuHeight = Math.min(600, window.innerHeight * 0.8);
-    const left = x + menuWidth > window.innerWidth ? Math.max(0, x - menuWidth) : x;
-    const top = Math.max(0, Math.min(y, window.innerHeight - estimatedMenuHeight));
-    setMenuPos({
-      left,
-      top,
-      submenuLeft: x + menuWidth > window.innerWidth ? left - 222 : left + menuWidth + 12,
-    });
+    
+    // Clamp main menu
+    let left = x;
+    if (x + menuWidth > window.innerWidth - 20) {
+      left = Math.max(20, x - menuWidth);
+    }
+    
+    let top = y;
+    if (y + estimatedMenuHeight > window.innerHeight - 20) {
+      top = Math.max(20, window.innerHeight - estimatedMenuHeight - 20);
+    }
+
+    // Determine submenu direction (left or right)
+    const submenuWidth = 240;
+    const submenuLeft = (left + menuWidth + submenuWidth > window.innerWidth - 20) 
+      ? -submenuWidth 
+      : menuWidth;
+
+    setMenuPos({ left, top, submenuLeft });
   }, [nodeContextMenu]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -176,7 +232,19 @@ export function NodeContextMenu() {
     navigator.clipboard.writeText(url).then(() => {
       toast.success('Link copied');
     }).catch(() => {
-      toast.error('Failed to copy link');
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = url;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        toast.success('Link copied');
+      } catch {
+        toast.error('Failed to copy link');
+      }
     });
   };
 
@@ -285,7 +353,7 @@ export function NodeContextMenu() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[90] bg-background/5 backdrop-blur-[1px]"
+            className="fixed inset-0 z-context-backdrop bg-background/5 backdrop-blur-[1px]"
             onClick={closeMenu}
             onContextMenu={(e) => { e.preventDefault(); closeMenu(); }}
             aria-hidden="true"
@@ -297,7 +365,7 @@ export function NodeContextMenu() {
             initial={{ opacity: 0, scale: 0.95, y: -10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -10 }}
-            className="absolute z-[95] min-w-[240px] max-h-[85vh] overflow-y-auto scrollbar-none rounded-[2rem] glass-morphism-strong p-2 pro-shadow border border-white/5"
+            className="absolute z-context-menu min-w-[240px] max-h-[85vh] overflow-y-auto scrollbar-none rounded-[2rem] glass-morphism-strong p-2 pro-shadow border border-white/5"
             style={{ left: menuPos.left, top: menuPos.top }}
           >
             <div className="px-4 py-3 border-b border-white/5 mb-1.5 flex items-center justify-between bg-white/5 rounded-t-[1.8rem]">
@@ -349,7 +417,10 @@ export function NodeContextMenu() {
                 <CtxBtn role="menuitem" onClick={() => handleAction(() => { updateNodeData(nodeId, { locked: !isLocked }); toast.success(isLocked ? 'Unlocked' : 'Locked'); })}>
                   {isLocked ? <Lock className="h-4 w-4 text-destructive" /> : <Unlock className="h-4 w-4" />} {isLocked ? 'Unlock' : 'Lock'}
                 </CtxBtn>
-                <CtxBtn role="menuitem" onClick={() => handleAction(() => duplicateNode(nodeId))}>
+                <CtxBtn role="menuitem" onClick={() => handleAction(() => {
+                  if (node?.selected) duplicateSelected();
+                  else duplicateNode(nodeId);
+                })}>
                   <Copy className="h-4 w-4" /> Duplicate
                 </CtxBtn>
                 <CtxBtn role="menuitem" onClick={() => handleAction(handleCopyLink)}>
@@ -400,7 +471,7 @@ export function NodeContextMenu() {
                         animate={{ opacity: 1, x: 0, scale: 1 }}
                         exit={{ opacity: 0, x: -10, scale: 0.9 }}
                         transition={{ duration: 0.15 }}
-                        className="absolute top-0 grid grid-cols-5 gap-1.5 rounded-[1.5rem] glass-morphism-strong p-3 pro-shadow border border-white/10 min-w-[210px] z-[110]"
+                        className="absolute top-0 grid grid-cols-5 gap-1.5 rounded-[1.5rem] glass-morphism-strong p-3 pro-shadow border border-white/10 min-w-[210px] z-dropdown"
                         style={{ left: menuPos.submenuLeft }}
                       >
                         {EMOJI_PRESETS.map((em) => (
@@ -453,7 +524,7 @@ export function NodeContextMenu() {
                         animate={{ opacity: 1, x: 0, scale: 1 }}
                         exit={{ opacity: 0, x: -10, scale: 0.9 }}
                         transition={{ duration: 0.15 }}
-                        className="absolute top-0 flex flex-col gap-3 rounded-[1.5rem] glass-morphism-strong p-4 pro-shadow border border-white/10 min-w-[200px] z-[110]"
+                        className="absolute top-0 flex flex-col gap-3 rounded-[1.5rem] glass-morphism-strong p-4 pro-shadow border border-white/10 min-w-[200px] z-dropdown"
                         style={{ left: menuPos.submenuLeft }}
                       >
                         <p className="text-[9px] font-black text-foreground/40 uppercase tracking-[2px]">Adjust Opacity</p>
@@ -493,7 +564,7 @@ export function NodeContextMenu() {
                           animate={{ opacity: 1, x: 0, scale: 1 }}
                           exit={{ opacity: 0, x: -10, scale: 0.9 }}
                           transition={{ duration: 0.15 }}
-                          className="absolute top-0 grid grid-cols-4 gap-2 rounded-[1.5rem] glass-morphism-strong p-3 pro-shadow border border-white/10 z-[110]"
+                          className="absolute top-0 grid grid-cols-4 gap-2 rounded-[1.5rem] glass-morphism-strong p-3 pro-shadow border border-white/10 z-dropdown"
                           style={{ left: menuPos.submenuLeft }}
                         >
                           {presetColors.map((c) => (
@@ -531,7 +602,7 @@ export function NodeContextMenu() {
                         animate={{ opacity: 1, x: 0, scale: 1 }}
                         exit={{ opacity: 0, x: -10, scale: 0.9 }}
                         transition={{ duration: 0.15 }}
-                        className="absolute top-0 flex flex-col gap-1.5 rounded-[1.5rem] glass-morphism-strong p-3 pro-shadow border border-white/10 min-w-[160px] z-[110]"
+                        className="absolute top-0 flex flex-col gap-1.5 rounded-[1.5rem] glass-morphism-strong p-3 pro-shadow border border-white/10 min-w-[160px] z-dropdown"
                         style={{ left: menuPos.submenuLeft }}
                       >
                         {TAG_PRESETS.map((tag) => (

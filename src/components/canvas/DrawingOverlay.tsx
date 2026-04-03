@@ -1,6 +1,7 @@
-import { memo, useState, useCallback, useRef, useEffect } from 'react';
+import { memo, useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Trash2 } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvasStore';
+import { useStore } from '@xyflow/react';
 import type { DrawingOverlay as DrawingOverlayType } from '@/types/canvas';
 
 /**
@@ -22,14 +23,37 @@ import type { DrawingOverlay as DrawingOverlayType } from '@/types/canvas';
  */
 export const DrawingOverlay = memo(function DrawingOverlay() {
   const drawings      = useCanvasStore((s) => s.drawings);
-  const vp            = useCanvasStore((s) => s.viewport);
   const drawingMode   = useCanvasStore((s) => s.drawingMode);
   const deleteDrawing = useCanvasStore((s) => s.deleteDrawing);
   const updateDrawing = useCanvasStore((s) => s.updateDrawing);
+  // Sync with ReactFlow internal store for lag-free transformation and dimensions
+  const [vx, vy, vz] = useStore((s) => s.transform);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setDimensions({
+          width: entry.contentRect.width,
+          height: entry.contentRect.height
+        });
+      }
+    });
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const { width, height } = dimensions;
+  const viewport = useMemo(() => ({ x: vx, y: vy, zoom: vz }), [vx, vy, vz]);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; id: string } | null>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
+
+  const viewBox = useMemo(() => `0 0 ${width} ${height}`, [width, height]);
+
 
   // ── Deselect on Escape / Delete key ─────────────────────────────────────────
   useEffect(() => {
@@ -81,7 +105,7 @@ export const DrawingOverlay = memo(function DrawingOverlay() {
       <div
         className="absolute inset-0"
         style={{
-          zIndex: isInteractive ? 4 : 3,
+          zIndex: isInteractive ? 45 : 44, // Using drawing z-index baseline
           pointerEvents: 'none',
         }}
       >
@@ -89,10 +113,10 @@ export const DrawingOverlay = memo(function DrawingOverlay() {
           className="absolute inset-0"
           width="100%"
           height="100%"
-          viewBox={`0 0 ${window.innerWidth} ${window.innerHeight}`}
+          viewBox={viewBox}
           preserveAspectRatio="none"
           style={{
-            transform: `translate(${vp.x}px, ${vp.y}px) scale(${vp.zoom})`,
+            transform: `translate(${vx}px, ${vy}px) scale(${vz})`,
             transformOrigin: '0 0',
             overflow: 'visible',
             pointerEvents: 'none',
@@ -120,16 +144,16 @@ export const DrawingOverlay = memo(function DrawingOverlay() {
         <div
           ref={overlayRef}
           className="absolute inset-0"
-          style={{ zIndex: 6, pointerEvents: 'none' }}
+          style={{ zIndex: 48, pointerEvents: 'none' }} // Using drawing-interactive z-index
         >
           <svg
             className="absolute inset-0"
             width="100%"
             height="100%"
-            viewBox={`0 0 ${window.innerWidth} ${window.innerHeight}`}
+            viewBox={viewBox}
             preserveAspectRatio="none"
             style={{
-              transform: `translate(${vp.x}px, ${vp.y}px) scale(${vp.zoom})`,
+              transform: `translate(${vx}px, ${vy}px) scale(${vz})`,
               transformOrigin: '0 0',
               overflow: 'visible',
               pointerEvents: 'none',
@@ -144,7 +168,7 @@ export const DrawingOverlay = memo(function DrawingOverlay() {
                 onContextMenu={(e) => handleContextMenu(e, drawing.id)}
                 onDelete={() => { deleteDrawing(drawing.id); setSelectedId(null); }}
                 onUpdate={(updates) => updateDrawing(drawing.id, updates)}
-                viewport={vp}
+                viewport={viewport}
               />
             ))}
           </svg>
@@ -401,7 +425,7 @@ function DrawingContextMenu({ x, y, onDelete, onClose }: ContextMenuProps) {
 
   return (
     <div
-      className="fixed z-50 min-w-[140px] rounded-xl border border-border bg-card shadow-xl py-1"
+      className="fixed z-context-menu min-w-[140px] rounded-xl border border-border bg-card shadow-xl py-1"
       style={{ left: x, top: y }}
       onPointerDown={(e) => e.stopPropagation()}
     >

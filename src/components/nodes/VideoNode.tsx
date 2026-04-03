@@ -1,9 +1,10 @@
 import { memo, useState, useCallback } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
-import { Video, ExternalLink, X, Play, Expand } from 'lucide-react';
+import { Video, ExternalLink, X, Play, Expand, Loader2 } from 'lucide-react';
 import { BaseNode } from './BaseNode';
 import { VideoNodeData } from '@/types/canvas';
+import { cn } from '@/lib/utils';
 
 function extractVideoEmbed(url: string): { type: 'youtube' | 'vimeo' | 'unknown'; embedUrl: string } | null {
   // YouTube
@@ -24,6 +25,8 @@ export const VideoNode = memo(({ id, data, selected }: NodeProps) => {
   const nodeData = data as unknown as VideoNodeData;
   const [inputUrl, setInputUrl] = useState(nodeData.url || '');
   const [editing, setEditing] = useState(!nodeData.url);
+  const [isIframeLoading, setIsIframeLoading] = useState(true);
+  const [iframeError, setIframeError] = useState(false);
 
   const handleSubmit = useCallback(() => {
     let url = inputUrl.trim();
@@ -90,21 +93,39 @@ export const VideoNode = memo(({ id, data, selected }: NodeProps) => {
               onChange={(e) => setInputUrl(e.target.value)}
               onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') handleSubmit(); }}
               onClick={(e) => e.stopPropagation()}
-              autoFocus
             />
             <button onClick={handleSubmit} className="brutal-btn rounded-lg bg-primary px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-primary-foreground">
               Embed
             </button>
           </div>
         ) : embed ? (
-          <iframe
-            src={embed.embedUrl}
-            title={nodeData.title || 'Video'}
-            className="h-full w-full border-0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            loading="lazy"
-          />
+          <div className="relative w-full h-full group">
+            {isIframeLoading && !iframeError && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-muted/30 animate-pulse z-10">
+                <Loader2 className="h-6 w-6 animate-spin text-primary/40" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/30">Buffering Video</span>
+              </div>
+            )}
+            {iframeError && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-destructive/5 z-10">
+                <X className="h-6 w-6 text-destructive/40" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-destructive/40">Failed to load video</span>
+              </div>
+            )}
+            <iframe
+              src={embed.embedUrl}
+              title={nodeData.title || 'Video'}
+              className={cn("h-full w-full border-0 transition-opacity duration-500", isIframeLoading ? "opacity-0" : "opacity-100")}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              loading="lazy"
+              onLoad={() => setIsIframeLoading(false)}
+              onError={() => {
+                setIsIframeLoading(false);
+                setIframeError(true);
+              }}
+            />
+          </div>
         ) : (
           <div className="flex h-full items-center justify-center p-4">
             <p className="text-xs text-muted-foreground">Unsupported video URL</p>

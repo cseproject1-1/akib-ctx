@@ -8,6 +8,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useIsMobile } from '@/hooks/use-mobile';
 import type { JSONContent } from '@tiptap/react';
 import { type AINoteNodeData } from '@/types/canvas';
+import { toast } from 'sonner';
 import { extractText } from '../../lib/utils/contentParser';
 
 // Bug 16: Extract debounce delay to constant for configurability
@@ -121,6 +122,7 @@ export const AINoteNode = memo(({ id, data, selected }: NodeProps) => {
   const isMobile = useIsMobile();
 
   const setFocusedNodeId = useCanvasStore((s) => s.setFocusedNodeId);
+  const isNodeDirty = useCanvasStore((s) => s._dirtyNodeDataIds.has(id));
 
   // Bug 10 fix: Use shallow comparison for backlinks to avoid unnecessary re-renders
   const backlinks = useCanvasStore(
@@ -244,13 +246,23 @@ export const AINoteNode = memo(({ id, data, selected }: NodeProps) => {
       onMenuClick={(e) => setNodeContextMenu({ x: e.clientX, y: e.clientY, nodeId: id })}
       color={nodeColor}
       progress={nodeData.progress}
-      isSyncing={useCanvasStore.getState()._dirtyNodeDataIds.has(id)}
+      isSyncing={isNodeDirty}
       headerExtra={
         <button
           className={`rounded-md p-0.5 text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground ${
             isMobile ? "opacity-100" : "opacity-0 group-hover/header:opacity-100"
           }`}
-          onClick={(e) => { e.stopPropagation(); editorRef.current?.reparseAsMarkdown(); }}
+          onClick={(e) => { 
+            e.stopPropagation(); 
+            // N10: Reactive feedback for sync status
+            const isNoteDirty = useCanvasStore.getState()._dirtyNodeDataIds.has(id);
+            if (isNoteDirty) {
+              toast.info('Syncing changes... please wait a moment');
+            } else {
+              toast.success('All changes synced');
+            }
+            editorRef.current?.reparseAsMarkdown(); 
+          }}
           title="Re-parse markdown (Ctrl+Shift+R)"
         >
           <RefreshCw className="h-3.5 w-3.5" />

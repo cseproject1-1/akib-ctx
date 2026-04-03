@@ -1,4 +1,4 @@
-import { collection, doc, query, getDocs, setDoc, updateDoc, deleteDoc, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, doc, query, getDocs, setDoc, updateDoc, deleteDoc, orderBy, onSnapshot, limit, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { db } from './client';
 import type { Node, Edge } from '@xyflow/react';
 import type { DrawingOverlay } from '@/types/canvas';
@@ -96,10 +96,10 @@ export async function saveNode(workspaceId: string, node: Node) {
         id: node.id,
         workspace_id: workspaceId,
         type: node.type || 'aiNote',
-        position_x: node.position.x,
-        position_y: node.position.y,
-        width: typeof node.style?.width === 'number' ? node.style.width : 300,
-        height: typeof node.style?.height === 'number' ? node.style.height : 200,
+        position_x: isFinite(node.position.x) ? node.position.x : 0,
+        position_y: isFinite(node.position.y) ? node.position.y : 0,
+        width: typeof node.style?.width === 'number' && isFinite(node.style?.width) ? node.style.width : 300,
+        height: typeof node.style?.height === 'number' && isFinite(node.style?.height) ? node.style.height : 200,
         data: sanitizedData as unknown as Json,
         z_index: (node.style?.zIndex as number) || 0,
         created_at: createdAt,
@@ -108,7 +108,6 @@ export async function saveNode(workspaceId: string, node: Node) {
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const UUID_LENIENT_RE = /^[{]?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}[}]?$/i;
 
 export async function saveEdge(workspaceId: string, edge: Edge) {
     const edgeId = UUID_RE.test(edge.id) ? edge.id : crypto.randomUUID();
@@ -147,19 +146,26 @@ export async function deleteCanvasEdge(workspaceId: string, edgeId: string) {
 
 export async function updateNodePosition(workspaceId: string, nodeId: string, x: number, y: number) {
     const nodeRef = doc(db, `workspaces/${workspaceId}/nodes`, nodeId);
-    await updateDoc(nodeRef, { position_x: x, position_y: y });
+    await updateDoc(nodeRef, { 
+        position_x: isFinite(x) ? x : 0, 
+        position_y: isFinite(y) ? y : 0,
+        updated_at: serverTimestamp()
+    });
 }
 
 export async function updateNodeDataInDb(workspaceId: string, nodeId: string, data: Record<string, unknown>) {
     const nodeRef = doc(db, `workspaces/${workspaceId}/nodes`, nodeId);
     const sanitizedData = sanitizeForFirestore(data);
-    await updateDoc(nodeRef, { data: sanitizedData as unknown as Json });
+    await updateDoc(nodeRef, { 
+        data: sanitizedData as unknown as Json,
+        updated_at: serverTimestamp()
+    });
 }
 
 export async function updateNodeStyle(workspaceId: string, nodeId: string, width: number, height: number, zIndex: number) {
     const nodeRef = doc(db, `workspaces/${workspaceId}/nodes`, nodeId);
-    const w = typeof width === 'number' ? width : 300;
-    const h = typeof height === 'number' ? height : 200;
+    const w = typeof width === 'number' && isFinite(width) ? width : 300;
+    const h = typeof height === 'number' && isFinite(height) ? height : 200;
     await updateDoc(nodeRef, { width: w, height: h, z_index: zIndex });
 }
 
@@ -171,16 +177,18 @@ export async function getNodeCount(workspaceId: string): Promise<number> {
 
 // ─── Snapshots ───
 
-export async function createSnapshot(workspaceId: string, name: string, nodesData: unknown[], edgesData: unknown[], createdBy: string) {
+export async function createSnapshot(workspaceId: string, name: string, nodesData: unknown[], edgesData: unknown[], createdBy: string, drawingsData?: unknown[]) {
     const snapshotRef = doc(collection(db, `workspaces/${workspaceId}/snapshots`));
     const sanitizedNodes = sanitizeForFirestore(nodesData);
     const sanitizedEdges = sanitizeForFirestore(edgesData);
+    const sanitizedDrawings = drawingsData ? sanitizeForFirestore(drawingsData) : [];
     await setDoc(snapshotRef, {
         id: snapshotRef.id,
         workspace_id: workspaceId,
         name,
         nodes_data: sanitizedNodes as unknown as Json,
         edges_data: sanitizedEdges as unknown as Json,
+        drawings_data: sanitizedDrawings as unknown as Json,
         created_by: createdBy,
         created_at: new Date().toISOString()
     });
@@ -203,14 +211,16 @@ export async function deleteSnapshot(workspaceId: string, snapshotId: string) {
 export async function pruneSnapshots(workspaceId: string, keepCount = 50) {
     const q = query(
         collection(db, `workspaces/${workspaceId}/snapshots`),
-        orderBy('created_at', 'desc')
+        orderBy('created_at', 'desc'),
+        limit(keepCount + 1)
     );
     const snapshot = await getDocs(q);
     if (snapshot.size <= keepCount) return;
 
     const docsToDelete = snapshot.docs.slice(keepCount);
-    const deletes = docsToDelete.map(d => deleteDoc(d.ref));
-    await Promise.all(deletes);
+    const batch = writeBatch(db);
+    docsToDelete.forEach(d => batch.delete(d.ref));
+    await batch.commit();
 }
 
 // ─── Real-time Subscriptions ───
@@ -218,25 +228,40 @@ export async function pruneSnapshots(workspaceId: string, keepCount = 50) {
 export function subscribeCanvasNodes(workspaceId: string, onUpdate: (nodes: Node[]) => void, onError?: (err: Error) => void) {
     const q = query(collection(db, `workspaces/${workspaceId}/nodes`));
     return onSnapshot(q, (snapshot) => {
-        // Skip updates that are pending local writes to avoid jitter
-        if (snapshot.metadata.hasPendingWrites) return;
+        // W4 fix: Skip only docs with pending writes, not entire snapshot
+        if (!snapshot.metadata.hasPendingWrites) {
+            const nodes = snapshot.docs.map((docSnap) => {
+                const row = docSnap.data();
+                const existingData = (row.data as Record<string, unknown>) || {};
+                
+                // B24 fix: Validate position values to prevent NaN propagation
+                const positionX = isFinite(row.position_x) ? row.position_x : 0;
+                const positionY = isFinite(row.position_y) ? row.position_y : 0;
+                
+                return {
+                    id: row.id,
+                    type: row.type,
+                    position: { x: positionX, y: positionY },
+                    data: {
+                      ...existingData,
+                      createdAt: existingData.createdAt || row.created_at || null,
+                      updatedAt: existingData.updatedAt || row.updated_at || null,
+                    } as Record<string, unknown>,
+                    style: { 
+                        width: isFinite(row.width) ? row.width : undefined, 
+                        height: isFinite(row.height) ? row.height : undefined, 
+                        zIndex: row.z_index || 0 
+                    },
+                    // M32: preserve metadata for migration safety
+                    workspace_id: workspaceId,
+                    created_at: row.created_at,
+                    updated_at: row.updated_at
+                };
+            }).filter(node => !workspaceId || (node as any).workspace_id === undefined || (node as any).workspace_id === workspaceId);
 
-        const nodes = snapshot.docs.map((docSnap) => {
-            const row = docSnap.data();
-            const existingData = (row.data as Record<string, unknown>) || {};
-            return {
-                id: row.id,
-                type: row.type,
-                position: { x: row.position_x, y: row.position_y },
-                data: {
-                  ...existingData,
-                  createdAt: existingData.createdAt || row.created_at || null,
-                  updatedAt: existingData.updatedAt || row.updated_at || null,
-                } as Record<string, unknown>,
-                style: { width: row.width, height: row.height, zIndex: row.z_index },
-            };
-        });
-        onUpdate(nodes);
+
+            onUpdate(nodes);
+        }
     }, (err) => {
         console.error('[sync] Nodes subscription error:', err);
         onError?.(err);
@@ -246,22 +271,23 @@ export function subscribeCanvasNodes(workspaceId: string, onUpdate: (nodes: Node
 export function subscribeCanvasEdges(workspaceId: string, onUpdate: (edges: Edge[]) => void, onError?: (err: Error) => void) {
     const q = query(collection(db, `workspaces/${workspaceId}/edges`));
     return onSnapshot(q, (snapshot) => {
-        if (snapshot.metadata.hasPendingWrites) return;
-
-        const edges = snapshot.docs.map((docSnap) => {
-            const row = docSnap.data();
-            return {
-                id: row.id,
-                source: row.source_node_id,
-                target: row.target_node_id,
-                sourceHandle: row.source_handle || undefined,
-                targetHandle: row.target_handle || undefined,
-                type: 'custom',
-                label: row.label || undefined,
-                data: (row.style as Record<string, unknown>) || {},
-            };
-        });
-        onUpdate(edges);
+        // W4 fix: Skip only docs with pending writes, not entire snapshot
+        if (!snapshot.metadata.hasPendingWrites) {
+            const edges = snapshot.docs.map((docSnap) => {
+                const row = docSnap.data();
+                return {
+                    id: row.id,
+                    source: row.source_node_id,
+                    target: row.target_node_id,
+                    sourceHandle: row.source_handle || undefined,
+                    targetHandle: row.target_handle || undefined,
+                    type: 'custom',
+                    label: row.label || undefined,
+                    data: (row.style as Record<string, unknown>) || {},
+                };
+            });
+            onUpdate(edges);
+        }
     }, (err) => {
         console.error('[sync] Edges subscription error:', err);
         onError?.(err);
@@ -271,8 +297,8 @@ export function subscribeCanvasEdges(workspaceId: string, onUpdate: (edges: Edge
 export async function updateCursorPositionInDb(workspaceId: string, userId: string, x: number, y: number, name: string, color: string) {
     const cursorRef = doc(db, `workspaces/${workspaceId}/presence`, userId);
     await setDoc(cursorRef, {
-        x,
-        y,
+        x: isFinite(x) ? x : 0,
+        y: isFinite(y) ? y : 0,
         name,
         color,
         last_seen: new Date().toISOString()
@@ -291,9 +317,10 @@ export function subscribeCursors(workspaceId: string, onUpdate: (cursors: Record
             // Filter out cursors older than 1 minute to keep it clean
             const lastSeen = new Date(data.last_seen).getTime();
             if (now - lastSeen < 60000) {
+                // W23 fix: Validate cursor positions to prevent NaN
                 cursors[docSnap.id] = {
-                    x: data.x,
-                    y: data.y,
+                    x: isFinite(data.x) ? data.x : 0,
+                    y: isFinite(data.y) ? data.y : 0,
                     name: data.name,
                     color: data.color,
                     lastSeen

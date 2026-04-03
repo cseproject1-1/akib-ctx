@@ -22,7 +22,7 @@ import {
 import { updateUserSettings as serverUpdateSettings } from '@/lib/firebase/settings';
 import type { UserSettings } from '@/lib/firebase/settings';
 import { getWorkspaces as serverGetWorkspaces } from '@/lib/firebase/workspaces';
-import type { Workspace } from '@/lib/firebase/workspaces';
+import type { Workspace } from '@/types/canvas';
 import { auth } from '@/lib/firebase/client';
 import { toast } from 'sonner';
 
@@ -333,6 +333,7 @@ export async function saveDrawing(workspaceId: string, drawing: DrawingOverlay) 
   }
   await cacheSet('canvas-drawings', workspaceId, drawings);
 
+  console.log('[sync] Saving drawing:', drawing.id, 'to Firestore...');
   // Save to server
   try {
     await serverSaveDrawing(workspaceId, drawing);
@@ -427,21 +428,21 @@ async function ensureSession(): Promise<boolean> {
   }
 }
 
-function isAuthError(err: any): boolean {
-  const msg = String(err?.message || '').toLowerCase();
-  const code = String(err?.code || '').toLowerCase().replace(/_/g, '-');
+function isAuthError(err: unknown): boolean {
+  const msg = String((err as Record<string, unknown>)?.message || '').toLowerCase();
+  const code = String((err as Record<string, unknown>)?.code || '').toLowerCase().replace(/_/g, '-');
   return msg.includes('jwt') || msg.includes('not authenticated') ||
     msg.includes('unauthenticated') || msg.includes('permission-denied') ||
     code === '401' || code === '403' || code === 'permission-denied' ||
     code === 'unauthenticated' || code.includes('auth/');
 }
 
-function isNetworkError(err: any): boolean {
-  const code = String(err?.code || '');
-  const msg = String(err?.message || '');
+function isNetworkError(err: unknown): boolean {
+  const code = String((err as Record<string, unknown>)?.code || '');
+  const msg = String((err as Record<string, unknown>)?.message || '');
   return !navigator.onLine || 
          msg.includes('Failed to fetch') || 
-         err?.name === 'TypeError' ||
+         (err as Record<string, unknown>)?.name === 'TypeError' ||
          code === 'unavailable' || 
          code === 'deadline-exceeded' || 
          code === 'cancelled' ||
@@ -469,6 +470,23 @@ async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
     }
   }
   throw lastErr;
+}
+
+// ─── Workspace Sync Helpers ───
+
+function sanitizeForFirestore(val: unknown): unknown {
+  if (val === null || val === undefined) return null;
+  if (typeof val === 'function' || typeof val === 'symbol') return null;
+  if (Array.isArray(val)) return val.map(sanitizeForFirestore);
+  if (typeof val === 'object') {
+    const res: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
+      if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
+      res[k] = sanitizeForFirestore(v);
+    }
+    return res;
+  }
+  return val;
 }
 
 // ─── Write-through wrappers ───
@@ -502,19 +520,19 @@ export async function saveNode(workspaceId: string, node: Node) {
   const nodeWithDates: Node = {
     ...node,
     data: {
-      ...(node.data as any),
-      createdAt: (node.data as any)?.createdAt || now,
+      ...(node.data as Record<string, unknown>),
+      createdAt: (node.data as Record<string, unknown>)?.createdAt || now,
       updatedAt: now,
       lastSyncedAt: now,
     },
   };
 
   const entry = await cacheGet<Node[]>('canvas-nodes', workspaceId);
-  if (entry) {
-    const nodes = entry.data.filter((n) => n.id !== nodeWithDates.id);
-    nodes.push(nodeWithDates);
-    await cacheSet('canvas-nodes', workspaceId, nodes);
-  }
+  const nodes = entry ? entry.data.filter((n) => n.id !== nodeWithDates.id) : [];
+  nodes.push(nodeWithDates);
+  await cacheSet('canvas-nodes', workspaceId, nodes);
+
+  console.log('[sync] Saving node:', nodeWithDates.id, 'to Firestore...');
   try {
     await withRetry(() => serverSaveNode(workspaceId, nodeWithDates));
   } catch (err) {
@@ -526,11 +544,11 @@ export async function saveEdge(workspaceId: string, edge: Edge) {
   // Always ensure edge has a valid UUID
   const fixedEdge = isValidUUID(edge.id) ? edge : { ...edge, id: crypto.randomUUID() };
   const entry = await cacheGet<Edge[]>('canvas-edges', workspaceId);
-  if (entry) {
-    const edges = entry.data.filter((e) => e.id !== fixedEdge.id);
-    edges.push(fixedEdge);
-    await cacheSet('canvas-edges', workspaceId, edges);
-  }
+  const edges = entry ? entry.data.filter((e) => e.id !== fixedEdge.id) : [];
+  edges.push(fixedEdge);
+  await cacheSet('canvas-edges', workspaceId, edges);
+
+  console.log('[sync] Saving edge:', fixedEdge.id, 'to Firestore...');
   try {
     await withRetry(() => serverSaveEdge(workspaceId, fixedEdge));
   } catch (err) {
@@ -572,6 +590,12 @@ export async function deleteCanvasEdge(workspaceId: string, edgeId: string) {
 }
 
 export async function updateNodePosition(workspaceId: string, nodeId: string, x: number, y: number) {
+  // Update local cache immediately so movement survives refresh
+  const entry = await cacheGet<Node[]>('canvas-nodes', workspaceId);
+  if (entry) {
+    const nodes = entry.data.map((n) => (n.id === nodeId ? { ...n, position: { x, y } } : n));
+    await cacheSet('canvas-nodes', workspaceId, nodes);
+  }
   try {
     await withRetry(() => serverUpdatePosition(workspaceId, nodeId, x, y));
   } catch (err) {
@@ -580,6 +604,12 @@ export async function updateNodePosition(workspaceId: string, nodeId: string, x:
 }
 
 export async function updateNodeDataInDb(workspaceId: string, nodeId: string, data: Record<string, unknown>) {
+  // Update local cache immediately
+  const entry = await cacheGet<Node[]>('canvas-nodes', workspaceId);
+  if (entry) {
+    const nodes = entry.data.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, ...data } } : n));
+    await cacheSet('canvas-nodes', workspaceId, nodes);
+  }
   try {
     await withRetry(() => serverUpdateData(workspaceId, nodeId, data));
   } catch (err) {
@@ -588,6 +618,14 @@ export async function updateNodeDataInDb(workspaceId: string, nodeId: string, da
 }
 
 export async function updateNodeStyle(workspaceId: string, nodeId: string, width: number, height: number, zIndex: number) {
+  // Update local cache immediately
+  const entry = await cacheGet<Node[]>('canvas-nodes', workspaceId);
+  if (entry) {
+    const nodes = entry.data.map((n) =>
+      n.id === nodeId ? { ...n, style: { ...n.style, width, height, zIndex } } : n
+    );
+    await cacheSet('canvas-nodes', workspaceId, nodes);
+  }
   try {
     await withRetry(() => serverUpdateStyle(workspaceId, nodeId, width, height, zIndex));
   } catch (err) {
@@ -597,7 +635,18 @@ export async function updateNodeStyle(workspaceId: string, nodeId: string, width
 
 export async function updateEdgeDataInDb(workspaceId: string, edgeId: string, data: Record<string, unknown>, label?: string) {
   // Skip non-UUID edge IDs
-  if (!isValidUUID(edgeId)) return;
+  if (!isValidUUID(edgeId)) {
+    console.warn('[sync] Skipping update for non-UUID edge:', edgeId);
+    return;
+  }
+  // Update local cache immediately
+  const entry = await cacheGet<Edge[]>('canvas-edges', workspaceId);
+  if (entry) {
+    const edges = entry.data.map((e) =>
+      e.id === edgeId ? { ...e, data: { ...e.data, ...data }, label: label ?? e.label } : e
+    );
+    await cacheSet('canvas-edges', workspaceId, edges);
+  }
   try {
     await withRetry(() => serverUpdateEdgeData(workspaceId, edgeId, data, label));
   } catch (err) {
@@ -683,7 +732,7 @@ export async function replayPendingOps(isRetry = false) {
             }
             // Ensure createdAt is preserved, update updatedAt and lastSyncedAt
             const now = new Date().toISOString();
-            const nodeData = node.data as any;
+            const nodeData = node.data as Record<string, unknown>;
             if (nodeData && !nodeData.createdAt) {
               nodeData.createdAt = now;
             }
@@ -751,10 +800,11 @@ export async function replayPendingOps(isRetry = false) {
         await removePendingOp(op.id);
         replayed++;
         _retryDelay = 5000; // success, reset delay
-      } catch (err: any) {
-        if (err?.code === 'invalid-argument' || err?.code === '22P02' ||
-            err?.message?.includes('invalid-argument') || err?.message?.includes('invalid input syntax')) {
-          console.warn('[sync] Removing permanently failed op:', op.type, err?.message);
+      } catch (err: unknown) {
+        const error = err as Record<string, unknown>;
+        if (error?.code === 'invalid-argument' || error?.code === '22P02' ||
+            String(error?.message || '').includes('invalid-argument') || String(error?.message || '').includes('invalid input syntax')) {
+          console.warn('[sync] Removing permanently failed op:', op.type, error?.message);
           await removePendingOp(op.id);
           purged++;
           toast.warning('A change could not be saved and was removed', { id: `perm-fail-${op.id}` });
@@ -762,8 +812,8 @@ export async function replayPendingOps(isRetry = false) {
         }
 
         // Document no longer exists (node/edge deleted elsewhere)
-        if (err?.code === 'not-found' || err?.message?.includes('No document to update')) {
-          console.warn('[sync] Removing op for deleted document:', op.type, err?.message);
+        if (error?.code === 'not-found' || String(error?.message || '').includes('No document to update')) {
+          console.warn('[sync] Removing op for deleted document:', op.type, error?.message);
           await removePendingOp(op.id);
           purged++;
           continue;
@@ -777,10 +827,10 @@ export async function replayPendingOps(isRetry = false) {
         }
 
         // Transient server errors: keep op for retry instead of permanently removing
-        if (err?.code === 'internal' || err?.code === 'unavailable' || 
-            err?.code === 'deadline-exceeded' || err?.code === 'aborted' ||
-            err?.code === 'resource-exhausted') {
-          console.warn('[sync] Transient server error, keeping op for retry:', op.type, err?.code);
+        if (error?.code === 'internal' || error?.code === 'unavailable' || 
+            error?.code === 'deadline-exceeded' || error?.code === 'aborted' ||
+            error?.code === 'resource-exhausted') {
+          console.warn('[sync] Transient server error, keeping op for retry:', op.type, error?.code);
           _retryDelay = Math.min(_retryDelay * 1.5, MAX_RETRY_INTERVAL);
           break;
         }
@@ -829,10 +879,10 @@ export { clearAllCaches };
 
 // ─── Online listener + periodic retry ───
 
-let _syncTimeout: any = null;
+let _syncTimeout: ReturnType<typeof setTimeout> | null = null;
 let _onlineHandler: (() => void) | null = null;
 let _offlineHandler: (() => void) | null = null;
-let _startupTimeout: any = null;
+let _startupTimeout: ReturnType<typeof setTimeout> | null = null;
 
 function scheduleReplay(delay: number) {
   if (_syncTimeout) clearTimeout(_syncTimeout);

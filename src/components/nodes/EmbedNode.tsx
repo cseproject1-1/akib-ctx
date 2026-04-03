@@ -94,6 +94,14 @@ export const EmbedNode = memo(({ id, data, selected }: NodeProps) => {
   const [loadingMeta, setLoadingMeta] = useState(false);
   const iframeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const iframeLoadedRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (iframeTimerRef.current) clearTimeout(iframeTimerRef.current);
+      if (abortRef.current) abortRef.current.abort();
+    };
+  }, []);
 
   const handleSubmit = useCallback(() => {
     let url = inputUrl.trim();
@@ -116,19 +124,23 @@ export const EmbedNode = memo(({ id, data, selected }: NodeProps) => {
 
   // Fetch metadata when iframe fails
   const fetchMetadata = useCallback(async (url: string) => {
+    if (abortRef.current) abortRef.current.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setLoadingMeta(true);
     try {
       const response = await fetch(`${WORKER_URL}/api/urlMetadata`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url })
+        body: JSON.stringify({ url }),
+        signal: controller.signal,
       });
       if (!response.ok) throw new Error(`API error ${response.status}`);
       const result = await response.json() as UrlMetadata;
       if (result) {
         setMetadata(result);
       } else {
-        // Minimal fallback
         try {
           const domain = new URL(url).hostname;
           setMetadata({
@@ -140,19 +152,23 @@ export const EmbedNode = memo(({ id, data, selected }: NodeProps) => {
           });
         } catch { /* ignore */ }
       }
-    } catch {
-      try {
-        const domain = new URL(url).hostname;
-        setMetadata({
-          title: domain,
-          description: null,
-          image: null,
-          favicon: `https://www.google.com/s2/favicons?domain=${domain}&sz=64`,
-          domain,
-        });
-      } catch { /* ignore */ }
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        try {
+          const domain = new URL(url).hostname;
+          setMetadata({
+            title: domain,
+            description: null,
+            image: null,
+            favicon: `https://www.google.com/s2/favicons?domain=${domain}&sz=64`,
+            domain,
+          });
+        } catch { /* ignore */ }
+      }
     } finally {
-      setLoadingMeta(false);
+      if (abortRef.current === controller) {
+        setLoadingMeta(false);
+      }
     }
   }, []);
 
@@ -243,7 +259,6 @@ export const EmbedNode = memo(({ id, data, selected }: NodeProps) => {
               onChange={(e) => setInputUrl(e.target.value)}
               onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') handleSubmit(); }}
               onClick={(e) => e.stopPropagation()}
-              autoFocus
             />
             <button
               onClick={handleSubmit}
@@ -316,7 +331,7 @@ export const EmbedNode = memo(({ id, data, selected }: NodeProps) => {
             src={finalIframeSrc}
             title={nodeData.title || 'Embedded content'}
             className="h-full w-full border-0"
-            sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+            sandbox="allow-scripts allow-popups allow-forms"
             loading="lazy"
             onLoad={handleIframeLoad}
             onError={handleIframeError}

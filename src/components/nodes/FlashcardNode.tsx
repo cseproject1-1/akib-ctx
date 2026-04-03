@@ -28,10 +28,12 @@ export const FlashcardNode = memo(({ id, data, selected }: NodeProps) => {
   const totalCards = cards.length;
 
   const next = () => {
+    if (totalCards === 0) return;
     setFlipped(false);
     setCurrentIndex((i) => Math.min(i + 1, totalCards - 1));
   };
   const prev = () => {
+    if (totalCards === 0) return;
     setFlipped(false);
     setCurrentIndex((i) => Math.max(i - 1, 0));
   };

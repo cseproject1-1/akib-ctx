@@ -23,8 +23,12 @@ export const MathNode = memo(({ id, data, selected }: NodeProps) => {
   const previewRef = useRef<HTMLDivElement>(null);
   const isView = canvasMode === 'view';
 
-  // Stable placeholder that doesn't change on re-render
-  const placeholder = useMemo(() => EXAMPLES[Math.floor(Math.random() * EXAMPLES.length)], []);
+  // Stable placeholder based on node id (deterministic)
+  const placeholder = useMemo(() => {
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) hash = ((hash << 5) - hash + id.charCodeAt(i)) | 0;
+    return EXAMPLES[Math.abs(hash) % EXAMPLES.length];
+  }, [id]);
 
   const renderKatex = useCallback(() => {
     if (!previewRef.current) return;

@@ -53,7 +53,7 @@ export const useSettingsStore = create<SettingsState>()(
       enableHybridEditor: true,
       isLoading: false,
       error: null,
-      _updateTimer: null as ReturnType<typeof setTimeout> | null,
+      _syncTimer: null as ReturnType<typeof setTimeout> | null,
 
       fetchSettings: async () => {
         set({ isLoading: true, error: null });
@@ -65,70 +65,56 @@ export const useSettingsStore = create<SettingsState>()(
         }
       },
 
-      updateHotkey: async (key, value) => {
-        const nextHotkeys = { ...get().hotkeys, [key]: value };
-        set({ hotkeys: nextHotkeys });
-        
-        const { _updateTimer } = get() as any;
-        if (_updateTimer) clearTimeout(_updateTimer);
+      _queueSync: (partial: Partial<UserSettings>) => {
+        const { _syncTimer } = get() as any;
+        if (_syncTimer) clearTimeout(_syncTimer);
         
         const timer = setTimeout(async () => {
           try {
-            await updateUserSettings({ hotkeys: nextHotkeys });
+            const currentSettings = get();
+            const syncData: Partial<UserSettings> = {};
+            if (partial.hotkeys) syncData.hotkeys = currentSettings.hotkeys;
+            if (partial.theme) syncData.theme = currentSettings.theme;
+            if (partial.canvasTheme) syncData.canvasTheme = currentSettings.canvasTheme;
+            if (partial.enableHybridEditor !== undefined) syncData.enableHybridEditor = currentSettings.enableHybridEditor;
+            
+            await updateUserSettings(syncData);
           } catch {
-            queueSettingsOffline({ hotkeys: nextHotkeys });
+            queueSettingsOffline(partial);
           }
         }, 1000);
-        set({ _updateTimer: timer } as any);
+        set({ _syncTimer: timer } as any);
+      },
+
+      updateHotkey: async (key, value) => {
+        const nextHotkeys = { ...get().hotkeys, [key]: value };
+        set({ hotkeys: nextHotkeys });
+        (get() as any)._queueSync({ hotkeys: nextHotkeys });
       },
 
       setTheme: async (theme) => {
         set({ theme });
-        const { _updateTimer } = get() as any;
-        if (_updateTimer) clearTimeout(_updateTimer);
-        
-        const timer = setTimeout(async () => {
-          try {
-            await updateUserSettings({ theme });
-          } catch {
-            queueSettingsOffline({ theme });
-          }
-        }, 1000);
-        set({ _updateTimer: timer } as any);
+        (get() as any)._queueSync({ theme });
       },
 
       setCanvasTheme: async (canvasTheme) => {
         set({ canvasTheme });
-        const { _updateTimer } = get() as any;
-        if (_updateTimer) clearTimeout(_updateTimer);
-        
-        const timer = setTimeout(async () => {
-          try {
-            await updateUserSettings({ canvasTheme });
-          } catch {
-            queueSettingsOffline({ canvasTheme });
-          }
-        }, 1000);
-        set({ _updateTimer: timer } as any);
+        (get() as any)._queueSync({ canvasTheme });
       },
-      
-      setHybridEditorEnabled: async (enableHybridEditor) => {
-        set({ enableHybridEditor });
-        const { _updateTimer } = get() as any;
-        if (_updateTimer) clearTimeout(_updateTimer);
-        
-        const timer = setTimeout(async () => {
-          try {
-            await updateUserSettings({ enableHybridEditor });
-          } catch {
-            queueSettingsOffline({ enableHybridEditor });
-          }
-        }, 1000);
-        set({ _updateTimer: timer } as any);
+
+      setHybridEditorEnabled: async (enabled) => {
+        set({ enableHybridEditor: enabled });
+        (get() as any)._queueSync({ enableHybridEditor: enabled });
       },
     }),
     {
       name: 'ctxnote-settings',
+      partialize: (state) => ({
+        hotkeys: state.hotkeys,
+        theme: state.theme,
+        canvasTheme: state.canvasTheme,
+        enableHybridEditor: state.enableHybridEditor,
+      }),
     }
   )
 );

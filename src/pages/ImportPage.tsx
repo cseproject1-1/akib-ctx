@@ -19,7 +19,20 @@ export default function ImportPage() {
     const type = searchParams.get('type');
     const title = searchParams.get('title') || 'Clipped Note';
     const content = searchParams.get('content') || '';
-    const url = searchParams.get('url') || '';
+    let url = searchParams.get('url') || '';
+
+    if (url) {
+      try {
+        const parsed = new URL(url);
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+          url = '';
+        } else {
+          url = parsed.href;
+        }
+      } catch {
+        url = '';
+      }
+    }
 
     if (type === 'clip') {
       const handleImport = async () => {

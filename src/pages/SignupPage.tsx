@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 import { AuthBackground } from '@/components/AuthBackground';
+import { toast } from 'sonner';
 
 const SignupPage = () => {
   const { signUp, signInWithGoogle, sendVerification } = useAuth();
@@ -43,7 +44,12 @@ const SignupPage = () => {
 
   const handleResend = async () => {
     setResending(true);
-    await sendVerification();
+    const { error } = await sendVerification();
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success('Verification email sent!');
+    }
     setResending(false);
   };
 

@@ -42,7 +42,7 @@ export function ActionDrawer() {
         <Button
           variant="outline"
           size="icon"
-          className="fixed left-6 bottom-6 z-[60] h-12 w-12 rounded-2xl border-2 border-border bg-card shadow-[4px_4px_0px_rgba(0,0,0,0.1)] transition-all hover:bg-accent active:scale-95 group"
+          className="fixed left-6 bottom-6 z-toolbar h-12 w-12 rounded-2xl border-2 border-border bg-card shadow-[4px_4px_0px_rgba(0,0,0,0.1)] transition-all hover:bg-accent active:scale-95 group"
           title="Open Toolbox"
         >
           <Settings2 className="h-6 w-6 text-primary group-hover:rotate-90 transition-transform duration-300" />

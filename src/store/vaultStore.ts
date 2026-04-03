@@ -1,7 +1,10 @@
 /**
  * @file vaultStore.ts
  * @description Advanced vault store with:
- *  - Persisted bcrypt hash (localStorage) — survives page reloads
+ *  - **Cross-device sync**: bcrypt hash stored in Firestore users/{uid}/settings.vault_password_hash
+ *  - Persisted bcrypt hash (localStorage) as immediate local cache — survives page reloads
+ *  - Write-through: every hash change writes to localStorage immediately AND to Firestore async
+ *  - Auto-load from Firestore on auth state change (see initVaultFromFirestore below)
  *  - Auto-lock after configurable inactivity timeout (default 5 min)
  *  - Brute-force protection: exponential backoff lockout after failed attempts
  *  - Multi-tab sync via BroadcastChannel (lock in one tab → all tabs lock)
@@ -10,6 +13,7 @@
 
 import { create } from 'zustand';
 import { hashPassword, verifyPassword } from '@/lib/utils/password';
+import { loadVaultHash, saveVaultHash } from '@/lib/firebase/settings';
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 const HASH_KEY            = 'vault-password-hash';
@@ -41,6 +45,9 @@ export interface VaultState {
   config: VaultConfig;
   lastActivityAt: number;
 
+  // Sync state
+  isSyncing: boolean; // true while Firestore write is in-flight
+
   // Actions
   unlockVault: (password: string) => Promise<'success' | 'wrong_password' | 'no_password' | 'locked_out'>;
   lockVault: () => void;
@@ -51,6 +58,14 @@ export interface VaultState {
   recordActivity: () => void;
   checkAutoLock: () => void;
 
+  /**
+   * Called once after Firebase auth resolves.
+   * Loads the hash from Firestore and reconciles with localStorage.
+   * If Firestore has a hash that localStorage doesn't (new device), adopts it and locks.
+   * If localStorage has a hash that Firestore doesn't (never synced before), pushes it up.
+   */
+  syncFromFirestore: () => Promise<void>;
+
   // Internal
   _autoLockTimer: ReturnType<typeof setTimeout> | null;
   _startAutoLockTimer: () => void;
@@ -58,20 +73,20 @@ export interface VaultState {
   _broadcastLock: () => void;
 }
 
-// ─── Persistence helpers ─────────────────────────────────────────────────────
+// ─── localStorage persistence helpers ────────────────────────────────────────
 
-function loadHash(): string | null {
+function loadHashLocal(): string | null {
   try { return localStorage.getItem(HASH_KEY); } catch (e) {
-    console.error('[vaultStore] loadHash failed:', e);
+    console.error('[vaultStore] loadHashLocal failed:', e);
     return null;
   }
 }
-function saveHash(hash: string | null) {
+function saveHashLocal(hash: string | null) {
   try {
     if (hash) localStorage.setItem(HASH_KEY, hash);
     else localStorage.removeItem(HASH_KEY);
   } catch (e) {
-    console.error('[vaultStore] saveHash failed:', e);
+    console.error('[vaultStore] saveHashLocal failed:', e);
   }
 }
 
@@ -127,7 +142,7 @@ function getLockoutMs(attempts: number): number {
 
 // ─── Store ───────────────────────────────────────────────────────────────────
 
-const storedHash = loadHash();
+const storedHash = loadHashLocal();
 const storedConfig = loadConfig();
 
 export const useVaultStore = create<VaultState>((set, get) => {
@@ -137,6 +152,17 @@ export const useVaultStore = create<VaultState>((set, get) => {
       if (event.data?.type === 'lock') {
         get()._clearAutoLockTimer();
         set({ isLocked: true });
+      }
+      // Cross-tab hash sync: when another tab updates/clears the hash
+      if (event.data?.type === 'hash_update') {
+        const newHash: string | null = event.data.hash ?? null;
+        saveHashLocal(newHash);
+        set({
+          passwordHash: newHash,
+          isLocked: !!newHash,
+          failedAttempts: 0,
+          lockedUntil: null,
+        });
       }
     };
   }
@@ -148,7 +174,63 @@ export const useVaultStore = create<VaultState>((set, get) => {
     lockedUntil: null,
     config: storedConfig,
     lastActivityAt: Date.now(),
+    isSyncing: false,
     _autoLockTimer: null,
+
+    // ── syncFromFirestore ────────────────────────────────────────────────────
+    /**
+     * Call once after auth resolves. Reconciles Firestore hash with local.
+     *
+     * Trace table (localStorage hash = L, Firestore hash = F):
+     * | L    | F    | Action                                              |
+     * |------|------|-----------------------------------------------------|
+     * | null | null | No password anywhere — stay unlocked                |
+     * | hash | null | Old device, never synced — push local hash to F    |
+     * | null | hash | New device — adopt F, write to local, lock vault   |
+     * | same | same | Already in sync — no-op                             |
+     * | diff | diff | F wins (most recent server truth) — adopt F, lock  |
+     */
+    syncFromFirestore: async () => {
+      set({ isSyncing: true });
+      try {
+        const remoteHash = await loadVaultHash();
+        const localHash  = loadHashLocal();
+
+        if (!remoteHash && !localHash) {
+          // No password anywhere
+          set({ isSyncing: false });
+          return;
+        }
+
+        if (!remoteHash && localHash) {
+          // localStorage has a hash but Firestore doesn't — first-time sync, push up
+          console.info('[vaultStore] Pushing local vault hash to Firestore (first sync)');
+          await saveVaultHash(localHash);
+          set({ isSyncing: false });
+          return;
+        }
+
+        if (remoteHash && remoteHash !== localHash) {
+          // Firestore has a newer/different hash — adopt it
+          console.info('[vaultStore] Adopting Firestore vault hash (cross-device sync)');
+          saveHashLocal(remoteHash);
+          set({
+            passwordHash: remoteHash,
+            isLocked: true,  // always lock when adopting a hash from server
+            failedAttempts: 0,
+            lockedUntil: null,
+            isSyncing: false,
+          });
+          return;
+        }
+
+        // Already in sync
+        set({ isSyncing: false });
+      } catch (e) {
+        console.error('[vaultStore] syncFromFirestore failed:', e);
+        set({ isSyncing: false });
+      }
+    },
 
     // ── Unlock ──────────────────────────────────────────────────────────────
     unlockVault: async (password: string) => {
@@ -195,14 +277,28 @@ export const useVaultStore = create<VaultState>((set, get) => {
     // ── Set initial password ─────────────────────────────────────────────────
     setPassword: async (password: string) => {
       const hash = await hashPassword(password);
-      saveHash(hash);
+
+      // Write-through: localStorage first (immediate), then Firestore (async but awaited)
+      saveHashLocal(hash);
       set({
         passwordHash: hash,
         isLocked: false,
         failedAttempts: 0,
         lockedUntil: null,
         lastActivityAt: Date.now(),
+        isSyncing: true,
       });
+
+      try {
+        await saveVaultHash(hash);
+        // Notify other tabs that the hash changed
+        channel?.postMessage({ type: 'hash_update', hash });
+      } catch (e) {
+        console.error('[vaultStore] setPassword Firestore sync failed:', e);
+      } finally {
+        set({ isSyncing: false });
+      }
+
       get()._startAutoLockTimer();
     },
 
@@ -223,8 +319,20 @@ export const useVaultStore = create<VaultState>((set, get) => {
       }
 
       const newHash = await hashPassword(newPassword);
-      saveHash(newHash);
-      set({ passwordHash: newHash, failedAttempts: 0, lockedUntil: null });
+
+      // Write-through
+      saveHashLocal(newHash);
+      set({ passwordHash: newHash, failedAttempts: 0, lockedUntil: null, isSyncing: true });
+
+      try {
+        await saveVaultHash(newHash);
+        channel?.postMessage({ type: 'hash_update', hash: newHash });
+      } catch (e) {
+        console.error('[vaultStore] changePassword Firestore sync failed:', e);
+      } finally {
+        set({ isSyncing: false });
+      }
+
       return true;
     },
 
@@ -245,13 +353,26 @@ export const useVaultStore = create<VaultState>((set, get) => {
       }
 
       get()._clearAutoLockTimer();
-      saveHash(null);
+
+      // Write-through: clear local first, then Firestore
+      saveHashLocal(null);
       set({
         passwordHash: null,
         isLocked: false,
         failedAttempts: 0,
         lockedUntil: null,
+        isSyncing: true,
       });
+
+      try {
+        await saveVaultHash(null);
+        channel?.postMessage({ type: 'hash_update', hash: null });
+      } catch (e) {
+        console.error('[vaultStore] removePassword Firestore sync failed:', e);
+      } finally {
+        set({ isSyncing: false });
+      }
+
       return true;
     },
 

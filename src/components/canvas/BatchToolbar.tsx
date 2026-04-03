@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useCanvasStore } from '@/store/canvasStore';
+import { cn } from '@/lib/utils';
 import { useNodes, useReactFlow } from '@xyflow/react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Palette, Tag, Trash2, X, Check, Copy } from 'lucide-react';
@@ -22,12 +23,14 @@ export function BatchToolbar() {
   const hasSelection = selectedNodes.length > 1;
   
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const deleteNodes = useCanvasStore((s) => s.setNodes);
   const currentNodes = useCanvasStore((s) => s.nodes);
+  const pushSnapshot = useCanvasStore((s) => s.pushSnapshot);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   if (!hasSelection) return null;
 
   const handleApplyColor = (color: string) => {
+    pushSnapshot('Batch color change');
     selectedNodes.forEach((node) => {
       updateNodeData(node.id, { color });
     });
@@ -35,9 +38,11 @@ export function BatchToolbar() {
   };
 
   const handleDeleteAll = () => {
+    pushSnapshot('Batch delete');
     const selectedIds = new Set(selectedNodes.map(n => n.id));
     useCanvasStore.getState().setNodes(currentNodes.filter(n => !selectedIds.has(n.id)));
     toast.error(`Deleted ${selectedNodes.length} nodes`);
+    setShowDeleteConfirm(false);
   };
 
   return (
@@ -81,13 +86,32 @@ export function BatchToolbar() {
 
         {/* Actions */}
         <div className="flex items-center gap-1">
-          <button 
-            onClick={handleDeleteAll}
-            className="p-2 rounded-xl hover:bg-destructive/10 text-destructive transition-colors group"
-            title="Delete Selected"
-          >
-            <Trash2 className="h-4 w-4 group-hover:scale-110 transition-transform" />
-          </button>
+          {showDeleteConfirm ? (
+            <div className="flex items-center gap-1 animate-scale-in">
+              <button 
+                onClick={handleDeleteAll}
+                className="p-2 rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
+                title="Confirm Delete"
+              >
+                <Check className="h-4 w-4" />
+              </button>
+              <button 
+                onClick={() => setShowDeleteConfirm(false)}
+                className="p-2 rounded-xl hover:bg-accent text-foreground transition-colors"
+                title="Cancel"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <button 
+              onClick={() => setShowDeleteConfirm(true)}
+              className="p-2 rounded-xl hover:bg-destructive/10 text-destructive transition-colors group"
+              title="Delete Selected"
+            >
+              <Trash2 className="h-4 w-4 group-hover:scale-110 transition-transform" />
+            </button>
+          )}
           
           <button 
             onClick={() => {

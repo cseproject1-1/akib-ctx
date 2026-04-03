@@ -4,7 +4,6 @@ import Typography from '@tiptap/extension-typography';
 import TaskList from '@tiptap/extension-task-list';
 import { CustomTaskItem } from './TaskItemExtension';
 import Image from '@tiptap/extension-image';
-import Link from '@tiptap/extension-link';
 import TextAlign from '@tiptap/extension-text-align';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
@@ -18,7 +17,7 @@ import Subscript from '@tiptap/extension-subscript';
 import { ColumnsExtension, ColumnExtension } from './ColumnsExtension';
 import SlashCommand from './SlashCommandExtension';
 import { CalloutExtension } from './CalloutExtension';
-import { ToggleExtension } from './ToggleExtension';
+import { ToggleExtension, DetailsSummary, DetailsContent } from './ToggleExtension';
 import { WikiLinkExtension } from './WikiLinkExtension';
 import { SmartCodeExtension } from './SmartCodeExtension';
 import { SmartNavigationExtension } from './SmartNavigationExtension';
@@ -53,6 +52,8 @@ export function getEditorExtensions(placeholder = 'Type / for commands, or start
     Subscript,
     CalloutExtension,
     ToggleExtension,
+    DetailsSummary,
+    DetailsContent,
     ColumnsExtension,
     ColumnExtension,
     SlashCommand,

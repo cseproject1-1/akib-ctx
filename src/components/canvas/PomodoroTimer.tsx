@@ -162,7 +162,7 @@ export function PomodoroTimer() {
   if (!open) return null;
 
   return (
-    <div className="fixed bottom-[200px] left-6 z-[60] w-64 rounded-xl border border-border bg-card shadow-[var(--clay-shadow-md)] animate-brutal-pop">
+    <div className="fixed bottom-[200px] left-6 z-toolbar w-64 rounded-xl border border-border bg-card shadow-[var(--clay-shadow-md)] animate-brutal-pop">
       <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
         <div className="flex items-center gap-2">
           <Timer className="h-4 w-4 text-primary" />

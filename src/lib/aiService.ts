@@ -1,6 +1,15 @@
-import { toast } from 'sonner';
+import { auth } from './firebase/client';
 
 const WORKER_URL = import.meta.env.VITE_WORKER_URL;
+
+async function getAuthHeaders() {
+  const token = await auth.currentUser?.getIdToken();
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+  };
+}
+
 
 export interface AINodeContext {
   id: string;
@@ -16,7 +25,8 @@ export async function askAIAboutNodes(nodes: AINodeContext[], prompt: string): P
 
   const response = await fetch(`${WORKER_URL}/api/chat`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
+
     body: JSON.stringify({
       messages: [
         {
@@ -55,7 +65,8 @@ export async function processInlineAI(text: string, task: AIInlineTask, context?
 
   const response = await fetch(`${WORKER_URL}/api/chat`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
+
     body: JSON.stringify({
       messages: [
         { role: 'system', content: 'You are a professional editor. Return ONLY the requested text without preamble or commentary.' },
@@ -119,7 +130,8 @@ export async function generateCanvasFromPrompt(prompt: string): Promise<{ nodes:
 
   const response = await fetch(`${WORKER_URL}/api/chat`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await getAuthHeaders(),
+
     body: JSON.stringify({
       messages: [
         {
@@ -177,3 +189,26 @@ export async function generateCanvasFromPrompt(prompt: string): Promise<{ nodes:
     throw new Error('AI returned invalid JSON structure');
   }
 }
+
+/**
+ * Verifies a workspace password via the Worker to prevent hash exposure on client.
+ * Fixes B6.
+ */
+export async function verifyWorkspacePassword(password: string, hash: string): Promise<boolean> {
+  if (!WORKER_URL) throw new Error('Worker URL not configured');
+
+  const response = await fetch(`${WORKER_URL}/api/verifyWorkspacePassword`, {
+    method: 'POST',
+    headers: await getAuthHeaders(),
+    body: JSON.stringify({ password, hash }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Password verification failed');
+  }
+
+  const data = await response.json();
+  return !!data.isValid;
+}
+

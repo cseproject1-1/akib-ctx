@@ -20,6 +20,7 @@ export function VersionHistoryPanel() {
   const nodes = useNodes();
   const edges = useEdges();
   const loadCanvas = useCanvasStore((s) => s.loadCanvas);
+  const pushSnapshot = useCanvasStore((s) => s.pushSnapshot);
   const setVersionHistoryOpen = useCanvasStore((s) => s.setVersionHistoryOpen);
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,6 +42,16 @@ export function VersionHistoryPanel() {
   useEffect(() => {
     loadSnapshots();
   }, [loadSnapshots]);
+  
+  // Body Scroll Lock
+  useEffect(() => {
+    const bodyStyle = document.body.style;
+    const prev = bodyStyle.overflow;
+    bodyStyle.overflow = 'hidden';
+    return () => {
+      bodyStyle.overflow = prev;
+    };
+  }, []);
 
   const handleSaveVersion = async () => {
     if (!workspaceId) return;
@@ -62,6 +73,7 @@ export function VersionHistoryPanel() {
   };
 
   const handleRestore = (snapshot: Snapshot) => {
+    pushSnapshot(`Restore: ${snapshot.name}`);
     const restoredNodes = (snapshot.nodes_data as Node[]) || [];
     const restoredEdges = (snapshot.edges_data as Edge[]) || [];
     loadCanvas(restoredNodes, restoredEdges);

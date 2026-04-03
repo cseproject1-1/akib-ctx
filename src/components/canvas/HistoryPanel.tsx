@@ -9,6 +9,7 @@ export function HistoryPanel() {
   const setNodes = useCanvasStore((s) => s.setNodes);
   const setEdges = useCanvasStore((s) => s.setEdges);
   const pushSnapshot = useCanvasStore((s) => s.pushSnapshot);
+  const loadCanvas = useCanvasStore((s) => s.loadCanvas);
   
   const [isOpen, setIsOpen] = useState(false);
 
@@ -17,10 +18,20 @@ export function HistoryPanel() {
     if (!snapshot) return;
 
     pushSnapshot('Revert to historical state');
-    setNodes(snapshot.nodes);
-    setEdges(snapshot.edges);
+    loadCanvas(snapshot.nodes, snapshot.edges);
     setIsOpen(false);
   };
+
+  // Body Scroll Lock
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const bodyStyle = document.body.style;
+    const prev = bodyStyle.overflow;
+    bodyStyle.overflow = 'hidden';
+    return () => {
+      bodyStyle.overflow = prev;
+    };
+  }, [isOpen]);
 
   return (
     <>

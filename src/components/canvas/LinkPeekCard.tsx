@@ -23,6 +23,10 @@ export function LinkPeekCard() {
         setMetadata(data);
         setLoading(false);
       }
+    }).catch(() => {
+      if (mounted) {
+        setLoading(false);
+      }
     });
 
     return () => { mounted = false; };
@@ -82,7 +86,7 @@ export function LinkPeekCard() {
               <div className="flex items-center justify-between pt-2 border-t-2 border-border/10">
                 <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
                   <Layout className="h-3 w-3" />
-                  {new URL(hoveredLink.url).hostname}
+                  {(() => { try { return new URL(hoveredLink.url).hostname; } catch { return 'unknown'; } })()}
                 </div>
                 <div className="flex items-center gap-1 text-[9px] font-black text-primary uppercase italic">
                   Link Ready <ExternalLink className="h-3 w-3" />

@@ -112,6 +112,7 @@ export function CanvasToolbar() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        if (document.querySelector('[role="dialog"][data-state="open"]')) return;
         setShowExportMenu(false);
         setShowLayoutMenu(false);
         setShowBookmarks(false);
@@ -568,7 +569,7 @@ export function CanvasToolbar() {
                   initial={{ opacity: 0, scale: 0.95, y: 10 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                  className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 flex flex-col gap-1 rounded-2xl glass-morphism-strong pro-shadow p-2 z-[100] min-w-[200px]"
+                  className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 flex flex-col gap-1 rounded-2xl glass-morphism-strong pro-shadow p-2 z-dropdown min-w-[200px]"
                 >
                   <div className="px-3 py-2 text-[9px] font-black uppercase tracking-[2px] text-primary/40 mb-1 border-b border-white/5">Auto Layouts</div>
                   {selectedCount > 1 && (
@@ -610,7 +611,7 @@ export function CanvasToolbar() {
                   initial={{ opacity: 0, scale: 0.95, y: 10 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                  className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 flex flex-col gap-1 rounded-2xl glass-morphism-strong pro-shadow p-2 z-[100] min-w-[200px]"
+                  className="absolute bottom-full left-1/2 -translate-x-1/2 mb-4 flex flex-col gap-1 rounded-2xl glass-morphism-strong pro-shadow p-2 z-dropdown min-w-[200px]"
                 >
                   <div className="px-3 py-2 text-[9px] font-black uppercase tracking-[2px] text-primary/40 mb-1 border-b border-white/5">Export / Import</div>
                   <button onClick={() => handleExportMd(false)} className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-all hover:bg-white/10 hover:text-foreground group">
@@ -665,7 +666,7 @@ export function CanvasToolbar() {
                   initial={{ opacity: 0, scale: 0.95, y: 10 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                  className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 min-w-[260px] rounded-2xl glass-morphism-strong pro-shadow p-4 z-[100]"
+                  className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 min-w-[260px] rounded-2xl glass-morphism-strong pro-shadow p-4 z-dropdown"
                 >
                   <div className="mb-4 flex items-center justify-between border-b border-white/5 pb-4">
                     <span className="text-[10px] font-black uppercase tracking-[2px] text-primary/40">Viewports</span>

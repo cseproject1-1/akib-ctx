@@ -53,62 +53,92 @@ export function EditorGhost({ content, className, placeholder }: EditorGhostProp
  *          superscript, subscript, textStyle, keyboard, color
  *  Fallback: any unknown node — renders children so text is never blank
  */
-function renderNodes(nodes: JSONContent[]): React.ReactNode[] {
+function renderNodes(nodes: any[]): React.ReactNode[] {
   return nodes.map((node, i) => renderNode(node, i));
 }
 
-function renderNode(node: JSONContent, i: number): React.ReactNode {
-  const key = `${node.type}-${i}`;
+function renderNode(node: any, i: number): React.ReactNode {
+  const key = `${node.type}-${node.id || i}`;
+  const type = node.type;
+  
+  // Normalize block properties (Tiptap uses attrs, BlockNote uses props)
+  const attrs = node.attrs || node.props || {};
+  
+  // Normalize children (Tiptap uses content, BlockNote uses content as inline and children as blocks)
+  // This is tricky: in BlockNote, 'content' is an array of inline segments, while 'children' is an array of sub-blocks.
+  // In Tiptap, 'content' is ALWAYS blocks (except for leaf text nodes).
+  const blockChildren = node.children || (Array.isArray(node.content) && node.content.every((n: any) => n.type !== 'text') ? node.content : []);
+  const inlineContent = Array.isArray(node.content) && node.content.some((n: any) => n.type === 'text') ? node.content : (Array.isArray(node.content) && node.content.length === 0 ? [] : null);
 
-  switch (node.type) {
-    // -----------------------------------------------------------------------
-    // Standard block nodes
-    // -----------------------------------------------------------------------
+  const childrenRenderer = () => {
+    if (inlineContent) return renderNodes(inlineContent);
+    if (blockChildren) return renderNodes(blockChildren);
+    return null;
+  };
+
+  switch (type) {
     case 'paragraph':
-      return <p key={key}>{renderNodes(node.content || [])}</p>;
+      return <p key={key}>{childrenRenderer()}</p>;
 
     case 'heading': {
-      const Level = `h${node.attrs?.level || 1}` as any;
-      return <Level key={key}>{renderNodes(node.content || [])}</Level>;
+      const Level = `h${attrs.level || 1}` as any;
+      return <Level key={key}>{childrenRenderer()}</Level>;
     }
 
     case 'bulletList':
-      return <ul key={key}>{renderNodes(node.content || [])}</ul>;
+    case 'bulletListItem': // BlockNote uses specific names
+      return <ul key={key}>{childrenRenderer()}</ul>;
 
-    case 'orderedList':
-      return <ol key={key} start={node.attrs?.start}>{renderNodes(node.content || [])}</ol>;
+    case 'numberedList':
+    case 'numberedListItem':
+      return <ol key={key} start={attrs.start}>{childrenRenderer()}</ol>;
 
-    case 'listItem':
-      return <li key={key}>{renderNodes(node.content || [])}</li>;
-
-    case 'taskList':
-      return <ul key={key} className="list-none pl-0">{renderNodes(node.content || [])}</ul>;
-
-    case 'taskItem':
+    case 'checkListItem':
       return (
         <li key={key} className="flex items-center gap-2">
           <input
             type="checkbox"
-            checked={!!node.attrs?.checked}
+            checked={!!attrs.checked}
             readOnly
             className="h-3 w-3 rounded border-border"
           />
-          <span className={node.attrs?.checked ? 'line-through text-muted-foreground' : ''}>
-            {renderNodes(node.content || [])}
+          <span className={attrs.checked ? 'line-through text-muted-foreground' : ''}>
+            {childrenRenderer()}
           </span>
+        </li>
+      );
+
+    case 'listItem':
+      return <li key={key}>{childrenRenderer()}</li>;
+
+    case 'taskList':
+      return <ul key={key} className="list-none pl-0">{childrenRenderer()}</ul>;
+
+    case 'taskItem':
+      return (
+        <li key={key} className="flex items-start gap-2 my-1">
+          <input
+            type="checkbox"
+            checked={!!attrs.checked}
+            readOnly
+            className="mt-1 h-3.5 w-3.5 rounded border-border shrink-0"
+          />
+          <div className={cn("flex-1", attrs.checked && "line-through text-muted-foreground/50")}>
+            {childrenRenderer()}
+          </div>
         </li>
       );
 
     case 'blockquote':
       return (
         <blockquote key={key} className="border-l-2 border-primary/30 pl-3 italic">
-          {renderNodes(node.content || [])}
+          {childrenRenderer()}
         </blockquote>
       );
 
     case 'codeBlock': {
-      const language = node.attrs?.language || 'plaintext';
-      const codeText = node.content?.[0]?.text || '';
+      const language = attrs.language || 'plaintext';
+      const codeText = Array.isArray(node.content) ? node.content.map((c: any) => c.text).join('') : (node.content?.[0]?.text || '');
       let htmlSnippet = '';
       try {
         const tree = lowlight.highlight(language, codeText);
@@ -120,7 +150,7 @@ function renderNode(node: JSONContent, i: number): React.ReactNode {
           .replace(/>/g, '&gt;');
       }
       return (
-        <pre key={key} className="bg-[#1e1e1e] p-3 rounded-lg text-[11px] font-mono overflow-auto border border-white/5 shadow-xl code-highlight">
+        <pre key={key} className="bg-[#1e1e1e] p-3 rounded-lg text-[11px] font-mono overflow-auto border border-white/5 shadow-xl">
           <code className={`language-${language}`} dangerouslySetInnerHTML={{ __html: htmlSnippet }} />
         </pre>
       );
@@ -132,319 +162,130 @@ function renderNode(node: JSONContent, i: number): React.ReactNode {
     case 'hardBreak':
       return <br key={key} />;
 
-    // -----------------------------------------------------------------------
-    // Tables (with colspan / rowspan support)
-    // -----------------------------------------------------------------------
     case 'table':
       return (
         <div key={key} className="overflow-x-auto my-2">
-          <table className="border-collapse border border-border text-xs">
-            <tbody>{renderNodes(node.content || [])}</tbody>
+          <table className="border-collapse border border-border text-xs w-full">
+            <tbody>{childrenRenderer()}</tbody>
           </table>
         </div>
       );
 
     case 'tableRow':
-      return <tr key={key}>{renderNodes(node.content || [])}</tr>;
+      return <tr key={key} className="border-b border-border/50">{childrenRenderer()}</tr>;
 
     case 'tableHeader':
+    case 'tableHead':
       return (
-        <th
-          key={key}
-          className="border border-border px-2 py-1 bg-muted/50 font-semibold text-left"
-          colSpan={node.attrs?.colspan || 1}
-          rowSpan={node.attrs?.rowspan || 1}
-        >
-          {renderNodes(node.content || [])}
+        <th key={key} className="border border-border p-1.5 bg-muted/30 font-bold text-left min-w-[50px]">
+          {childrenRenderer()}
         </th>
       );
 
     case 'tableCell':
       return (
-        <td
-          key={key}
-          className="border border-border px-2 py-1"
-          colSpan={node.attrs?.colspan || 1}
-          rowSpan={node.attrs?.rowspan || 1}
-        >
-          {renderNodes(node.content || [])}
+        <td key={key} className="border border-border p-1.5 min-w-[50px]">
+          {childrenRenderer()}
         </td>
       );
 
-    // -----------------------------------------------------------------------
-    // Link node (block-level)
-    // -----------------------------------------------------------------------
-    case 'link':
-      return (
-        <a
-          key={key}
-          href={node.attrs?.href}
-          className="text-primary underline"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          {renderNodes(node.content || [])}
-        </a>
-      );
-
-    // -----------------------------------------------------------------------
-    // Image
-    // -----------------------------------------------------------------------
     case 'image':
+    case 'video':
+    case 'file': {
+      const src = attrs.url || attrs.src;
+      if (!src) return null;
       return (
-        <img
-          key={key}
-          src={node.attrs?.src}
-          alt={node.attrs?.alt || ''}
-          title={node.attrs?.title}
-          className="max-w-full rounded"
-          loading="lazy"
-        />
+        <div key={key} className="my-2 border border-border/50 rounded-lg overflow-hidden bg-muted/20">
+          <div className="px-2 py-1 bg-muted/30 text-[10px] text-muted-foreground font-mono truncate uppercase">
+            {type}: {attrs.name || attrs.caption || 'Media file'}
+          </div>
+          {type === 'image' ? (
+             <img src={src} className="max-w-full h-auto mx-auto" alt={attrs.name || ''} />
+          ) : (
+            <div className="p-4 text-center text-xs italic text-muted-foreground">
+               [Shared {type}]
+            </div>
+          )}
+        </div>
       );
+    }
 
-    // -----------------------------------------------------------------------
-    // Math / KaTeX blocks
-    //   mathBlock — displayed (block)
-    //   math / mathInline — inline
-    // -----------------------------------------------------------------------
-    case 'mathBlock':
-    case 'math': {
-      const latex = node.attrs?.latex || node.attrs?.content || node.content?.[0]?.text || '';
+    case 'math':
+    case 'mathBlock': {
+      const latex = attrs.latex || attrs.content || (Array.isArray(node.content) ? node.content.map((c: any) => c.text).join('') : '');
       return (
         <div
           key={key}
           className="my-1 px-2 py-1 rounded bg-muted/20 border border-border/40 font-mono text-[11px] text-muted-foreground"
-          title="Math block"
         >
-          <span className="select-none pr-1 opacity-50">∑</span>
           {latex || '…'}
         </div>
       );
     }
 
-    case 'mathInline': {
-      const latex = node.attrs?.latex || node.attrs?.content || node.content?.[0]?.text || '';
-      return (
-        <code key={key} className="bg-muted px-1 rounded text-xs font-mono">
-          {latex || '∑'}
-        </code>
-      );
-    }
-
-    // -----------------------------------------------------------------------
-    // Mermaid / codeSnippet diagram preview
-    // -----------------------------------------------------------------------
-    case 'mermaid':
-    case 'codeSnippet': {
-      const code = node.attrs?.code || node.content?.[0]?.text || '';
-      const lang = node.attrs?.language || 'code';
-      const isMermaid = lang === 'mermaid';
-      return (
-        <div
-          key={key}
-          className="my-1 rounded border border-border/40 overflow-hidden"
-        >
-          <div className="flex items-center gap-1.5 px-2 py-1 bg-muted/30 border-b border-border/30">
-            <span className="text-[10px] text-muted-foreground font-mono">
-              {isMermaid ? '⬡ Mermaid' : `{ } ${lang}`}
-            </span>
-          </div>
-          <pre className="px-2 py-1.5 text-[10px] font-mono text-muted-foreground max-h-20 overflow-hidden">
-            {(code || '').slice(0, 200)}{(code || '').length > 200 ? '…' : ''}
-          </pre>
-        </div>
-      );
-    }
-
-    // -----------------------------------------------------------------------
-    // Callout block
-    // -----------------------------------------------------------------------
     case 'callout': {
-      const emoji = node.attrs?.emoji || '💡';
-      return (
-        <div
-          key={key}
-          className="flex gap-2 my-1 px-3 py-2 rounded bg-muted/30 border-l-4 border-primary/40"
-        >
-          <span className="shrink-0 text-base leading-snug" aria-hidden="true">{emoji}</span>
-          <div className="flex-1 text-sm">{renderNodes(node.content || [])}</div>
-        </div>
-      );
+       const emoji = attrs.icon || attrs.emoji || '💡';
+       return (
+         <div key={key} className="flex gap-2 my-1 px-3 py-2 rounded bg-muted/30 border-l-4 border-primary/40">
+           <span className="shrink-0 text-base leading-snug">{emoji}</span>
+           <div className="flex-1 text-sm">{childrenRenderer()}</div>
+         </div>
+       );
     }
 
-    // -----------------------------------------------------------------------
-    // Toggle / details blocks
-    // -----------------------------------------------------------------------
-    case 'details':
-      return (
-        <details key={key} className="my-1 rounded border border-border/30 overflow-hidden">
-          {renderNodes(node.content || [])}
-        </details>
-      );
-
-    case 'detailsSummary':
-    case 'summary':
-      return (
-        <summary key={key} className="px-3 py-1 bg-muted/20 cursor-pointer text-sm font-medium list-none flex gap-1">
-          <span className="text-muted-foreground select-none">▶</span>
-          {renderNodes(node.content || [])}
-        </summary>
-      );
-
-    case 'detailsContent':
-      return (
-        <div key={key} className="px-3 py-2 text-sm">
-          {renderNodes(node.content || [])}
-        </div>
-      );
-
-    // -----------------------------------------------------------------------
-    // Multi-column layout
-    // -----------------------------------------------------------------------
-    case 'columns':
-      return (
-        <div key={key} className="flex gap-2 my-1">
-          {renderNodes(node.content || [])}
-        </div>
-      );
-
-    case 'column':
-      return (
-        <div key={key} className="flex-1 min-w-0">
-          {renderNodes(node.content || [])}
-        </div>
-      );
-
-    // -----------------------------------------------------------------------
-    // Caption / figcaption
-    // -----------------------------------------------------------------------
-    case 'caption':
-    case 'figcaption':
-      return (
-        <figcaption key={key} className="text-xs text-muted-foreground italic text-center mt-1">
-          {renderNodes(node.content || [])}
-        </figcaption>
-      );
-
-    // -----------------------------------------------------------------------
-    // Wiki-link (inline node)
-    // -----------------------------------------------------------------------
     case 'wiki-link':
-    case 'wikiLink': {
-      const title = node.attrs?.title || node.attrs?.nodeId || '…';
+    case 'wikiLink':
       return (
-        <span
-          key={key}
-          className="inline-flex items-center gap-0.5 px-1 rounded bg-primary/10 text-primary text-xs font-medium"
-        >
-          [[{title}]]
+        <span key={key} className="text-primary font-medium cursor-pointer hover:underline">
+          [[{attrs.label || attrs.title || (Array.isArray(node.content) ? node.content[0]?.text : '') || 'Link'}]]
         </span>
       );
-    }
 
-    // -----------------------------------------------------------------------
-    // Text node with marks
-    // -----------------------------------------------------------------------
     case 'text': {
       let text: React.ReactNode = node.text;
 
-      if (node.marks) {
-        // Apply marks in reverse order so outermost is applied last
-        const marks = [...node.marks];
-        marks.forEach((mark, mi) => {
-          const mk = `${key}-m${mi}`;
+      // Normalize marks (Tiptap uses .marks, BlockNote uses .styles)
+      const marks = node.marks || (node.styles ? Object.entries(node.styles).map(([m, active]) => (active ? { type: m } : null)).filter(Boolean) : []);
 
+      if (marks.length > 0) {
+        marks.forEach((mark: any, mi: number) => {
+          const mk = `${key}-m${mi}`;
           switch (mark.type) {
-            case 'bold':
-              text = <strong key={mk}>{text}</strong>;
-              break;
-            case 'italic':
-              text = <em key={mk}>{text}</em>;
-              break;
-            case 'strike':
-              text = <s key={mk}>{text}</s>;
-              break;
-            case 'underline':
-              text = <u key={mk}>{text}</u>;
-              break;
-            case 'code':
-              text = <code key={mk} className="bg-muted px-1 rounded text-xs">{text}</code>;
-              break;
-            case 'highlight':
-              text = (
-                <mark key={mk} style={{ backgroundColor: mark.attrs?.color }}>
-                  {text}
-                </mark>
-              );
-              break;
+            case 'bold': text = <strong key={mk}>{text}</strong>; break;
+            case 'italic': text = <em key={mk}>{text}</em>; break;
+            case 'strike': text = <s key={mk}>{text}</s>; break;
+            case 'underline': text = <u key={mk}>{text}</u>; break;
+            case 'code': text = <code key={mk} className="bg-muted px-1 rounded text-xs font-mono">{text}</code>; break;
             case 'link':
               text = (
-                <a
-                  key={mk}
-                  href={mark.attrs?.href}
-                  className="text-primary underline"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
+                <a key={mk} href={mark.attrs?.href || attrs.url || mark.attrs?.url} className="text-primary underline decoration-primary/30" target="_blank" rel="noopener noreferrer">
                   {text}
                 </a>
               );
               break;
-            case 'superscript':
-              text = <sup key={mk}>{text}</sup>;
-              break;
-            case 'subscript':
-              text = <sub key={mk}>{text}</sub>;
-              break;
             case 'textStyle':
-            case 'color': {
-              const color = mark.attrs?.color;
-              if (color) {
-                text = <span key={mk} style={{ color }}>{text}</span>;
+            case 'color':
+              if (mark.attrs?.color || mark.attrs?.textColor) {
+                text = <span key={mk} style={{ color: mark.attrs.color || mark.attrs.textColor }}>{text}</span>;
               }
               break;
-            }
-            case 'backgroundColor': {
-              const bg = mark.attrs?.color;
-              if (bg) {
-                text = <span key={mk} style={{ backgroundColor: bg }}>{text}</span>;
-              }
-              break;
-            }
-            case 'keyboard':
-              text = (
-                <kbd
-                  key={mk}
-                  className="inline-flex items-center rounded border border-border bg-muted px-1 py-0.5 text-[10px] font-mono shadow-sm"
-                >
-                  {text}
-                </kbd>
-              );
+            case 'highlight':
+              text = <mark key={mk} style={{ backgroundColor: mark.attrs?.color || '#ffe066' }} className="rounded-sm px-0.5">{text}</mark>;
               break;
           }
         });
       }
 
-      return <span key={key}>{text}</span>;
+      // Final styles for BlockNote format (direct props on text node or style object)
+      const textStyle: React.CSSProperties = {};
+      if (node.styles?.textColor) textStyle.color = node.styles.textColor;
+      if (node.styles?.backgroundColor) textStyle.backgroundColor = node.styles.backgroundColor;
+
+      return <span key={key} style={textStyle}>{text}</span>;
     }
 
-    // -----------------------------------------------------------------------
-    // Fallback: unknown node types — render children so text is never blank
-    // -----------------------------------------------------------------------
-    default: {
-      const children = node.content;
-      if (children && children.length > 0) {
-        return (
-          <div key={key} className="ghost-unknown-node">
-            {renderNodes(children)}
-          </div>
-        );
-      }
-      // Leaf node with text
-      if (node.text) {
-        return <span key={key}>{node.text}</span>;
-      }
-      return null;
-    }
+    default:
+      if (node.content) return <div key={key}>{renderNodes(Array.isArray(node.content) ? node.content : [])}</div>;
+      return node.text ? <span key={key}>{node.text}</span> : null;
   }
 }

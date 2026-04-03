@@ -26,6 +26,8 @@ export function HotkeySettingsModal({ open, onOpenChange }: { open: boolean, onO
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (!editingKey) return;
+    const tag = (e.target as HTMLElement)?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
     e.preventDefault();
     e.stopPropagation();
 

@@ -70,7 +70,7 @@ export const DailyLogNode = memo(({ id, data, selected }: NodeProps) => {
                   }`}
                 >
                   <button 
-                    onClick={() => toggleEntry(entry.id)}
+                    onClick={(e) => { e.stopPropagation(); toggleEntry(entry.id); }}
                     className="mt-0.5 text-primary/60 hover:text-primary transition-colors"
                   >
                     {entry.done ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
@@ -82,7 +82,7 @@ export const DailyLogNode = memo(({ id, data, selected }: NodeProps) => {
                         {entry.timestamp}
                       </span>
                       <button 
-                        onClick={() => deleteEntry(entry.id)}
+                        onClick={(e) => { e.stopPropagation(); deleteEntry(entry.id); }}
                         className="opacity-0 group-hover:opacity-100 p-1 rounded-md hover:bg-destructive/10 hover:text-destructive transition-all"
                       >
                         <Trash2 className="h-3 w-3" />
@@ -107,12 +107,18 @@ export const DailyLogNode = memo(({ id, data, selected }: NodeProps) => {
               type="text"
               value={newEntry}
               onChange={(e) => setNewEntry(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && addEntry()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.stopPropagation();
+                  addEntry();
+                }
+              }}
+              onClick={(e) => e.stopPropagation()}
               placeholder="Add log entry..."
               className="flex-1 bg-transparent text-[13px] font-medium outline-none placeholder:text-muted-foreground/30"
             />
             <button
-              onClick={addEntry}
+              onClick={(e) => { e.stopPropagation(); addEntry(); }}
               className="p-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-all shadow-lg shadow-primary/5 disabled:opacity-50"
               disabled={!newEntry.trim()}
             >

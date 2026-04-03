@@ -1,79 +1,91 @@
-import { collection, doc, query, where, getDocs, getDoc, setDoc, updateDoc, deleteDoc, writeBatch, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, updateDoc, deleteDoc, writeBatch, getDoc } from 'firebase/firestore';
 import { db, auth } from './client';
+import { Workspace } from '@/types/canvas';
+import { chunkArray } from '@/lib/utils';
+import { deleteWorkspaceCache, deleteWorkspacePendingOps, cacheDel } from '@/lib/cache/indexedDB';
 
-export interface Workspace {
-    id: string;
-    created_at: string;
-    name: string;
-    color: string;
-    is_public: boolean;
-    parent_workspace_id: string | null;
-    updated_at: string;
-    user_id: string;
-    tags?: string[];
-    folder?: string | null;
-    is_deleted?: boolean;
-    deleted_at?: string | null;
-    // Password protection (optional, backward compatible)
-    password_hash?: string;
-    is_password_protected?: boolean;
-    // Locked folder visibility (optional)
-    is_in_vault?: boolean;
-}
 
-export async function getWorkspaces(): Promise<Workspace[]> {
+/** Get all workspaces for the current user */
+export async function getWorkspaces(options: { excludeVault?: boolean; includeDeleted?: boolean } = {}): Promise<Workspace[]> {
+    const { excludeVault = false, includeDeleted = false } = options;
+
     const user = auth.currentUser;
-    if (!user) throw new Error('Not authenticated');
+    if (!user) return [];
 
     const q = query(
         collection(db, 'workspaces'),
         where('user_id', '==', user.uid),
-        orderBy('updated_at', 'desc')
+        ...(includeDeleted ? [] : [where('is_deleted', '==', false)]),
+        ...(excludeVault ? [where('is_in_vault', '==', false)] : [])
     );
+
+
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Workspace));
+    return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+    } as Workspace)).sort((a, b) => 
+        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+    );
 }
 
+/** Create a new workspace */
 export async function createWorkspace(name: string, color: string, passwordHash?: string): Promise<Workspace> {
+
     const user = auth.currentUser;
     if (!user) throw new Error('Not authenticated');
 
     const wsRef = doc(collection(db, 'workspaces'));
     const now = new Date().toISOString();
-    const newWs: Workspace = {
+    const ws: Workspace = {
         id: wsRef.id,
-        created_at: now,
-        updated_at: now,
+        user_id: user.uid,
         name,
         color,
+        created_at: now,
+        updated_at: now,
+        is_deleted: false,
         is_public: false,
-        parent_workspace_id: null,
-        user_id: user.uid,
         tags: [],
         folder: null,
-        is_deleted: false,
-        // Password protection fields (optional, backward compatible)
-        password_hash: passwordHash,
+        is_in_vault: false,
         is_password_protected: !!passwordHash,
-        // Locked folder visibility (optional)
-        is_in_vault: false
+        password_hash: passwordHash || null
     };
 
-    await setDoc(wsRef, newWs);
-    return newWs;
+
+    await setDoc(wsRef, ws);
+    return ws;
 }
 
-export async function updateWorkspace(id: string, updates: { name?: string; color?: string; is_public?: boolean; tags?: string[]; folder?: string | null; is_deleted?: boolean; deleted_at?: string | null; password_hash?: string; is_password_protected?: boolean; is_in_vault?: boolean }) {
+/** Update workspace metadata */
+export async function updateWorkspace(id: string, updates: Partial<Workspace>) {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Not authenticated');
+
     const wsRef = doc(db, 'workspaces', id);
+    const wsSnap = await getDoc(wsRef);
+    if (!wsSnap.exists() || wsSnap.data().user_id !== user.uid) {
+        throw new Error('Not authorized to update this workspace');
+    }
+
     await updateDoc(wsRef, {
         ...updates,
         updated_at: new Date().toISOString()
     });
 }
 
-/** Soft delete a workspace */
+/** Move a workspace to trash */
 export async function deleteWorkspace(id: string) {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Not authenticated');
+
     const wsRef = doc(db, 'workspaces', id);
+    const wsSnap = await getDoc(wsRef);
+    if (!wsSnap.exists() || wsSnap.data().user_id !== user.uid) {
+        throw new Error('Not authorized to delete this workspace');
+    }
+
     await updateDoc(wsRef, {
         is_deleted: true,
         deleted_at: new Date().toISOString(),
@@ -83,7 +95,15 @@ export async function deleteWorkspace(id: string) {
 
 /** Restore a workspace from trash */
 export async function restoreWorkspace(id: string) {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Not authenticated');
+
     const wsRef = doc(db, 'workspaces', id);
+    const wsSnap = await getDoc(wsRef);
+    if (!wsSnap.exists() || wsSnap.data().user_id !== user.uid) {
+        throw new Error('Not authorized to restore this workspace');
+    }
+
     await updateDoc(wsRef, {
         is_deleted: false,
         deleted_at: null,
@@ -93,19 +113,46 @@ export async function restoreWorkspace(id: string) {
 
 /** Permanently delete a workspace */
 export async function permanentlyDeleteWorkspace(id: string) {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Not authenticated');
+
     const wsRef = doc(db, 'workspaces', id);
-    // Cleanup subcollections
-    const nodesSnap = await getDocs(collection(wsRef, 'nodes'));
-    const edgesSnap = await getDocs(collection(wsRef, 'edges'));
+    const wsSnap = await getDoc(wsRef);
+    if (!wsSnap.exists()) return; // Already deleted
     
-    const deletePromises = [
-      ...nodesSnap.docs.map(d => deleteDoc(d.ref)),
-      ...edgesSnap.docs.map(d => deleteDoc(d.ref))
-    ];
-    await Promise.all(deletePromises);
+    if (wsSnap.data().user_id !== user.uid) {
+        throw new Error('Not authorized to permanently delete this workspace');
+    }
+
+    const subcollections = ['nodes', 'edges', 'drawings', 'snapshots', 'presence'];
+    
+    // Parallelize subcollection cleanup
+    await Promise.all(subcollections.map(async (colName) => {
+      try {
+        const snap = await getDocs(collection(wsRef, colName));
+        if (snap.empty) return;
+        
+        const chunks = chunkArray(snap.docs, 500);
+        for (const chunk of chunks) {
+          const batch = writeBatch(db);
+          chunk.forEach(d => batch.delete(d.ref));
+          await batch.commit();
+        }
+      } catch (err) {
+        console.error(`[workspaces] Failed to clean ${colName} for ${id}:`, err);
+      }
+    }));
     
     await deleteDoc(wsRef);
+
+    // Clear local caches for this workspace
+    await Promise.all([
+      deleteWorkspaceCache(id),
+      deleteWorkspacePendingOps(id),
+      cacheDel('workspaces', 'list')
+    ]);
 }
+
 
 /** Permanently delete all items in trash */
 export async function emptyTrash() {
@@ -119,15 +166,15 @@ export async function emptyTrash() {
     );
     
     const snapshot = await getDocs(q);
-    const deletes = snapshot.docs.map(d => permanentlyDeleteWorkspace(d.id));
-    await Promise.all(deletes);
+    if (snapshot.empty) return;
+
+    // Parallelize workspace deletions
+    await Promise.all(snapshot.docs.map(d => permanentlyDeleteWorkspace(d.id)));
+    
+    // Final cache flush
+    await cacheDel('workspaces', 'list');
 }
 
-const chunkArray = <T>(arr: T[], size: number): T[][] => {
-    return Array.from({ length: Math.ceil(arr.length / size) }, (v, i) =>
-        arr.slice(i * size, i * size + size)
-    );
-};
 
 export async function branchWorkspace(sourceId: string, name: string): Promise<Workspace> {
     const user = auth.currentUser;
@@ -141,9 +188,16 @@ export async function branchWorkspace(sourceId: string, name: string): Promise<W
         updated_at: now,
         name,
         color: '#f59e0b',
+        is_deleted: false,
         is_public: false,
         parent_workspace_id: sourceId,
-        user_id: user.uid
+        user_id: user.uid,
+        tags: [],
+        folder: null,
+        is_password_protected: false,
+        is_in_vault: false,
+        password_hash: null,
+        shared_with: []
     };
 
     await setDoc(branchWsRef, branchWs);
@@ -152,7 +206,7 @@ export async function branchWorkspace(sourceId: string, name: string): Promise<W
     const nodesSnap = await getDocs(nodesQ);
 
     const idMap = new Map<string, string>();
-    const writes: (() => void)[] = [];
+    const nodeWrites: { ref: any, data: any }[] = [];
 
     if (!nodesSnap.empty) {
         for (const docSnap of nodesSnap.docs) {
@@ -160,35 +214,48 @@ export async function branchWorkspace(sourceId: string, name: string): Promise<W
             const newNodeRef = doc(collection(db, `workspaces/${branchWsRef.id}/nodes`));
             idMap.set(docSnap.id, newNodeRef.id);
 
-            writes.push(() => setDoc(newNodeRef, {
-                ...oldNode,
-                id: newNodeRef.id,
-                workspace_id: branchWsRef.id
-            }));
+            nodeWrites.push({
+                ref: newNodeRef,
+                data: {
+                    ...oldNode,
+                    id: newNodeRef.id,
+                    workspace_id: branchWsRef.id
+                }
+            });
         }
     }
 
     const edgesQ = query(collection(db, `workspaces/${sourceId}/edges`));
     const edgesSnap = await getDocs(edgesQ);
+    const edgeWrites: { ref: any, data: any }[] = [];
 
     if (!edgesSnap.empty) {
         for (const docSnap of edgesSnap.docs) {
             const oldEdge = docSnap.data();
             if (idMap.has(oldEdge.source_node_id) && idMap.has(oldEdge.target_node_id)) {
                 const newEdgeRef = doc(collection(db, `workspaces/${branchWsRef.id}/edges`));
-                writes.push(() => setDoc(newEdgeRef, {
-                    ...oldEdge,
-                    id: newEdgeRef.id,
-                    workspace_id: branchWsRef.id,
-                    source_node_id: idMap.get(oldEdge.source_node_id),
-                    target_node_id: idMap.get(oldEdge.target_node_id)
-                }));
+                edgeWrites.push({
+                    ref: newEdgeRef,
+                    data: {
+                        ...oldEdge,
+                        id: newEdgeRef.id,
+                        workspace_id: branchWsRef.id,
+                        source_node_id: idMap.get(oldEdge.source_node_id),
+                        target_node_id: idMap.get(oldEdge.target_node_id)
+                    }
+                });
             }
         }
     }
 
-    // Execute writes
-    await Promise.all(writes.map(w => w()));
+    // Batch execute all writes
+    const allWrites = [...nodeWrites, ...edgeWrites];
+    const chunks = chunkArray(allWrites, 500);
+    for (const chunk of chunks) {
+        const batch = writeBatch(db);
+        chunk.forEach(w => batch.set(w.ref, w.data));
+        await batch.commit();
+    }
 
     return branchWs;
 }
@@ -209,6 +276,7 @@ export async function duplicateWorkspace(sourceId: string, name: string, color: 
         updated_at: now,
         name,
         color,
+        is_deleted: false,
         is_public: false,
         parent_workspace_id: null,
         user_id: user.uid,
@@ -222,7 +290,7 @@ export async function duplicateWorkspace(sourceId: string, name: string, color: 
     const nodesSnap = await getDocs(nodesQ);
 
     const idMap = new Map<string, string>();
-    const writes: (() => void)[] = [];
+    const nodeWrites: { ref: any, data: any }[] = [];
 
     if (!nodesSnap.empty) {
         for (const docSnap of nodesSnap.docs) {
@@ -230,85 +298,142 @@ export async function duplicateWorkspace(sourceId: string, name: string, color: 
             const newNodeRef = doc(collection(db, `workspaces/${newWsRef.id}/nodes`));
             idMap.set(docSnap.id, newNodeRef.id);
 
-            writes.push(() => setDoc(newNodeRef, {
-                ...oldNode,
-                id: newNodeRef.id,
-                workspace_id: newWsRef.id
-            }));
+            nodeWrites.push({
+                ref: newNodeRef,
+                data: {
+                    ...oldNode,
+                    id: newNodeRef.id,
+                    workspace_id: newWsRef.id
+                }
+            });
         }
     }
 
     const edgesQ = query(collection(db, `workspaces/${sourceId}/edges`));
     const edgesSnap = await getDocs(edgesQ);
+    const edgeWrites: { ref: any, data: any }[] = [];
 
     if (!edgesSnap.empty) {
         for (const docSnap of edgesSnap.docs) {
             const oldEdge = docSnap.data();
             if (idMap.has(oldEdge.source_node_id) && idMap.has(oldEdge.target_node_id)) {
                 const newEdgeRef = doc(collection(db, `workspaces/${newWsRef.id}/edges`));
-                writes.push(() => setDoc(newEdgeRef, {
-                    ...oldEdge,
-                    id: newEdgeRef.id,
-                    workspace_id: newWsRef.id,
-                    source_node_id: idMap.get(oldEdge.source_node_id),
-                    target_node_id: idMap.get(oldEdge.target_node_id)
-                }));
+                edgeWrites.push({
+                    ref: newEdgeRef,
+                    data: {
+                        ...oldEdge,
+                        id: newEdgeRef.id,
+                        workspace_id: newWsRef.id,
+                        source_node_id: idMap.get(oldEdge.source_node_id),
+                        target_node_id: idMap.get(oldEdge.target_node_id)
+                    }
+                });
             }
         }
     }
 
-    await Promise.all(writes.map(w => w()));
+    const allWrites = [...nodeWrites, ...edgeWrites];
+    const chunks = chunkArray(allWrites, 500);
+    for (const chunk of chunks) {
+        const batch = writeBatch(db);
+        chunk.forEach(w => batch.set(w.ref, w.data));
+        await batch.commit();
+    }
 
     return newWs;
 }
 
 export async function mergeWorkspaceBack(branchId: string): Promise<string> {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Not authenticated');
+
     const branchRef = doc(db, 'workspaces', branchId);
     const branchSnap = await getDoc(branchRef);
     if (!branchSnap.exists()) throw new Error('Branch not found');
 
     const branchData = branchSnap.data() as Workspace;
+    if (branchData.user_id !== user.uid) throw new Error('Permission denied');
+    
     const parentId = branchData.parent_workspace_id;
     if (!parentId) throw new Error('Not a branch');
 
     const parentNodesSnap = await getDocs(query(collection(db, `workspaces/${parentId}/nodes`)));
     const parentEdgesSnap = await getDocs(query(collection(db, `workspaces/${parentId}/edges`)));
 
-    const deletes: Promise<void>[] = [];
-    parentNodesSnap.forEach(d => deletes.push(deleteDoc(d.ref)));
-    parentEdgesSnap.forEach(d => deletes.push(deleteDoc(d.ref)));
-    await Promise.all(deletes);
-
+    // 1. Prepare deletes for parent
+    const deleteRefs = [...parentNodesSnap.docs, ...parentEdgesSnap.docs].map(d => d.ref);
+    
+    // 2. Prepare copies from branch
     const branchNodesSnap = await getDocs(query(collection(db, `workspaces/${branchId}/nodes`)));
+    const branchEdgesSnap = await getDocs(query(collection(db, `workspaces/${branchId}/edges`)));
+    
     const idMap = new Map<string, string>();
-    const writes: Promise<void>[] = [];
-
+    const nodeCopies: { ref: any, data: any }[] = [];
+    
     branchNodesSnap.forEach(docSnap => {
         const oldNode = docSnap.data();
         const newNodeRef = doc(collection(db, `workspaces/${parentId}/nodes`));
         idMap.set(docSnap.id, newNodeRef.id);
-        writes.push(setDoc(newNodeRef, {
-            ...oldNode,
-            id: newNodeRef.id,
-            workspace_id: parentId
-        }));
+        nodeCopies.push({
+            ref: newNodeRef,
+            data: { ...oldNode, id: newNodeRef.id, workspace_id: parentId }
+        });
     });
 
-    const branchEdgesSnap = await getDocs(query(collection(db, `workspaces/${branchId}/edges`)));
+    const edgeCopies: { ref: any, data: any }[] = [];
     branchEdgesSnap.forEach(docSnap => {
         const oldEdge = docSnap.data();
         if (idMap.has(oldEdge.source_node_id) && idMap.has(oldEdge.target_node_id)) {
             const newEdgeRef = doc(collection(db, `workspaces/${parentId}/edges`));
-            writes.push(setDoc(newEdgeRef, {
-                ...oldEdge,
-                id: newEdgeRef.id,
-                workspace_id: parentId,
-                source_node_id: idMap.get(oldEdge.source_node_id),
-                target_node_id: idMap.get(oldEdge.target_node_id)
-            }));
+            edgeCopies.push({
+                ref: newEdgeRef,
+                data: {
+                    ...oldEdge,
+                    id: newEdgeRef.id,
+                    workspace_id: parentId,
+                    source_node_id: idMap.get(oldEdge.source_node_id),
+                    target_node_id: idMap.get(oldEdge.target_node_id)
+                }
+            });
         }
     });
 
-    await Promise.all(writes);
+    // 3. Execute all in chunked batches
+    // Optimization: If total ops <= 500, use ONE batch for true atomicity
+    const allOps = [
+        ...deleteRefs.map(ref => ({ type: 'delete', ref })),
+        ...nodeCopies.map(w => ({ type: 'set', ref: w.ref, data: w.data })),
+        ...edgeCopies.map(w => ({ type: 'set', ref: w.ref, data: w.data }))
+    ];
+
+    const chunks = chunkArray(allOps, 500);
+    for (const chunk of chunks) {
+        const batch = writeBatch(db);
+        chunk.forEach(op => {
+            const operation = op as any;
+            if (operation.type === 'delete') {
+                batch.delete(operation.ref);
+            } else {
+                batch.set(operation.ref, operation.data);
+            }
+        });
+        
+        // 3. drawings
+        const now = new Date().toISOString();
+        const drawingsSnapshot = await getDocs(collection(db, 'workspaces', branchId, 'drawings'));
+        drawingsSnapshot.docs.forEach(docSnap => {
+            batch.set(doc(collection(db, 'workspaces', parentId, 'drawings')), {
+                ...docSnap.data(),
+                updated_at: now
+            });
+        });
+
+        
+        await batch.commit();
+    }
+
+    // 4. Update parent timestamp
+    await updateDoc(doc(db, 'workspaces', parentId), { updated_at: new Date().toISOString() });
+
     return parentId;
 }

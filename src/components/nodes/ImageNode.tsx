@@ -27,7 +27,7 @@ export const ImageNode = memo(({ id, data, selected }: NodeProps) => {
   const [dragOver, setDragOver] = useState(false);
   const nodeData = data as unknown as ImageNodeData;
 
-  const handleUpload = async (file: File) => {
+  const handleUpload = useCallback(async (file: File) => {
     if (!workspaceId) return;
     if (!file.type.startsWith('image/')) {
       toast.error('Only image files are supported');
@@ -48,7 +48,7 @@ export const ImageNode = memo(({ id, data, selected }: NodeProps) => {
       updateNodeData(id, { uploading: false, progress: 0 });
       toast.error('Upload failed');
     }
-  };
+  }, [workspaceId, id, updateNodeData]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -65,8 +65,7 @@ export const ImageNode = memo(({ id, data, selected }: NodeProps) => {
         handleUpload(file);
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [workspaceId]
+    [handleUpload, id, updateNodeData]
   );
 
   const handleDragOver = useCallback((e: DragEvent) => {

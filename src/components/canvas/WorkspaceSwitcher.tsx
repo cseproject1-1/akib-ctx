@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown, Plus, Loader2 } from 'lucide-react';
-import { getWorkspaces, createWorkspace, type Workspace } from '@/lib/firebase/workspaces';
+import { getWorkspaces, createWorkspace } from '@/lib/firebase/workspaces';
+import { type Workspace } from '@/types/canvas';
+
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -24,8 +26,9 @@ export function WorkspaceSwitcher({ currentId, currentName, currentColor }: Work
   useEffect(() => {
     if (open) {
       setLoading(true);
-      getWorkspaces()
-        .then(setWorkspaces)
+      getWorkspaces({ excludeVault: true })
+        .then((ws) => setWorkspaces(ws))
+
         .catch(() => toast.error('Failed to retrieve workspaces'))
         .finally(() => setLoading(false));
     }

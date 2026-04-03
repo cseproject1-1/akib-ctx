@@ -125,18 +125,15 @@ export const BaseNode = memo(({
   summary,
   isSyncing,
 }: BaseNodeProps) => {
-  const nodeTags = tags || [];
+  const nodeTags = Array.from(new Set(tags || []));
   const reactFlowNodeId = useNodeId();
   const nodeId = id || reactFlowNodeId;
 
-  // Performance: Only listen to edge changes for this specific node
+  // Performance: Only subscribe to edges connected to this specific node
+  // Using useStore carefully to avoid global re-renders
   const edgeCount = useStore(useCallback((s) => {
     if (!nodeId) return 0;
-    let count = 0;
-    for (let i = 0; i < s.edges.length; i++) {
-      if (s.edges[i].source === nodeId || s.edges[i].target === nodeId) count++;
-    }
-    return count;
+    return s.edges.filter(e => e.source === nodeId || e.target === nodeId).length;
   }, [nodeId]));
 
   const detectedType = useCanvasStore((s) => {
@@ -153,7 +150,6 @@ export const BaseNode = memo(({
   const isFocused = nodeId && focusedNodeId === nodeId;
   const isHighlighted = useCanvasStore((s) => nodeId && s.highlightedNodeIds.includes(nodeId));
   const isDeepWorkActive = useCanvasStore((s) => s.isDeepWorkActive);
-  const edges = useStore(useCallback((s) => s.edges, []));
   const zoom = useStore(useCallback((s) => s.transform[2], []));
   const isMobile = useIsMobile();
   const saveStatus = useCanvasStore((s) => s.saveStatus);
@@ -192,12 +188,13 @@ export const BaseNode = memo(({
   const isRelevantInDeepWork = useMemo(() => {
     if (!isDeepWorkActive || !focusedNodeId || !nodeId) return true;
     if (nodeId === focusedNodeId) return true;
-    // Check if connected directly to focused node
+    // We'll perform a quick store-lookup here to avoid re-rendering entire component on unrelated edge changes
+    const edges = useCanvasStore.getState().edges;
     return edges.some(e => 
       (e.source === nodeId && e.target === focusedNodeId) || 
       (e.target === nodeId && e.source === focusedNodeId)
     );
-  }, [isDeepWorkActive, focusedNodeId, nodeId, edges]);
+  }, [isDeepWorkActive, focusedNodeId, nodeId]);
 
   const resolvedType = nodeType || detectedType;
   const accent = resolvedType ? NODE_TYPE_ACCENTS[resolvedType] : undefined;
@@ -214,14 +211,14 @@ export const BaseNode = memo(({
       }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.15, ease: 'easeOut' }}
-      className={`animate-node-appear group/node flex flex-col h-full bg-card relative rounded-lg overflow-hidden ${
+      className={`animate-node-appear group/node flex flex-col h-full bg-card relative rounded-lg ${
         selected
           ? 'shadow-[var(--premium-shadow-md)] scale-[1.02] z-50'
           : 'shadow-[var(--premium-shadow-sm)] hover:scale-[1.02] hover:shadow-[var(--premium-shadow-md)]'
       } ${
-        isFocused ? 'ring-2 ring-primary ring-opacity-40 shadow-[0_0_30px_hsla(var(--primary),0.3)] animate-pulse' : ''
+        isFocused ? 'ring-2 ring-primary ring-opacity-40 shadow-[0_0_30px_hsla(var(--primary),0.3)]' : ''
       } ${
-        isHighlighted ? 'ring-2 ring-yellow-400 ring-opacity-50 shadow-[0_0_30px_rgba(250,204,21,0.4)] animate-pulse z-[100]' : ''
+        isHighlighted ? 'ring-2 ring-yellow-400 ring-opacity-50 shadow-[0_0_30px_rgba(250,204,21,0.4)] z-[100]' : ''
       } ${userColor ? userColor.bg : ''} ${className || ''}`}
     >
       {locked && (
@@ -242,8 +239,8 @@ export const BaseNode = memo(({
           minWidth={120}
           minHeight={80}
           onResizeEnd={(_event, params) => {
-            if (id) {
-              updateNodeData(id, {
+            if (nodeId) {
+              updateNodeData(nodeId, {
                 width: Math.round(params.width),
                 height: Math.round(params.height),
               });
@@ -287,11 +284,11 @@ export const BaseNode = memo(({
             <span className="flex-1 min-w-0 truncate text-sm font-medium tracking-tight text-foreground" title={title}>{title}</span>
           )}
           {id && (
-            <div className="flex items-center gap-1.5 px-1">
+            <div className="flex items-center gap-1 px-1 flex-shrink-0">
               <div 
-                className={`h-1.5 w-1.5 rounded-full transition-all duration-500 ${
+                className={`h-2 w-2 rounded-full transition-all duration-300 ${
                   hasSyncError ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" :
-                  nodeSyncing ? "bg-yellow-400 animate-pulse shadow-[0_0_8px_rgba(250,204,21,0.5)]" : 
+                  nodeSyncing ? "bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]" : 
                   "bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.3)]"
                 }`} 
                 title={hasSyncError ? "Sync error" : nodeSyncing ? "Syncing changes..." : "All changes saved"}
@@ -337,15 +334,9 @@ export const BaseNode = memo(({
       )}
 
       {/* Due date badge */}
-      {dueDate && !collapsed && (
-        <div className={`flex items-center gap-1.5 px-3 py-1 border-b border-border/50 text-[10px] font-bold uppercase tracking-wider ${getDueDateColor(dueDate)}`}>
-          📅 {new Date(dueDate).toLocaleDateString()}
-        </div>
-      )}
-
       {nodeTags.length > 0 && !collapsed && (
-        <div className="flex flex-wrap gap-1 px-2 py-1 border-b border-border/50">
-          {nodeTags.map((tag) => (
+        <div className="flex flex-wrap gap-1 px-2 py-1 border-b border-border/50 bg-background/20">
+          {[...new Set(nodeTags)].filter(Boolean).map((tag) => (
             <span
               key={tag}
               className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${TAG_COLORS[tag] || 'bg-muted text-foreground'}`}
@@ -364,7 +355,11 @@ export const BaseNode = memo(({
           )}
 
           {!collapsed && (
-            <div className={`flex-1 overflow-auto nodrag nowheel nopan ${bodyClassName || ''}`} onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+            <div 
+              className={`flex-1 overflow-visible nodrag nowheel nopan ${bodyClassName || ''}`} 
+              onPointerDown={(e) => e.stopPropagation()} 
+              onMouseDown={(e) => e.stopPropagation()}
+            >
           {zoom < LOD_THRESHOLD ? (
             <div className="flex flex-col items-center justify-center h-full w-full p-4 opacity-40 select-none pointer-events-none gap-2">
               <div className="flex flex-col items-center gap-1">
@@ -406,9 +401,9 @@ export const BaseNode = memo(({
         </div>
       )}
 
-      {/* Created timestamp on hover */}
-      {createdAt && (
-        <div className="absolute -bottom-5 left-0 text-[9px] text-muted-foreground opacity-0 transition-opacity group-hover/node:opacity-100 whitespace-nowrap">
+      {/* Created timestamp (embedded in footer area for stability) */}
+      {createdAt && !collapsed && zoom >= LOD_THRESHOLD && (
+        <div className="px-3 pb-1 text-[9px] text-muted-foreground/60 italic overflow-hidden whitespace-nowrap">
           Created {formatSafeDate(createdAt, 'recently')}
         </div>
       )}

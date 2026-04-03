@@ -12,7 +12,6 @@ import {
   Settings2
 } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvasStore';
-import { GroupNodeData } from '@/types/canvas';
 import {
   useReactTable,
   getCoreRowModel,
@@ -59,12 +58,20 @@ export const DatabaseNode = memo(({ id, data, selected }: NodeProps) => {
             className="w-full bg-transparent outline-none py-1"
             value={info.getValue() || ''}
             onChange={(e) => {
-              const newRows = [...rowsData];
-              newRows[info.row.index] = {
-                ...newRows[info.row.index],
-                [col.id]: e.target.value
-              };
-              updateNodeData(id, { rows: newRows });
+              const newValue = e.target.value;
+              const rowIndex = info.row.index;
+              const colId = col.id;
+              
+              const nodes = useCanvasStore.getState().nodes;
+              const node = nodes.find(n => n.id === id);
+              if (!node || !node.data) return;
+
+              const latestRows = (node.data as any).rows || [];
+              const newRows = [...latestRows];
+              if (newRows[rowIndex]) {
+                newRows[rowIndex] = { ...newRows[rowIndex], [colId]: newValue };
+                updateNodeData(id, { rows: newRows });
+              }
             }}
           />
         ),
@@ -109,10 +116,11 @@ export const DatabaseNode = memo(({ id, data, selected }: NodeProps) => {
   };
 
   const addColumn = () => {
-    const newColId = `col_${Date.now()}`;
+    const newColId = `col_${crypto.randomUUID()}`;
     const newColumns = [...columnsData, { id: newColId, name: 'New Column', type: 'text' as const }];
     updateNodeData(id, { columns: newColumns });
   };
+
 
   return (
     <BaseNode
@@ -127,7 +135,7 @@ export const DatabaseNode = memo(({ id, data, selected }: NodeProps) => {
       <div className="flex flex-col min-w-[400px] h-full">
         {/* Toolbar */}
         <div className="flex items-center justify-between gap-2 p-2 border-b border-white/5 bg-white/2">
-          <div className="flex items-center gap-2 bg-black/20 rounded-lg px-2 py-1 flex-1 max-w-[200px]">
+          <div className="flex items-center gap-2 bg-muted rounded-lg px-2 py-1 flex-1 max-w-[200px]">
             <Search className="h-3.5 w-3.5 text-muted-foreground" />
             <input
               value={globalFilter ?? ''}

@@ -98,7 +98,7 @@ export function TutorialSystem() {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[100] pointer-events-none">
+      <div className="fixed inset-0 z-tutorial pointer-events-none">
         {/* Spotlight Effect (simplified) */}
         <motion.div 
           initial={{ opacity: 0 }}

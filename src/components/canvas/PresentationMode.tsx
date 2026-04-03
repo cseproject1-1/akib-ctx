@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, forwardRef } from 'react';
+import DOMPurify from 'dompurify';
 import { useNodes } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { X, ChevronLeft, ChevronRight, Maximize, Minimize, ExternalLink } from 'lucide-react';
@@ -67,7 +68,7 @@ export const PresentationMode = forwardRef<HTMLDivElement>(function Presentation
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen();
+      document.documentElement.requestFullscreen().catch(() => {});
       setFullscreen(true);
     } else {
       document.exitFullscreen();
@@ -412,7 +413,22 @@ function renderInline(content: unknown[]): string {
           if (mark.type === 'italic') text = `<em>${text}</em>`;
           if (mark.type === 'strike') text = `<s>${text}</s>`;
           if (mark.type === 'code') text = `<code>${text}</code>`;
-          if (mark.type === 'link') text = `<a href="${(mark as { attrs?: { href?: string } })?.attrs?.href || '#'}">${text}</a>`;
+          if (mark.type === 'link') {
+            const rawHref = (mark as { attrs?: { href?: string } })?.attrs?.href || '#';
+            // Reject javascript: URIs for safety
+            const isSafeProtocol = /^(https?|mailto|tel):/i.test(rawHref) || rawHref.startsWith('#');
+            if (!isSafeProtocol) {
+              text = `<span>${text}</span>`;
+            } else {
+              // Use DOMPurify for sanitization
+              const safeHref = DOMPurify.sanitize(rawHref, { 
+                ALLOWED_TAGS: [], 
+                ALLOWED_ATTR: [],
+                RETURN_TRUSTED_TYPE: false 
+              }) || '#';
+              text = `<a href="${safeHref.replace(/"/g, '&quot;')}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+            }
+          }
         }
       }
       return text;

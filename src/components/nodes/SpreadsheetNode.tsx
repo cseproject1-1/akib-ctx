@@ -1,4 +1,5 @@
 import { memo, useState, useCallback, useRef, useMemo, useEffect } from 'react';
+import { evaluate } from 'mathjs';
 import { type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { toast } from 'sonner';
@@ -74,28 +75,44 @@ function generateChartData(grid: Grid, dataColumn: number, labelColumn: number):
  */
 function evalFormula(formula: string, grid: Grid): string {
   try {
-    // Resolve cell refs like A1, B3 → grid[row][col].value
-    const resolved = formula.toUpperCase().replace(/([A-Z]+)(\d+)/g, (_: string, col: string, row: string) => {
+    // 1. Expand ranges like A1:B2 into A1,A2,B1,B2
+    const expandedRanges = formula.toUpperCase().replace(/([A-Z]+)(\d+):([A-Z]+)(\d+)/g, (_, col1, row1, col2, row2) => {
+      const c1 = col1.charCodeAt(0) - 65;
+      const r1 = parseInt(row1) - 1;
+      const c2 = col2.charCodeAt(0) - 65;
+      const r2 = parseInt(row2) - 1;
+      
+      const cells = [];
+      for (let r = Math.min(r1, r2); r <= Math.max(r1, r2); r++) {
+        for (let c = Math.min(c1, c2); c <= Math.max(c1, c2); c++) {
+          cells.push(`${String.fromCharCode(65 + c)}${r + 1}`);
+        }
+      }
+      return cells.join(',');
+    });
+
+    // 2. Resolve cell refs like A1, B3 → grid[row][col].value
+    const resolved = expandedRanges.replace(/([A-Z]+)(\d+)/g, (_: string, col: string, row: string) => {
       const colIdx = col.charCodeAt(0) - 65;
       const rowIdx = parseInt(row) - 1;
       const raw = grid[rowIdx]?.[colIdx]?.value ?? '0';
+      // Basic avoidance of circular refs or formula-in-formula evaluation depth
       return raw.startsWith('=') ? '0' : (parseFloat(raw) || 0).toString();
     });
 
-    // Handle range functions: SUM(1,2,3), AVERAGE(...), etc.
+    // 3. Handle range functions: SUM(1,2,3), AVERAGE(...), etc.
     const withFns = resolved
-      .replace(/SUM\(([^)]+)\)/g, (_: string, args: string) => `(${args.split(',').join('+')}`)
-      .replace(/AVERAGE\(([^)]+)\)/g, (_: string, args: string) => {
-        const parts = args.split(',');
-        return `(${parts.join('+')}/${parts.length})`;
-      })
-      .replace(/MIN\(([^)]+)\)/g, (_: string, args: string) => `Math.min(${args})`)
-      .replace(/MAX\(([^)]+)\)/g, (_: string, args: string) => `Math.max(${args})`);
+      .replace(/SUM\(([^)]+)\)/g, 'sum($1)')
+      .replace(/AVERAGE\(([^)]+)\)/g, 'mean($1)')
+      .replace(/MIN\(([^)]+)\)/g, 'min($1)')
+      .replace(/MAX\(([^)]+)\)/g, 'max($1)');
 
-     
-    const result = new Function(`return (${withFns})`)();
-    return isNaN(result) ? '#ERR' : String(parseFloat(result.toFixed(6)));
-  } catch {
+    const result = evaluate(withFns);
+    const numResult = typeof result === 'number' ? result : parseFloat(result?.toString());
+    
+    return isNaN(numResult) ? '#ERR' : String(parseFloat(numResult.toFixed(6)));
+  } catch (e) {
+    console.warn('[Spreadsheet] Formula Error:', e);
     return '#ERR';
   }
 }
@@ -170,10 +187,32 @@ export const SpreadsheetNode = memo(({ id, data, selected }: NodeProps) => {
     const reader = new FileReader();
     reader.onload = (event) => {
       const csv = event.target?.result as string;
+      // Bug A7: Improved CSV parsing logic for quoted fields with commas
       const rows = csv.split(/\r?\n/).filter(r => r.trim());
       const newGrid = rows.map(r => {
-        const cells = r.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
-        return cells.map(c => ({ value: c.replace(/^"|"$/g, '').replace(/""/g, '"') }));
+        const cells: string[] = [];
+        let current = '';
+        let inQuotes = false;
+        
+        for (let i = 0; i < r.length; i++) {
+          const char = r[i];
+          if (char === '"') {
+            if (inQuotes && r[i + 1] === '"') {
+              current += '"';
+              i++;
+            } else {
+              inQuotes = !inQuotes;
+            }
+          } else if (char === ',' && !inQuotes) {
+            cells.push(current);
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        cells.push(current);
+        
+        return cells.map(c => ({ value: c.trim() }));
       });
       if (newGrid.length > 0) {
         setGrid(newGrid);
@@ -241,7 +280,7 @@ export const SpreadsheetNode = memo(({ id, data, selected }: NodeProps) => {
   const toggleFullscreen = useCallback(() => {
     if (!spreadsheetRef.current) return;
     if (!isFullscreen) {
-      spreadsheetRef.current.requestFullscreen?.();
+      spreadsheetRef.current.requestFullscreen?.().catch(() => {});
     } else {
       document.exitFullscreen?.();
     }
@@ -382,11 +421,11 @@ export const SpreadsheetNode = memo(({ id, data, selected }: NodeProps) => {
         <div className="overflow-auto">
           <table className="border-collapse text-[11px]">
             <thead>
-              <tr>
+              <tr className="border-b border-border shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
                 {/* Row number column header */}
-                <th className="w-6 border border-border bg-accent/50 px-1 text-center text-[9px] font-bold text-muted-foreground">#</th>
+                <th className="w-6 border-r border-border bg-accent/20 px-1 text-center text-[9px] font-black text-muted-foreground/40 select-none outline-none">#</th>
                 {Array.from({ length: cols }).map((_, ci) => (
-                  <th key={ci} className="min-w-[80px] border border-border bg-accent/50 px-1 py-0.5 text-center text-[9px] font-bold text-muted-foreground uppercase">
+                  <th key={ci} className="min-w-[80px] border-r border-border bg-accent/15 px-1 py-1 text-center text-[9px] font-black text-muted-foreground/60 uppercase tracking-widest select-none outline-none last:border-r-0">
                     {colLabel(ci)}
                   </th>
                 ))}
@@ -394,8 +433,9 @@ export const SpreadsheetNode = memo(({ id, data, selected }: NodeProps) => {
             </thead>
             <tbody>
               {grid.map((row, ri) => (
-                <tr key={ri}>
-                  <td className="border border-border bg-accent/30 px-1 text-center text-[9px] font-bold text-muted-foreground">{ri + 1}</td>
+                <tr key={ri} className="border-b border-border/50 last:border-b-0 hover:bg-primary/[0.01] transition-colors">
+                  <td className="border-r border-border bg-accent/10 px-1 text-center text-[9px] font-black text-muted-foreground/30 select-none outline-none">{ri + 1}</td>
+
                   {row.map((cell, ci) => {
                     const isEditing = editing?.r === ri && editing.c === ci;
                     const isSelected = selectedCell?.r === ri && selectedCell.c === ci;

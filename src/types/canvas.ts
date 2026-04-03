@@ -40,6 +40,7 @@ export interface SharedNodeFields {
   blockVersion?: 1 | 2;
   color?: string; // Standard color string
   _v1Backup?: any; // Backup of Tiptap content before migration
+  previousHeight?: number; // Height to restore after uncollapsing
 }
 
 export interface AINoteNodeData extends SharedNodeFields {
@@ -247,9 +248,15 @@ export interface Workspace {
   color: string;
   created_at: string;
   updated_at: string;
+  is_deleted: boolean;
+  is_public?: boolean;
+  parent_workspace_id?: string | null;
+  tags?: string[];
+  folder?: string | null;
   // Password protection (optional, backward compatible)
-  password_hash?: string;
+  password_hash?: string | null;
   is_password_protected?: boolean;
   // Locked folder visibility (optional)
   is_in_vault?: boolean;
+  shared_with?: string[];
 }

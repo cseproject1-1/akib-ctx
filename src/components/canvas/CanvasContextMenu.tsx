@@ -122,7 +122,7 @@ export function CanvasContextMenu() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[90] bg-background/5 backdrop-blur-[1px]"
+            className="fixed inset-0 z-context-backdrop bg-background/5 backdrop-blur-[1px]"
             onClick={closeMenu}
             onContextMenu={(e) => { e.preventDefault(); closeMenu(); }}
             aria-hidden="true"
@@ -133,7 +133,7 @@ export function CanvasContextMenu() {
             initial={{ opacity: 0, scale: 0.95, y: -10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -10 }}
-            className="absolute z-[95] min-w-[260px] max-h-[85vh] overflow-y-auto scrollbar-none rounded-[2rem] glass-morphism-strong p-2 pro-shadow border border-white/5"
+            className="absolute z-context-menu min-w-[260px] max-h-[85vh] overflow-y-auto scrollbar-none rounded-[2rem] glass-morphism-strong p-2 pro-shadow border border-white/5"
             style={{ left: menuPos.left, top: menuPos.top }}
           >
             <div className="px-4 py-3 border-b border-white/5 mb-1.5 flex items-center justify-between bg-white/5 rounded-t-[1.8rem]">

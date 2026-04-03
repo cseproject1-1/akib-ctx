@@ -8,8 +8,11 @@
  * Run via: npm run test
  */
 
-import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock, afterEach } from 'vitest';
 import type { Node, Edge } from '@xyflow/react';
+
+// Mock navigator.onLine for offline tests
+const originalNavigator = { ...globalThis.navigator };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. Pure-logic unit: sanitizeForFirestore (vendor logic copy)
@@ -74,13 +77,20 @@ describe('sanitizeForFirestore', () => {
     expect((result.outer as Record<string, unknown>).ok).toBe('yes');
     expect('inner' in (result.outer as Record<string, unknown>)).toBe(false);
   });
+
+  it('handles symbol values in objects', () => {
+    const sym = Symbol('test');
+    const result = sanitizeForFirestore({ a: 1, sym }) as Record<string, unknown>;
+    expect(result).toEqual({ a: 1 });
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 2. canvasCache write-through: mocking Firebase serverSaveNode
+// 2. Mock Setup
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Mock the Firebase canvasData module so we don't hit the network
+const _memStore: Record<string, Record<string, unknown>> = {};
+
 vi.mock('@/lib/firebase/canvasData', () => ({
   saveNode: vi.fn().mockResolvedValue(undefined),
   saveEdge: vi.fn().mockResolvedValue(undefined),
@@ -103,9 +113,6 @@ vi.mock('@/lib/firebase/canvasData', () => ({
   pruneSnapshots: vi.fn().mockResolvedValue(undefined),
 }));
 
-// Mock the indexedDB helpers to use an in-memory store instead
-const _memStore: Record<string, Record<string, unknown>> = {};
-
 vi.mock('@/lib/cache/indexedDB', () => ({
   cacheGet: vi.fn().mockImplementation(async (store: string, key: string) => {
     return _memStore[`${store}::${key}`] ?? null;
@@ -123,7 +130,6 @@ vi.mock('@/lib/cache/indexedDB', () => ({
   removePendingOp: vi.fn().mockResolvedValue(undefined),
 }));
 
-// Also mock auth so ensureSession doesn't explode
 vi.mock('@/lib/firebase/client', () => ({
   auth: { currentUser: { getIdToken: vi.fn().mockResolvedValue('fake-token') } },
   db: {},
@@ -137,17 +143,28 @@ vi.mock('@/lib/firebase/workspaces', () => ({
   getWorkspaces: vi.fn().mockResolvedValue([]),
 }));
 
+vi.mock('sonner', () => ({
+  toast: {
+    info: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3. canvasCache Tests
+// ─────────────────────────────────────────────────────────────────────────────
+
 describe('canvasCache – saveNode write-through', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     Object.keys(_memStore).forEach((k) => delete _memStore[k]);
   });
 
-  it('calls serverSaveNode with the given node', async () => {
+  it('adds date fields when saving a new node', async () => {
     const { saveNode } = await import('@/lib/cache/canvasCache');
     const { saveNode: serverSave } = await import('@/lib/firebase/canvasData');
 
-    const node = {
+    const node: Node = {
       id: crypto.randomUUID(),
       type: 'aiNote',
       position: { x: 100, y: 200 },
@@ -155,11 +172,10 @@ describe('canvasCache – saveNode write-through', () => {
       style: { width: 300, height: 200, zIndex: 1 },
     };
 
-    await saveNode('ws-test-123', node as unknown as Node);
+    await saveNode('ws-test-123', node);
 
     expect(serverSave).toHaveBeenCalledOnce();
-    // Verify the workspace ID and that the node has date fields added
-    const calledWith = (serverSave as any).mock.calls[0];
+    const calledWith = (serverSave as Mock).mock.calls[0];
     expect(calledWith[0]).toBe('ws-test-123');
     expect(calledWith[1].id).toBe(node.id);
     expect(calledWith[1].data.createdAt).toBeDefined();
@@ -167,11 +183,33 @@ describe('canvasCache – saveNode write-through', () => {
     expect(calledWith[1].data.lastSyncedAt).toBeDefined();
   });
 
-  it('updates the IndexedDB cache when saving a node', async () => {
+  it('preserves existing createdAt when updating node', async () => {
     const { saveNode } = await import('@/lib/cache/canvasCache');
-    const { cacheSet } = await import('@/lib/cache/indexedDB');
+    const { saveNode: serverSave } = await import('@/lib/firebase/canvasData');
 
-    const node = {
+    const existingCreatedAt = '2024-01-01T00:00:00.000Z';
+    const node: Node = {
+      id: crypto.randomUUID(),
+      type: 'aiNote',
+      position: { x: 0, y: 0 },
+      data: { title: 'Test', content: '', createdAt: existingCreatedAt },
+      style: { width: 300, height: 200, zIndex: 0 },
+    };
+
+    await saveNode('ws-a', node);
+
+    const savedNode = (serverSave as Mock).mock.calls[0][1];
+    expect(savedNode.data.createdAt).toBe(existingCreatedAt);
+    expect(savedNode.data.updatedAt).not.toBe(existingCreatedAt);
+  });
+
+  it('updates local IndexedDB cache', async () => {
+    const { saveNode } = await import('@/lib/cache/canvasCache');
+    const { cacheSet: rawSet } = await import('@/lib/cache/indexedDB');
+
+    await rawSet('canvas-nodes', 'ws-cache', []);
+
+    const node: Node = {
       id: crypto.randomUUID(),
       type: 'aiNote',
       position: { x: 0, y: 0 },
@@ -179,28 +217,26 @@ describe('canvasCache – saveNode write-through', () => {
       style: { width: 300, height: 200, zIndex: 0 },
     };
 
-    // Pre-populate cache so the update path fires
-    const { cacheSet: rawSet } = await import('@/lib/cache/indexedDB');
-    await rawSet('canvas-nodes', 'ws-a', []);
+    await saveNode('ws-cache', node);
 
-    await saveNode('ws-a', node as unknown as Node);
-
-    // cacheSet should have been called to update the local cache
-    expect(cacheSet).toHaveBeenCalled();
+    // Verify cache was updated (cacheSet called with 'canvas-nodes')
+    const { cacheSet } = await import('@/lib/cache/indexedDB');
+    expect(cacheSet).toHaveBeenCalledWith('canvas-nodes', 'ws-cache', expect.arrayContaining([
+      expect.objectContaining({ id: node.id }),
+    ]));
   });
 
-  it('queues offline op when serverSaveNode fails', async () => {
+  it('queues offline op when serverSaveNode fails after retries', async () => {
     const { saveNode } = await import('@/lib/cache/canvasCache');
     const { saveNode: serverSave } = await import('@/lib/firebase/canvasData');
     const { addPendingOp } = await import('@/lib/cache/indexedDB');
 
-    // withRetry will call it 3 times; reject all 3
     (serverSave as Mock)
       .mockRejectedValueOnce(new Error('network error'))
       .mockRejectedValueOnce(new Error('network error'))
       .mockRejectedValueOnce(new Error('network error'));
 
-    const node = {
+    const node: Node = {
       id: crypto.randomUUID(),
       type: 'aiNote',
       position: { x: 0, y: 0 },
@@ -208,22 +244,22 @@ describe('canvasCache – saveNode write-through', () => {
       style: { width: 300, height: 200, zIndex: 0 },
     };
 
-    await saveNode('ws-offline', node as unknown as Node);
+    await saveNode('ws-offline', node);
 
     expect(addPendingOp).toHaveBeenCalledOnce();
-    const queued = (addPendingOp as Mock).mock.calls[0][0];
+    const queued = (addPendingOp as Mock).mock.calls[0][0] as { type: string; args: unknown[] };
     expect(queued.type).toBe('saveNode');
     expect(queued.args[0]).toBe('ws-offline');
   });
 });
 
-describe('canvasCache – deleteCanvasNode write-through', () => {
+describe('canvasCache – deleteCanvasNode', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     Object.keys(_memStore).forEach((k) => delete _memStore[k]);
   });
 
-  it('calls serverDeleteNode and updates local cache', async () => {
+  it('calls server delete and updates local cache', async () => {
     const { deleteCanvasNode } = await import('@/lib/cache/canvasCache');
     const { deleteCanvasNode: serverDel } = await import('@/lib/firebase/canvasData');
 
@@ -232,7 +268,29 @@ describe('canvasCache – deleteCanvasNode write-through', () => {
     expect(serverDel).toHaveBeenCalledWith('ws-del', 'node-abc');
   });
 
-  it('queues offline op when serverDeleteNode fails', async () => {
+  it('removes node from local cache', async () => {
+    const { deleteCanvasNode, saveNode } = await import('@/lib/cache/canvasCache');
+    const nodeId = 'node-to-delete';
+    
+    // Pre-populate cache with a node
+    const { cacheSet } = await import('@/lib/cache/indexedDB');
+    await cacheSet('canvas-nodes', 'ws-del', [{
+      id: nodeId,
+      type: 'aiNote',
+      position: { x: 0, y: 0 },
+      data: {},
+      style: { width: 300, height: 200, zIndex: 0 },
+    }]);
+
+    await deleteCanvasNode('ws-del', nodeId);
+
+    // Verify local cache was updated
+    const { cacheGet } = await import('@/lib/cache/indexedDB');
+    const entry = await cacheGet<Node[]>('canvas-nodes', 'ws-del');
+    expect(entry?.data).toEqual([]);
+  });
+
+  it('queues offline op when server fails', async () => {
     const { deleteCanvasNode } = await import('@/lib/cache/canvasCache');
     const { deleteCanvasNode: serverDel } = await import('@/lib/firebase/canvasData');
     const { addPendingOp } = await import('@/lib/cache/indexedDB');
@@ -245,17 +303,18 @@ describe('canvasCache – deleteCanvasNode write-through', () => {
     await deleteCanvasNode('ws-del', 'node-xyz');
 
     expect(addPendingOp).toHaveBeenCalledOnce();
-    const queued = (addPendingOp as Mock).mock.calls[0][0];
+    const queued = (addPendingOp as Mock).mock.calls[0][0] as { type: string; args: unknown[] };
     expect(queued.type).toBe('deleteNode');
   });
 });
 
-describe('canvasCache – updateNodeDataInDb write-through', () => {
+describe('canvasCache – updateNodeDataInDb', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    Object.keys(_memStore).forEach((k) => delete _memStore[k]);
   });
 
-  it('forwards data to serverUpdateData', async () => {
+  it('forwards data to server', async () => {
     const { updateNodeDataInDb } = await import('@/lib/cache/canvasCache');
     const { updateNodeDataInDb: serverUpdate } = await import('@/lib/firebase/canvasData');
 
@@ -277,16 +336,16 @@ describe('canvasCache – updateNodeDataInDb write-through', () => {
     await updateNodeDataInDb('ws-fail', 'n1', { text: 'save me' });
 
     expect(addPendingOp).toHaveBeenCalledOnce();
-    const q = (addPendingOp as Mock).mock.calls[0][0];
+    const q = (addPendingOp as Mock).mock.calls[0][0] as { type: string; args: unknown[] };
     expect(q.type).toBe('updateData');
     expect(q.args).toContain('n1');
   });
 });
 
-describe('canvasCache – updateNodePosition write-through', () => {
+describe('canvasCache – updateNodePosition', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
-  it('forwards position to serverUpdatePosition', async () => {
+  it('forwards position to server', async () => {
     const { updateNodePosition } = await import('@/lib/cache/canvasCache');
     const { updateNodePosition: serverPos } = await import('@/lib/firebase/canvasData');
 
@@ -294,28 +353,254 @@ describe('canvasCache – updateNodePosition write-through', () => {
 
     expect(serverPos).toHaveBeenCalledWith('ws-pos', 'n2', 150, 250);
   });
+
+  it('queues on failure', async () => {
+    const { updateNodePosition } = await import('@/lib/cache/canvasCache');
+    const { updateNodePosition: serverPos } = await import('@/lib/firebase/canvasData');
+    const { addPendingOp } = await import('@/lib/cache/indexedDB');
+
+    (serverPos as Mock)
+      .mockRejectedValueOnce(new Error('network'))
+      .mockRejectedValueOnce(new Error('network'))
+      .mockRejectedValueOnce(new Error('network'));
+
+    await updateNodePosition('ws-fail', 'nX', 10, 20);
+
+    expect(addPendingOp).toHaveBeenCalledOnce();
+    const q = (addPendingOp as Mock).mock.calls[0][0] as { type: string; args: unknown[] };
+    expect(q.type).toBe('updatePosition');
+    expect(q.args).toEqual(['ws-fail', 'nX', 10, 20]);
+  });
 });
 
-describe('canvasCache – saveEdge write-through', () => {
+describe('canvasCache – updateNodeStyle', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
-  it('saves edge and assigns UUID when edge.id is not a valid UUID', async () => {
+  it('forwards style to server', async () => {
+    const { updateNodeStyle } = await import('@/lib/cache/canvasCache');
+    const { updateNodeStyle: serverStyle } = await import('@/lib/firebase/canvasData');
+
+    await updateNodeStyle('ws-style', 'node-1', 400, 300, 5);
+
+    expect(serverStyle).toHaveBeenCalledWith('ws-style', 'node-1', 400, 300, 5);
+  });
+});
+
+describe('canvasCache – saveEdge', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('assigns UUID when edge.id is not a valid UUID', async () => {
     const { saveEdge } = await import('@/lib/cache/canvasCache');
     const { saveEdge: serverEdge } = await import('@/lib/firebase/canvasData');
 
-    const edge = {
-      id: 'reactflow__edge-a-b',   // non-UUID id
+    const edge: Edge = {
+      id: 'reactflow__edge-a-b',
       source: 'a',
       target: 'b',
       type: 'custom',
       data: {},
     };
 
-    await saveEdge('ws-edge', edge as unknown as Edge);
+    await saveEdge('ws-edge', edge);
 
     expect(serverEdge).toHaveBeenCalledOnce();
-    const savedEdge = (serverEdge as Mock).mock.calls[0][1];
-    // Should have been given a proper UUID
+    const savedEdge = (serverEdge as Mock).mock.calls[0][1] as Edge;
     expect(savedEdge.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+  });
+
+  it('preserves valid UUID edge.id', async () => {
+    const { saveEdge } = await import('@/lib/cache/canvasCache');
+    const { saveEdge: serverEdge } = await import('@/lib/firebase/canvasData');
+
+    const validUuid = '12345678-1234-1234-1234-123456789012';
+    const edge: Edge = {
+      id: validUuid,
+      source: 'a',
+      target: 'b',
+    };
+
+    await saveEdge('ws-edge', edge);
+
+    const savedEdge = (serverEdge as Mock).mock.calls[0][1] as Edge;
+    expect(savedEdge.id).toBe(validUuid);
+  });
+});
+
+describe('canvasCache – deleteCanvasEdge', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    Object.keys(_memStore).forEach((k) => delete _memStore[k]);
+  });
+
+  it('skips non-UUID edge IDs', async () => {
+    const { deleteCanvasEdge } = await import('@/lib/cache/canvasCache');
+    const { deleteCanvasEdge: serverDel } = await import('@/lib/firebase/canvasData');
+
+    await deleteCanvasEdge('ws-edge', 'reactflow__edge-a-b');
+
+    expect(serverDel).not.toHaveBeenCalled();
+  });
+
+  it('deletes valid UUID edges', async () => {
+    const { deleteCanvasEdge } = await import('@/lib/cache/canvasCache');
+    const { deleteCanvasEdge: serverDel } = await import('@/lib/firebase/canvasData');
+
+    await deleteCanvasEdge('ws-edge', '12345678-1234-1234-1234-123456789012');
+
+    expect(serverDel).toHaveBeenCalledWith('ws-edge', '12345678-1234-1234-1234-123456789012');
+  });
+});
+
+describe('canvasCache – updateEdgeDataInDb', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('skips non-UUID edge IDs', async () => {
+    const { updateEdgeDataInDb } = await import('@/lib/cache/canvasCache');
+    const { updateEdgeDataInDb: serverUpdate } = await import('@/lib/firebase/canvasData');
+
+    await updateEdgeDataInDb('ws-edge', 'reactflow__edge', { foo: 'bar' });
+
+    expect(serverUpdate).not.toHaveBeenCalled();
+  });
+
+  it('updates valid UUID edges with data', async () => {
+    const { updateEdgeDataInDb } = await import('@/lib/cache/canvasCache');
+    const { updateEdgeDataInDb: serverUpdate } = await import('@/lib/firebase/canvasData');
+
+    await updateEdgeDataInDb('ws-edge', '12345678-1234-1234-1234-123456789012', { label: 'new label' });
+
+    expect(serverUpdate).toHaveBeenCalledWith('ws-edge', '12345678-1234-1234-1234-123456789012', { label: 'new label' }, undefined);
+  });
+
+  it('includes optional label parameter', async () => {
+    const { updateEdgeDataInDb } = await import('@/lib/cache/canvasCache');
+    const { updateEdgeDataInDb: serverUpdate } = await import('@/lib/firebase/canvasData');
+
+    await updateEdgeDataInDb('ws-edge', '12345678-1234-1234-1234-123456789012', { foo: 'bar' }, 'My Label');
+
+    expect(serverUpdate).toHaveBeenCalledWith('ws-edge', '12345678-1234-1234-1234-123456789012', { foo: 'bar' }, 'My Label');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 4. Offline Queue Replay Tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('canvasCache – pending ops handling', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    Object.keys(_memStore).forEach((k) => delete _memStore[k]);
+  });
+
+  it('getAllPendingOps returns empty array when no ops', async () => {
+    const { getAllPendingOps } = await import('@/lib/cache/indexedDB');
+    const ops = await getAllPendingOps();
+    expect(ops).toEqual([]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 5. Cached Load Tests
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('canvasCache – cachedLoadCanvasNodes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    Object.keys(_memStore).forEach((k) => delete _memStore[k]);
+  });
+
+  it('returns cached data immediately when available', async () => {
+    const { cacheSet } = await import('@/lib/cache/indexedDB');
+    const cachedNodes: Node[] = [
+      { id: 'n1', type: 'aiNote', position: { x: 0, y: 0 }, data: {}, style: {} },
+    ];
+    await cacheSet('canvas-nodes', 'ws-1', cachedNodes);
+
+    const { cachedLoadCanvasNodes } = await import('@/lib/cache/canvasCache');
+    const result = await cachedLoadCanvasNodes('ws-1');
+
+    expect(result.cached).not.toBeNull();
+    expect(result.cached).toHaveLength(1);
+    expect(result.cached?.[0].id).toBe('n1');
+  });
+
+  it('returns null cached when no data', async () => {
+    const { cachedLoadCanvasNodes } = await import('@/lib/cache/canvasCache');
+    const result = await cachedLoadCanvasNodes('ws-empty');
+
+    expect(result.cached).toBeNull();
+  });
+
+  it('fresh promise loads from server', async () => {
+    const { loadCanvasNodes } = await import('@/lib/firebase/canvasData');
+    (loadCanvasNodes as Mock).mockResolvedValue([
+      { id: 'server-n1', type: 'aiNote', position: { x: 0, y: 0 }, data: {}, style: {} },
+    ]);
+
+    const { cachedLoadCanvasNodes } = await import('@/lib/cache/canvasCache');
+    const result = await cachedLoadCanvasNodes('ws-1');
+
+    const freshNodes = await result.fresh;
+    expect(loadCanvasNodes).toHaveBeenCalledWith('ws-1');
+    expect(freshNodes).toHaveLength(1);
+    expect(freshNodes[0].id).toBe('server-n1');
+  });
+});
+
+describe('canvasCache – cachedLoadCanvasEdges', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    Object.keys(_memStore).forEach((k) => delete _memStore[k]);
+  });
+
+  it('returns cached data immediately', async () => {
+    const { cacheSet } = await import('@/lib/cache/indexedDB');
+    const cachedEdges: Edge[] = [
+      { id: 'e1', source: 'a', target: 'b' },
+    ];
+    await cacheSet('canvas-edges', 'ws-1', cachedEdges);
+
+    const { cachedLoadCanvasEdges } = await import('@/lib/cache/canvasCache');
+    const result = await cachedLoadCanvasEdges('ws-1');
+
+    expect(result.cached).not.toBeNull();
+    expect(result.cached).toHaveLength(1);
+  });
+
+  it('handles empty cache', async () => {
+    const { cachedLoadCanvasEdges } = await import('@/lib/cache/canvasCache');
+    const result = await cachedLoadCanvasEdges('ws-no-cache');
+
+    expect(result.cached).toBeNull();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 6. Workspace Cache Invalidation
+// ───────────────────────────────────────────────────��─��───────────────────────
+
+describe('canvasCache – cache invalidation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    Object.keys(_memStore).forEach((k) => delete _memStore[k]);
+  });
+
+  it('invalidates workspace cache', async () => {
+    const { cacheSet } = await import('@/lib/cache/indexedDB');
+    await cacheSet('canvas-nodes', 'ws-invalidate', [{ id: 'n1' }]);
+
+    const { invalidateWorkspaceCache } = await import('@/lib/cache/canvasCache');
+    await invalidateWorkspaceCache('ws-invalidate');
+
+    const { cacheGet } = await import('@/lib/cache/indexedDB');
+    const entry = await cacheGet('canvas-nodes', 'ws-invalidate');
+    expect(entry).toBeNull();
+  });
+
+  it('invalidates workspace list cache', async () => {
+    const { invalidateWorkspaceList } = await import('@/lib/cache/canvasCache');
+    
+    // Should not throw
+    await expect(invalidateWorkspaceList()).resolves.not.toThrow();
   });
 });

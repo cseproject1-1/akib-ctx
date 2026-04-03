@@ -4,6 +4,7 @@ import { useCanvasStore } from '@/store/canvasStore';
 import { Table2, Plus, Trash2, Expand } from 'lucide-react';
 import { BaseNode } from './BaseNode';
 import { TableNodeData } from '@/types/canvas';
+import { evaluate } from 'mathjs';
 
 export const TableNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
@@ -37,11 +38,21 @@ export const TableNode = memo(({ id, data, selected }: NodeProps) => {
     updateNodeData(id, { rows: rows.filter((_, i) => i !== ri) });
   }, [id, rows, updateNodeData]);
 
+  const getColumnName = useCallback((index: number): string => {
+    let name = '';
+    let n = index;
+    do {
+      name = String.fromCharCode(65 + (n % 26)) + name;
+      n = Math.floor(n / 26) - 1;
+    } while (n >= 0);
+    return name;
+  }, []);
+
   const addColumn = useCallback(() => {
-    const newHeaders = [...headers, `Col ${String.fromCharCode(65 + headers.length)}`];
+    const newHeaders = [...headers, `Col ${getColumnName(headers.length)}`];
     const newRows = rows.map((r) => [...r, { value: '' }]);
     updateNodeData(id, { headers: newHeaders, rows: newRows });
-  }, [id, headers, rows, updateNodeData]);
+  }, [id, headers, rows, updateNodeData, getColumnName]);
 
   const removeColumn = useCallback((ci: number) => {
     if (headers.length <= 1) return;
@@ -62,14 +73,15 @@ export const TableNode = memo(({ id, data, selected }: NodeProps) => {
     document.body.appendChild(link);
     link.click();
     link.remove();
+    URL.revokeObjectURL(url);
   }, [headers, rows, nodeData.title]);
 
   const safeEvaluate = (val: string) => {
     if (!val.startsWith('=')) return val;
     try {
-      // Evaluate simple math
-      const mathExp = val.substring(1).replace(/[^0-9+\-*/().]/g, '');
-      return new Function(`return ${mathExp}`)();
+      // Use mathjs for safe evaluation
+      const mathExp = val.substring(1).replace(/[^0-9+\-*/(). ,]/g, '');
+      return evaluate(mathExp);
     } catch {
       return '!ERR';
     }

@@ -103,6 +103,17 @@ export function VaultModal({ isOpen, onClose, onUnlocked, onPasswordSet, initial
     return () => clearInterval(id);
   }, [lockedUntil]);
 
+  // Body Scroll Lock
+  useEffect(() => {
+    if (!isOpen) return;
+    const bodyStyle = document.body.style;
+    const prev = bodyStyle.overflow;
+    bodyStyle.overflow = 'hidden';
+    return () => {
+      bodyStyle.overflow = prev;
+    };
+  }, [isOpen]);
+
   const isLockedOut = !!lockedUntil && Date.now() < lockedUntil;
 
   // ── Handlers ────────────────────────────────────────────────────────────────

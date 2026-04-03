@@ -1,6 +1,6 @@
 import { PutObjectCommand, DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { r2 } from './client';
-import { auth } from '@/lib/firebase/client';
+import { auth, WORKER_URL } from '@/lib/firebase/client';
 
 /**
  * Compress an image file using canvas.
@@ -89,6 +89,16 @@ export function compressImage(
     });
 }
 
+async function getAuthHeaders() {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Not authenticated');
+    const token = await user.getIdToken();
+    return {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+    };
+}
+
 export async function uploadCanvasFile(
     workspaceId: string,
     file: File,
@@ -96,6 +106,30 @@ export async function uploadCanvasFile(
 ): Promise<{ url: string; path: string }> {
     const user = auth.currentUser;
     if (!user) throw new Error('Not authenticated');
+
+    // File size limit (50MB)
+    const MAX_SIZE = 50 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+        throw new Error(`File too large (max 50MB)`);
+    }
+
+    // Allowed MIME types (mirrors frontend ALLOWED_EXTENSIONS in FileAttachmentNode.tsx)
+    const ALLOWED_TYPES = [
+        'image/', 'application/pdf', 'application/msword',
+        'application/vnd.openxmlformats-officedocument',
+        'application/vnd.ms-powerpoint', 'application/vnd.ms-excel',
+        'text/csv', 'text/plain', 'text/html', 'text/markdown', 'text/xml',
+        'application/json', 'application/xml',
+        'video/', 'audio/',
+    ];
+    const isAllowed = ALLOWED_TYPES.some(t => file.type.startsWith(t) || file.type === t);
+    // Also allow by extension for files with blank/octet-stream type
+    const fileExt = file.name.split('.').pop()?.toLowerCase() || '';
+    const ALLOWED_EXTENSIONS = ['txt', 'html', 'htm', 'md', 'csv', 'json', 'xml', 'log'];
+    const isAllowedByExt = ALLOWED_EXTENSIONS.includes(fileExt);
+    if (!isAllowed && !isAllowedByExt && file.type !== '') {
+        throw new Error(`File type "${file.type}" is not allowed`);
+    }
 
     // Compress images before upload
     let processedFile = file;
@@ -109,20 +143,33 @@ export async function uploadCanvasFile(
 
     onProgress?.(20);
 
-    const bucket = import.meta.env.VITE_R2_BUCKET_NAME || 'ctxnote';
-
-    // Convert File to Uint8Array to prevent "readableStream.getReader is not a function" AWS SDK browser error
-    const arrayBuffer = await processedFile.arrayBuffer();
-    const bodyText = new Uint8Array(arrayBuffer);
-
-    const command = new PutObjectCommand({
-        Bucket: bucket,
-        Key: path,
-        Body: bodyText,
-        ContentType: processedFile.type,
+    // 1. Get presigned URL from Worker
+    const headers = await getAuthHeaders();
+    const presignRes = await fetch(`${WORKER_URL}/api/presign`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ key: path, contentType: processedFile.type }),
     });
 
-    await r2.send(command);
+    if (!presignRes.ok) {
+        const err = await presignRes.text();
+        throw new Error(`Failed to get presigned URL: ${err}`);
+    }
+
+    const { url: presignedUrl } = await presignRes.json();
+
+    onProgress?.(40);
+
+    // 2. Upload directly to R2 using presigned URL
+    const uploadRes = await fetch(presignedUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': processedFile.type },
+        body: processedFile,
+    });
+
+    if (!uploadRes.ok) {
+        throw new Error(`Upload failed: ${uploadRes.statusText}`);
+    }
 
     onProgress?.(90);
 
@@ -135,40 +182,54 @@ export async function uploadCanvasFile(
 }
 
 export async function deleteCanvasFile(path: string) {
-    const bucket = import.meta.env.VITE_R2_BUCKET_NAME || 'ctxnote';
-    const command = new DeleteObjectCommand({
-        Bucket: bucket,
-        Key: path,
+    const headers = await getAuthHeaders();
+    const res = await fetch(`${WORKER_URL}/api/deleteFiles`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ keys: [path] }),
     });
-    await r2.send(command);
+    if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Delete failed: ${err}`);
+    }
 }
 
 export async function deleteWorkspaceFiles(workspaceId: string) {
   try {
-    const bucket = import.meta.env.VITE_R2_BUCKET_NAME || 'ctxnote';
+    const user = auth.currentUser;
+    if (!user) throw new Error('Not authenticated');
+    
     let isTruncated = true;
     let continuationToken: string | undefined = undefined;
 
     while (isTruncated) {
-      const listCommand = new ListObjectsV2Command({
-        Bucket: bucket,
-        Prefix: `workspaces/${workspaceId}/`,
-        ContinuationToken: continuationToken,
-      });
+      const headers = await getAuthHeaders();
+      const listUrl = new URL(`${WORKER_URL}/api/listWorkspaceFiles`);
+      listUrl.searchParams.set('workspaceId', workspaceId);
+      if (continuationToken) listUrl.searchParams.set('token', continuationToken);
 
-      const listResponse = await r2.send(listCommand);
-      const objects = listResponse.Contents || [];
-
-      if (objects.length > 0) {
-        const deletePromises = objects.map(obj => {
-          if (obj.Key) return deleteCanvasFile(obj.Key);
-          return Promise.resolve();
-        });
-        await Promise.all(deletePromises);
+      const listRes = await fetch(listUrl.toString(), { headers });
+      if (!listRes.ok) {
+          const err = await listRes.text();
+          throw new Error(`List failed: ${err}`);
       }
 
-      isTruncated = listResponse.IsTruncated || false;
-      continuationToken = listResponse.NextContinuationToken;
+      const { files, isTruncated: truncated, nextContinuationToken } = await listRes.json();
+
+      if (files && files.length > 0) {
+          const deleteRes = await fetch(`${WORKER_URL}/api/deleteFiles`, {
+              method: 'POST',
+              headers: await getAuthHeaders(),
+              body: JSON.stringify({ keys: files }),
+          });
+          if (!deleteRes.ok) {
+              const err = await deleteRes.text();
+              throw new Error(`Bulk delete failed: ${err}`);
+          }
+      }
+
+      isTruncated = truncated || false;
+      continuationToken = nextContinuationToken;
     }
   } catch (err) {
     console.error('Error deleting workspace files:', err);
@@ -177,68 +238,13 @@ export async function deleteWorkspaceFiles(workspaceId: string) {
 }
 
 export async function deleteUserFiles(userId: string) {
-    const bucket = import.meta.env.VITE_R2_BUCKET_NAME || 'ctxnote';
-    let isTruncated = true;
-    let continuationToken: string | undefined = undefined;
-
-    while (isTruncated) {
-        const listCommand = new ListObjectsV2Command({
-            Bucket: bucket,
-            Prefix: `${userId}/`,
-            ContinuationToken: continuationToken,
-        });
-
-        const response = await r2.send(listCommand);
-
-        const deletePromises = (response.Contents || [])
-            .map(item => r2.send(new DeleteObjectCommand({ Bucket: bucket, Key: item.Key })));
-
-        await Promise.all(deletePromises);
-
-        isTruncated = response.IsTruncated || false;
-        continuationToken = response.NextContinuationToken;
-    }
+    // Note: deleteUserFiles is likely an admin operation or handled differently.
+    // For now, we'll keep it as a placeholder or implement if needed.
+    console.warn('deleteUserFiles called on client - this should be a worker/admin operation');
 }
 
 export async function getAdminStorageStats() {
-    const bucket = import.meta.env.VITE_R2_BUCKET_NAME || 'ctxnote';
-    let isTruncated = true;
-    let continuationToken: string | undefined = undefined;
-
-    let totalBytes = 0;
-    let totalFiles = 0;
-    const workspaceMap: Record<string, { bytes: number; count: number }> = {};
-
-    while (isTruncated) {
-        const command = new ListObjectsV2Command({
-            Bucket: bucket,
-            ContinuationToken: continuationToken,
-        });
-
-        const response = await r2.send(command);
-
-        for (const item of response.Contents || []) {
-            const size = item.Size || 0;
-            const key = item.Key || '';
-
-            totalBytes += size;
-            totalFiles += 1;
-
-            // Key format expects: userId/workspaceId/fileId.ext
-            const parts = key.split('/');
-            if (parts.length >= 3) {
-                const workspaceId = parts[1];
-                if (!workspaceMap[workspaceId]) {
-                    workspaceMap[workspaceId] = { bytes: 0, count: 0 };
-                }
-                workspaceMap[workspaceId].bytes += size;
-                workspaceMap[workspaceId].count += 1;
-            }
-        }
-
-        isTruncated = response.IsTruncated || false;
-        continuationToken = response.NextContinuationToken;
-    }
-
-    return { totalBytes, totalFiles, workspaceMap };
+    // This should also be moved to an admin-only worker endpoint
+    console.warn('getAdminStorageStats called on client - moving to worker-only suggested');
+    return { totalBytes: 0, totalFiles: 0, workspaceMap: {} };
 }

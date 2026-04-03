@@ -56,6 +56,9 @@ export function SelectionToolbar() {
   const isAISynthesisOpen = useCanvasStore((s) => s.isAISynthesisOpen);
 
   const selectedNodes = nodes.filter((n) => n.selected);
+  // Bug U6: Consolidate with BatchToolbar logic. 
+  // If we have 2+ nodes, we show the BatchToolbar at the bottom.
+  // SelectionToolbar (top) will be hidden if it overlaps or is redundant.
   if (selectedNodes.length < 2 || expandedNode || isAISynthesisOpen) return null;
 
   const handleAlign = (type: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => {
@@ -218,35 +221,11 @@ export function SelectionToolbar() {
             <DistributeVert className="h-4 w-4" />
           </ActionBtn>
 
-          <Divider />
-
-          <div className="flex items-center gap-1.5 px-2 py-1">
-            {PRESET_COLORS.map((color) => (
-              <button
-                key={color}
-                onClick={() => handleApplyColor(color)}
-                className="w-5 h-5 rounded-md border border-white/10 transition-transform hover:scale-125 active:scale-95 shadow-sm relative"
-                style={{ backgroundColor: color }}
-                title={color === '#ffffff' ? 'Default' : `Color: ${color}`}
-              >
-                {color === '#ffffff' && (
-                  <span className="absolute inset-0 flex items-center justify-center text-[6px] font-bold text-muted-foreground/40">A</span>
-                )}
-              </button>
-            ))}
-          </div>
-
           <ActionBtn onClick={() => handleLockToggle(true)} tip="Lock All">
             <Lock className="h-4 w-4" />
           </ActionBtn>
           <ActionBtn onClick={() => handleLockToggle(false)} tip="Unlock All">
             <Unlock className="h-4 w-4" />
-          </ActionBtn>
-
-          <Divider />
-
-          <ActionBtn onClick={() => deleteSelected()} tip="Delete Selection" className="hover:bg-destructive/10 hover:text-destructive">
-            <Trash2 className="h-4 w-4" />
           </ActionBtn>
 
           <Divider />

@@ -2,6 +2,7 @@ import { memo, useState, useRef, useEffect, useMemo, useCallback, CSSProperties 
 import { getBezierPath, getSmoothStepPath, getStraightPath, EdgeLabelRenderer, type EdgeProps } from '@xyflow/react';
 import { X, Palette, Type, Zap, ZapOff, ArrowLeftRight, Copy, Sparkles, Columns2 } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvasStore';
+import { cn } from '@/lib/utils';
 
 interface EdgeData {
   lineStyle?: string;
@@ -507,7 +508,10 @@ export const CustomEdge = memo(({
                 Style
               </button>
               {showStylePicker && (
-                <div className="absolute left-0 top-7 z-50 flex flex-col gap-0.5 rounded-lg border border-border bg-card p-1.5 shadow-[var(--clay-shadow-sm)] animate-scale-in min-w-[130px] max-h-[320px] overflow-y-auto">
+                <div className={cn(
+                  "absolute top-7 z-50 flex flex-col gap-0.5 rounded-lg border border-border bg-card p-1.5 shadow-[var(--clay-shadow-sm)] animate-scale-in min-w-[130px] max-h-[60vh] overflow-y-auto",
+                  labelX + 150 > window.innerWidth ? "right-0" : "left-0"
+                )}>
                   {/* Line style */}
                   <span className="px-2 text-[9px] font-bold uppercase text-muted-foreground tracking-wider">Line</span>
                   {['solid', 'dashed', 'dotted'].map((s) => (
@@ -591,7 +595,10 @@ export const CustomEdge = memo(({
                 <div className="h-3 w-3 rounded-full" style={{ backgroundColor: edgeColor }} />
               </button>
               {showColorPicker && (
-                <div className="absolute left-1/2 -translate-x-1/2 top-7 z-50 flex flex-col gap-1.5 rounded-lg border border-border bg-card p-1.5 shadow-[var(--clay-shadow-sm)] animate-scale-in">
+                <div className={cn(
+                  "absolute top-7 z-50 flex flex-col gap-1.5 rounded-lg border border-border bg-card p-1.5 shadow-[var(--clay-shadow-sm)] animate-scale-in",
+                  labelX > window.innerWidth / 2 ? "right-0 translate-x-0" : "left-1/2 -translate-x-1/2"
+                )}>
                   <span className="px-1 text-[9px] font-bold uppercase text-muted-foreground tracking-wider">Color</span>
                   <div className="grid grid-cols-4 gap-1">
                     {EDGE_COLORS.map((c) => (

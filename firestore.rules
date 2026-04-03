@@ -10,8 +10,7 @@ service cloud.firestore {
 
     // --- Users Collection ---
     match /users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if request.auth != null && request.auth.uid == userId;
       // Admin overrides
       allow read, write, delete: if isAdmin();
     }
@@ -53,7 +52,20 @@ service cloud.firestore {
       // Only the owner or Admin can update or delete their workspace
       allow update, delete: if (request.auth != null && resource.data.get('user_id', '') == request.auth.uid) || isAdmin();
 
-      // --- Workspace Canvas Subcollections (nodes, edges, snapshots) ---
+      // --- Workspace Canvas Subcollections ---
+      match /presence/{userId} {
+        allow read: if getWorkspace().data.get('is_public', false) == true ||
+                    (request.auth != null && getWorkspace().data.get('user_id', '') == request.auth.uid) ||
+                    isParentSharedWithMe() ||
+                    isAdmin();
+        // Only the user themselves can write their presence
+        allow write: if request.auth != null && request.auth.uid == userId && (
+                    getWorkspace().data.get('user_id', '') == request.auth.uid ||
+                    isParentSharedWithMe() ||
+                    isAdmin()
+        );
+      }
+
       match /{subcollection}/{document=**} {
         // Function to get the parent workspace data
         function getWorkspace() {

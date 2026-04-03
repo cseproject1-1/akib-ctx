@@ -4,3 +4,15 @@ compatibility_date = "2024-03-09"
 
 [observability]
 enabled = true
+
+# Non-secret vars (safe to commit)
+[vars]
+FIREBASE_PROJECT_ID = "ctxnote-crytonix"
+
+# Secret vars — set via: wrangler secret put <NAME>
+# Required secrets:
+#   GEMINI_API_KEY
+#   R2_ACCESS_KEY_ID
+#   R2_SECRET_ACCESS_KEY
+#   R2_ENDPOINT
+#   R2_BUCKET_NAME

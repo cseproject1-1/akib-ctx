@@ -1,4 +1,4 @@
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useState, useRef } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { BaseNode } from './BaseNode';
@@ -16,35 +16,37 @@ export const ChecklistNode = memo(({ id, data, selected }: NodeProps) => {
   const items = Array.isArray(nodeData.items) ? nodeData.items : [];
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
+  const lastDragOverTime = useRef(0);
 
   const doneCount = items.filter((i) => i.done).length;
-  const progress = items.length > 0 ? (doneCount / items.length) * 100 : 0;
+  const progress = items.length > 0 ? Math.round((doneCount / items.length) * 100) : 0;
 
   const updateItems = useCallback(
     (newItems: NonNullable<ChecklistNodeData['items']>) => updateNodeData(id, { items: newItems }),
     [id, updateNodeData]
   );
 
-  const addItem = () => {
+  const addItem = useCallback(() => {
     if (items.length >= MAX_ITEMS) return;
     updateItems([...items, { id: crypto.randomUUID(), text: '', done: false }]);
-  };
+  }, [items, updateItems]);
 
-  const toggleItem = (itemId: string) => {
+  const toggleItem = useCallback((itemId: string) => {
     updateItems(items.map((i) => (i.id === itemId ? { ...i, done: !i.done } : i)));
-  };
+  }, [items, updateItems]);
 
-  const updateText = (itemId: string, text: string) => {
+  const updateText = useCallback((itemId: string, text: string) => {
+    if (text.length > 500) return;
     updateItems(items.map((i) => (i.id === itemId ? { ...i, text } : i)));
-  };
+  }, [items, updateItems]);
 
-  const removeItem = (itemId: string) => {
+  const removeItem = useCallback((itemId: string) => {
     if (items.length === 1) {
       updateItems([]);
     } else {
       updateItems(items.filter((i) => i.id !== itemId));
     }
-  };
+  }, [items, updateItems]);
 
   // CN1: Reset drag state on drag leave
   const handleDragLeave = useCallback((e: React.DragEvent) => {
@@ -58,16 +60,24 @@ export const ChecklistNode = memo(({ id, data, selected }: NodeProps) => {
     setDragIdx(idx);
   };
 
-  const handleDragOver = (e: React.DragEvent, idx: number) => {
+  const handleDragOver = useCallback((e: React.DragEvent, idx: number) => {
     e.preventDefault();
     e.stopPropagation();
     if (dragIdx === null || dragIdx === idx) return;
+    
+    // N49 fix: Throttle and only update if sequence actually changed
+    const now = Date.now();
+    if (now - lastDragOverTime.current < 50) return;
+    lastDragOverTime.current = now;
+
     const newItems = [...items];
     const [moved] = newItems.splice(dragIdx, 1);
     newItems.splice(idx, 0, moved);
+    
+    // Only trigger store update if the order changed
     updateItems(newItems);
     setDragIdx(idx);
-  };
+  }, [dragIdx, items, updateItems]);
 
   const handleDragEnd = (e: React.DragEvent) => {
     e.stopPropagation();
