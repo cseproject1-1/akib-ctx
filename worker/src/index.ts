@@ -40,18 +40,14 @@ const ALLOWED_PATTERNS = [
     /\.akib-ctx\.qzz\.io$/,
 ];
 
-// Permissive CORS middleware for dev and multi-domain testing
+// Relaxed CORS middleware to allow all origins
 app.use('*', cors({
-    origin: (origin) => {
-        // Allow all origins (return the origin itself to support credentials)
-        if (!origin) return '*';
-        return origin;
-    },
+    origin: '*',
     allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
     allowMethods: ['POST', 'GET', 'OPTIONS', 'PUT', 'DELETE'],
     exposeHeaders: ['Content-Length', 'X-R2-Request-Id'],
     maxAge: 86400, // Cache preflight results for 24 hours
-    credentials: true,
+    credentials: false,
 }));
 
 // Auth Middleware
