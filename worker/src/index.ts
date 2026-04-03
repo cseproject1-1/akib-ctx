@@ -26,16 +26,37 @@ const JWKS = createRemoteJWKSet(
     new URL('https://www.googleapis.com/robot/v1/metadata/jwk/securetoken@system.gserviceaccount.com')
 );
 
-// CORS
+// Allowed origins for CORS - update this list with your production domains
+const ALLOWED_ORIGINS = [
+    'https://ctxnote.app',
+    'https://www.akib-ctx.pro.bd',
+    'https://akib-ctx.pro.bd',
+];
+
+// CORS middleware with proper origin validation
 app.use('*', cors({
     origin: (origin) => {
-        // Restrict to app domains (example: localhost, ctxnote.app)
+        // Allow requests without origin (e.g., mobile apps, Postman)
         if (!origin) return '*';
-        if (origin.includes('localhost') || origin.includes('ctxnote.app') || origin.includes('lovable.app')) return origin;
-        return 'https://ctxnote.app'; // Default safe origin
+        
+        // Allow localhost for development
+        if (origin.includes('localhost') || origin.includes('127.0.0.1')) return origin;
+        
+        // Allow lovable.app for preview deployments
+        if (origin.includes('lovable.app')) return origin;
+        
+        // Check against allowed origins list
+        if (ALLOWED_ORIGINS.includes(origin)) return origin;
+        
+        // Log unexpected origin for debugging
+        console.warn(`Blocked origin: ${origin}`);
+        return 'https://ctxnote.app'; // Default safe origin for rejected requests
     },
-    allowHeaders: ['Content-Type', 'Authorization'],
-    allowMethods: ['POST', 'GET', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    allowMethods: ['POST', 'GET', 'OPTIONS', 'PUT', 'DELETE'],
+    exposeHeaders: ['Content-Length', 'X-R2-Request-Id'],
+    maxAge: 86400, // Cache preflight results for 24 hours
+    credentials: true,
 }));
 
 // Auth Middleware
