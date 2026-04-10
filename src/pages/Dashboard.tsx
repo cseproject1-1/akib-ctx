@@ -800,7 +800,7 @@ const Dashboard = () => {
                             <MoreHorizontal className="h-3.5 w-3.5" />
                           </button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-40 border border-border shadow-[var(--clay-shadow-sm)]">
+                        <DropdownMenuContent align="end" collisionPadding={16} className="w-40 border border-border shadow-[var(--clay-shadow-sm)]">
                           <DropdownMenuItem onClick={() => {
                             const newName = prompt('New folder name:', folder);
                             if (newName) handleRenameFolder(folder, newName);
@@ -1048,7 +1048,7 @@ const Dashboard = () => {
                           <MoreVertical className="h-4 w-4" />
                         </button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-48 max-h-[60vh] overflow-y-auto overflow-x-hidden border border-border/50 bg-card/95 backdrop-blur-xl shadow-xl rounded-xl">
+                      <DropdownMenuContent align="end" collisionPadding={16} className="w-56 max-h-[85vh] overflow-y-auto border border-border/50 bg-card/95 backdrop-blur-xl shadow-xl rounded-xl custom-scrollbar">
                         <DropdownMenuLabel className="text-xs font-semibold text-muted-foreground">Workspace Actions</DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={(e) => { e.stopPropagation(); toggleFavorite(ws.id); }}>

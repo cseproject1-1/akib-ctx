@@ -4,6 +4,8 @@ import { Workspace } from '@/types/canvas';
 import { chunkArray } from '@/lib/utils';
 import { deleteWorkspaceCache, deleteWorkspacePendingOps, cacheDel } from '@/lib/cache/indexedDB';
 
+export type { Workspace };
+
 
 /** Get all workspaces for the current user */
 export async function getWorkspaces(options: { excludeVault?: boolean; includeDeleted?: boolean } = {}): Promise<Workspace[]> {

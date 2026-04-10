@@ -1,4 +1,4 @@
-import { memo, useCallback, useState, useRef } from 'react';
+import { memo, useCallback, useState, useRef, useMemo } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { BaseNode } from './BaseNode';
@@ -13,7 +13,7 @@ export const ChecklistNode = memo(({ id, data, selected }: NodeProps) => {
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
   const nodeData = data as unknown as ChecklistNodeData;
   const title = nodeData.title || 'Checklist';
-  const items = Array.isArray(nodeData.items) ? nodeData.items : [];
+  const items = useMemo(() => Array.isArray(nodeData.items) ? nodeData.items : [], [nodeData.items]);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
   const lastDragOverTime = useRef(0);
@@ -126,13 +126,13 @@ export const ChecklistNode = memo(({ id, data, selected }: NodeProps) => {
       summary={`${doneCount}/${items.length} tasks done`}
     >
       <div className="flex flex-col gap-0 p-2">
-        {/* Progress bar */}
+        {/* Progress bar - subtle */}
         <div className="mb-2 flex items-center gap-2" role="progressbar" aria-valuenow={doneCount} aria-valuemin={0} aria-valuemax={items.length} aria-label={`${doneCount} of ${items.length} tasks completed`}>
           <Progress 
             value={progress} 
-            className={`h-2 flex-1 ${progress === 100 ? 'bg-green-500' : ''}`} 
+            className={`h-1.5 flex-1 ${progress === 100 ? 'bg-green-500/70' : ''}`} 
           />
-          <span className="text-[10px] font-bold text-muted-foreground">
+          <span className="text-[10px] font-medium text-muted-foreground/60">
             {doneCount}/{items.length}
           </span>
         </div>
@@ -140,12 +140,12 @@ export const ChecklistNode = memo(({ id, data, selected }: NodeProps) => {
         {/* Items */}
         <div className="flex flex-col gap-0.5" role="list" aria-label="Checklist items">
           {items.length === 0 && (
-            <p className="text-center text-[10px] text-muted-foreground/50 py-4">No items yet</p>
+            <p className="text-center text-[10px] text-muted-foreground/40 py-4">No items yet</p>
           )}
           {items.map((item, idx) => (
             <div
               key={item.id}
-              className={`group/item flex items-center gap-1 rounded px-1 py-1 hover:bg-accent focus-within:bg-accent ${dragIdx === idx ? 'opacity-50' : ''} ${focusedItemId === item.id ? 'ring-1 ring-primary' : ''}`}
+              className={`group/item flex items-center gap-1.5 rounded-md px-1.5 py-1 hover:bg-accent/50 focus-within:bg-accent ${dragIdx === idx ? 'opacity-50' : ''} ${focusedItemId === item.id ? 'ring-1 ring-primary/30' : ''}`}
               draggable
               onDragStart={(e) => handleDragStart(e, idx)}
               onDragOver={(e) => handleDragOver(e, idx)}
@@ -153,15 +153,14 @@ export const ChecklistNode = memo(({ id, data, selected }: NodeProps) => {
               onDragLeave={handleDragLeave}
               role="listitem"
             >
-              {/* Touch-friendly: always show grip on mobile */}
-              <GripVertical className="h-3 w-3 flex-shrink-0 cursor-grab text-muted-foreground opacity-0 group-hover/item:opacity-100 sm:opacity-0 touch:opacity-100" aria-hidden="true" />
+              <GripVertical className="h-3 w-3 flex-shrink-0 cursor-grab text-muted-foreground/40 opacity-0 group-hover/item:opacity-100 sm:opacity-0 touch:opacity-100" aria-hidden="true" />
               <button
                 onClick={(e) => { e.stopPropagation(); toggleItem(item.id); }}
                 onKeyDown={(e) => handleItemKeyDown(e, item.id, idx)}
-                className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+                className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                   item.done
-                    ? 'border-primary bg-primary text-primary-foreground'
-                    : 'border-border bg-transparent hover:border-primary/50'
+                    ? 'border-primary/60 bg-primary/20 text-primary'
+                    : 'border-border hover:border-primary/30'
                 }`}
                 aria-checked={item.done}
                 aria-label={`${item.done ? 'Mark as incomplete' : 'Mark as complete'}: ${item.text || 'Empty item'}`}
@@ -170,8 +169,8 @@ export const ChecklistNode = memo(({ id, data, selected }: NodeProps) => {
                 {item.done && <span className="text-[10px] font-bold">✓</span>}
               </button>
               <input
-                className={`flex-1 bg-transparent text-xs font-medium outline-none placeholder:text-muted-foreground ${
-                  item.done ? 'text-muted-foreground line-through' : 'text-foreground'
+                className={`flex-1 bg-transparent text-xs font-medium outline-none placeholder:text-muted-foreground/40 ${
+                  item.done ? 'text-muted-foreground/60 line-through' : 'text-foreground'
                 }`}
                 value={item.text}
                 onChange={(e) => updateText(item.id, e.target.value)}
@@ -185,7 +184,7 @@ export const ChecklistNode = memo(({ id, data, selected }: NodeProps) => {
               />
               <button
                 onClick={(e) => { e.stopPropagation(); removeItem(item.id); }}
-                className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover/item:opacity-100 sm:opacity-0 touch:opacity-100"
+                className="rounded p-0.5 text-muted-foreground/40 opacity-0 transition-opacity hover:text-destructive group-hover/item:opacity-100 sm:opacity-0 touch:opacity-100"
                 aria-label={`Remove item: ${item.text || 'empty'}`}
               >
                 <X className="h-3 w-3" />
@@ -194,15 +193,15 @@ export const ChecklistNode = memo(({ id, data, selected }: NodeProps) => {
           ))}
         </div>
 
-        {/* Add button - CN7: Always enabled but shows warning when max reached */}
+        {/* Add button */}
         <button
           onClick={(e) => { e.stopPropagation(); addItem(); }}
           disabled={items.length >= MAX_ITEMS}
-          className={`mt-4 rounded-lg border-2 p-2 text-center text-[10px] font-black uppercase tracking-widest transition-all hover:bg-accent/50 ${
+          className={`mt-3 rounded-lg border p-2 text-center text-[10px] font-medium transition-all hover:bg-accent/50 ${
             items.length >= MAX_ITEMS 
-              ? 'border-destructive/30 bg-destructive/10 text-destructive/50 cursor-not-allowed' 
-              : 'border-border bg-accent/30 text-muted-foreground'
-          } ${progress === 100 && items.length > 0 ? 'border-green/30 bg-green/10 text-green animate-bounce-subtle' : ''}`}
+              ? 'border-destructive/30 text-destructive/50 cursor-not-allowed' 
+              : 'border-border/50 text-muted-foreground/60'
+          } ${progress === 100 && items.length > 0 ? 'border-green/30 text-green/70' : ''}`}
           aria-label={items.length >= MAX_ITEMS ? `Maximum ${MAX_ITEMS} items reached` : 'Add new item'}
         >
           <Plus className="h-3 w-3 inline mr-1" /> Add item {items.length >= MAX_ITEMS && `(${MAX_ITEMS} max)`}

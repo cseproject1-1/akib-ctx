@@ -159,13 +159,11 @@ interface CanvasState {
   updateBacklinks: (sourceId: string, targetIds: string[]) => void;
   highlightedNodeIds: string[];
   setHighlightedNodes: (ids: string[]) => void;
-  isDeepWorkActive: boolean;
-  setDeepWorkActive: (active: boolean) => void;
-  scanContentForLinks: (sourceId: string, content: any) => void;
-  tidyUp: () => void;
-  toggleZoomOnScroll: () => void;
-  setActivePalette: (palette: 'search' | 'command' | 'action' | null) => void;
-  setActivePanel: (panel: CanvasState['activePanel']) => void;
+  clearNodePasteContent: (id: string) => void;
+  _recentlyPastedNodeIds: Set<string>;
+  markNodeAsRecentlyPasted: (id: string) => void;
+  _pendingDeleteNodeIds: Set<string>;
+  markNodeAsPendingDelete: (id: string) => void;
   _skipSyncTimeout: ReturnType<typeof setTimeout> | null;
   _loadCounter: number;
 
@@ -248,6 +246,8 @@ export const useCanvasStore = create<CanvasState>()(
   backlinks: {},
   hoveredLink: null,
   activePalette: null,
+  _recentlyPastedNodeIds: new Set(),
+  _pendingDeleteNodeIds: new Set(),
   activePanel: null,
   searchIndex: [],
   _contentBacklinks: {},
@@ -375,12 +375,13 @@ export const useCanvasStore = create<CanvasState>()(
   _loadCounter: 0,
   
   onNodesChange: (changes: NodeChange[]) => {
-    const { nodes, updateSearchIndex } = get();
+    const { nodes, updateSearchIndex, markNodeAsPendingDelete } = get();
     const removedIds = changes
       .filter((c) => c.type === 'remove')
       .map((c) => (c as { id: string }).id);
 
     if (removedIds.length > 0) {
+      removedIds.forEach(id => markNodeAsPendingDelete(id));
       const removedNodes = nodes.filter(n => removedIds.includes(n.id));
       removedNodes.forEach(node => {
         // Image node deletion
@@ -629,7 +630,7 @@ export const useCanvasStore = create<CanvasState>()(
     set({
       nodes: get().nodes.map((n) => {
         if (n.id === id) {
-          const nextData = { ...n.data, ...sanitizedData };
+          const nextData = { ...n.data, ...sanitizedData, updatedAt: new Date().toISOString() };
           // If locked is specified, sync it to React Flow top-level props
           const isLocked = !!nextData.locked;
           return { 
@@ -642,6 +643,38 @@ export const useCanvasStore = create<CanvasState>()(
         }
         return n;
       }),
+    });
+  },
+
+  clearNodePasteContent: (id) => {
+    set({
+      nodes: get().nodes.map((n) => 
+        n.id === id ? { ...n, data: { ...n.data, pasteContent: undefined, pasteFormat: undefined } } : n
+      )
+    });
+  },
+
+  markNodeAsRecentlyPasted: (id) => {
+    set((state) => {
+      const next = new Set(state._recentlyPastedNodeIds);
+      next.add(id);
+      return { _recentlyPastedNodeIds: next };
+    });
+    // Clear after 3 seconds - enough time for Firestore to settle
+    setTimeout(() => {
+      set((state) => {
+        const next = new Set(state._recentlyPastedNodeIds);
+        next.delete(id);
+        return { _recentlyPastedNodeIds: next };
+      });
+    }, 3000);
+  },
+
+  markNodeAsPendingDelete: (id) => {
+    set((state) => {
+      const next = new Set(state._pendingDeleteNodeIds);
+      next.add(id);
+      return { _pendingDeleteNodeIds: next };
     });
   },
 
@@ -962,9 +995,13 @@ export const useCanvasStore = create<CanvasState>()(
         ? { x: safeCursor.x + (n.position.x - minX), y: safeCursor.y + (n.position.y - minY) }
         : { x: n.position.x + 40, y: n.position.y + 40 };
       
+      const newNodeId = crypto.randomUUID();
+      // Protect from sync reverts immediately
+      get().markNodeAsRecentlyPasted(newNodeId);
+      
       return {
         ...structuredClone(n),
-        id: crypto.randomUUID(),
+        id: newNodeId,
         position: offset,
         selected: true,
       };

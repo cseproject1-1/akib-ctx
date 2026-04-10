@@ -1,392 +1,246 @@
 import { memo, useState, useCallback, useEffect, useRef } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
-import { Globe, ExternalLink, X, Expand, Loader2 } from 'lucide-react';
-import { WORKER_URL } from '@/lib/firebase/client';
+import { Globe, ExternalLink, X, LayoutGrid, MonitorPlay, RefreshCw, Loader2 } from 'lucide-react';
 import { EmbedNodeData } from '@/types/canvas';
-import { HANDLE_IDS } from '@/lib/constants/canvas';
+import { BaseNode } from './BaseNode';
+import { LinkPreview, LinkMetadata } from '@/components/canvas/LinkPreview';
+import { fetchLinkMetadata } from '@/lib/metadataService';
+import { getEmbedConfig, isRestrictedSite } from '@/lib/utils/embedUtils';
+import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
-interface UrlMetadata {
-  title: string | null;
-  description: string | null;
-  image: string | null;
-  favicon: string | null;
-  domain: string;
-}
-
-/** Convert known embeddable sites to their embed URLs */
-function getEmbedUrl(url: string): string | null {
-  // YouTube
-  const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/);
-  if (ytMatch) return `https://www.youtube.com/embed/${ytMatch[1]}?rel=0`;
-
-  // Vimeo
-  const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
-  if (vimeoMatch) return `https://player.vimeo.com/video/${vimeoMatch[1]}`;
-
-  // Google Docs
-  if (/docs\.google\.com\/(document|spreadsheets|presentation)\/d\//.test(url)) {
-    if (url.includes('/edit')) return url.replace(/\/edit.*$/, '/preview');
-    if (!url.includes('/preview') && !url.includes('/embed')) return url.replace(/\/?$/, '/preview');
-    return url;
-  }
-
-  // Figma
-  if (/figma\.com\/(file|design|proto)\//.test(url)) {
-    return `https://www.figma.com/embed?embed_host=lovable&url=${encodeURIComponent(url)}`;
-  }
-
-  // CodePen
-  const codepenMatch = url.match(/codepen\.io\/([^/]+)\/pen\/([^/?]+)/);
-  if (codepenMatch) return `https://codepen.io/${codepenMatch[1]}/embed/${codepenMatch[2]}?default-tab=result`;
-
-  // Loom
-  const loomMatch = url.match(/loom\.com\/share\/([a-zA-Z0-9]+)/);
-  if (loomMatch) return `https://www.loom.com/embed/${loomMatch[1]}`;
-
-  // Spotify (track, album, playlist, episode, show)
-  const spotifyMatch = url.match(/open\.spotify\.com\/(track|album|playlist|episode|show)\/([a-zA-Z0-9]+)/);
-  if (spotifyMatch) return `https://open.spotify.com/embed/${spotifyMatch[1]}/${spotifyMatch[2]}`;
-
-  // SoundCloud — use their oEmbed widget URL
-  if (/soundcloud\.com\/[^/]+\/[^/]+/.test(url)) {
-    return `https://w.soundcloud.com/player/?url=${encodeURIComponent(url)}&color=%23ff5500&auto_play=false&hide_related=true&show_comments=false&show_user=true&show_reposts=false&show_teaser=false&visual=true`;
-  }
-
-  // Twitter/X — single tweet embed
-  const tweetMatch = url.match(/(?:twitter\.com|x\.com)\/[^/]+\/status\/(\d+)/);
-  if (tweetMatch) return `https://platform.twitter.com/embed/Tweet.html?id=${tweetMatch[1]}&theme=dark`;
-
-  // Google Maps — already an embed link
-  if (/google\.com\/maps\/embed/.test(url)) return url;
-  // Google Maps — place or directions link → convert to embed
-  if (/google\.(com|[a-z]{2,3})\/maps/.test(url)) {
-    return `https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d0!2d0!3d0!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2z!5e0!3m2!1sen!2sus!4v1&q=${encodeURIComponent(url)}`;
-  }
-  // Google Maps shortlink
-  if (/maps\.app\.goo\.gl/.test(url) || /goo\.gl\/maps/.test(url)) {
-    return `https://maps.google.com/maps?q=${encodeURIComponent(url)}&output=embed`;
-  }
-
-  // Notion — public pages
-  if (/notion\.so\//.test(url) || /notion\.site\//.test(url)) {
-    // Notion public pages can be embedded directly
-    return url;
-  }
-
-  return null;
-}
-
-/** Sites known to block framing via CSP/frame-ancestors */
-const RESTRICTED_SITES = [
-  'claude.ai',
-  'chat.qwen.ai',
-  'chatgpt.com',
-  'openai.com',
-  'perplexity.ai',
-  'github.com',
-  'twitter.com',
-  'x.com',
-  'facebook.com',
-  'instagram.com',
-  'linkedin.com'
-];
-
-/** Check if this URL is from a known restricted site */
-function isKnownRestricted(url: string): boolean {
-  try {
-    const hostname = new URL(url).hostname.toLowerCase();
-    return RESTRICTED_SITES.some(site => hostname === site || hostname.endsWith('.' + site));
-  } catch {
-    return false;
-  }
-}
-
-/** Check if this URL is from a known embeddable provider */
-function isKnownEmbeddable(url: string): boolean {
-  return getEmbedUrl(url) !== null;
-}
-
+/**
+ * @component EmbedNode
+ * @description A versatile node that can show either a live website embed or a rich metadata bookmark card.
+ */
 export const EmbedNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const setExpandedNode = useCanvasStore((s) => s.setExpandedNode);
   const canvasMode = useCanvasStore((s) => s.canvasMode);
-  const nodeData = data as unknown as EmbedNodeData;
+  const nodeData = data as unknown as EmbedNodeData & { preferredMode?: 'embed' | 'bookmark' };
+  
   const [inputUrl, setInputUrl] = useState(nodeData.url || '');
   const [editing, setEditing] = useState(!nodeData.url);
-  const [iframeFailed, setIframeFailed] = useState(isKnownRestricted(nodeData.url || ''));
-  const [metadata, setMetadata] = useState<UrlMetadata | null>(null);
-  const [loadingMeta, setLoadingMeta] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [metadata, setMetadata] = useState<LinkMetadata | null>(null);
+  const [iframeFailed, setIframeFailed] = useState(false);
+  const [iframeLoading, setIframeLoading] = useState(true);
+  
   const iframeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const iframeLoadedRef = useRef(false);
-  const abortRef = useRef<AbortController | null>(null);
 
-  useEffect(() => {
-    return () => {
-      if (iframeTimerRef.current) clearTimeout(iframeTimerRef.current);
-      if (abortRef.current) abortRef.current.abort();
-    };
-  }, []);
+  // Sync mode with site restrictions
+  const currentMode = nodeData.preferredMode || (isRestrictedSite(nodeData.url || '') ? 'bookmark' : 'embed');
 
-  // Fetch metadata logic...
-  const fetchMetadata = useCallback(async (url: string) => {
-    if (abortRef.current) abortRef.current.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    setLoadingMeta(true);
+  const loadMetadata = useCallback(async (url: string) => {
+    setLoading(true);
     try {
-      const response = await fetch(`${WORKER_URL}/api/urlMetadata`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
-        signal: controller.signal,
-      });
-      if (!response.ok) throw new Error(`API error ${response.status}`);
-      const result = await response.json() as UrlMetadata;
-      if (result) {
-        setMetadata(result);
-      } else {
-        try {
-          const domain = new URL(url).hostname;
-          setMetadata({
-            title: domain,
-            description: null,
-            image: null,
-            favicon: `https://www.google.com/s2/favicons?domain=${domain}&sz=64`,
-            domain,
-          });
-        } catch { /* ignore */ }
+      const meta = await fetchLinkMetadata(url);
+      setMetadata(meta);
+      if (meta.title && !nodeData.title) {
+        updateNodeData(id, { title: meta.title });
       }
-    } catch (err: any) {
-      if (err?.name !== 'AbortError') {
-        try {
-          const domain = new URL(url).hostname;
-          setMetadata({
-            title: domain,
-            description: null,
-            image: null,
-            favicon: `https://www.google.com/s2/favicons?domain=${domain}&sz=64`,
-            domain,
-          });
-        } catch { /* ignore */ }
-      }
+    } catch (err) {
+      console.error('Metadata load error:', err);
     } finally {
-      if (abortRef.current === controller) {
-        setLoadingMeta(false);
-      }
+      setLoading(false);
     }
-  }, []);
+  }, [id, nodeData.title, updateNodeData]);
 
-  // Handle restricted sites on mount or data change
   useEffect(() => {
-    if (nodeData.url && isKnownRestricted(nodeData.url) && !metadata && !loadingMeta) {
-      setIframeFailed(true);
-      fetchMetadata(nodeData.url);
+    if (nodeData.url && (currentMode === 'bookmark' || iframeFailed)) {
+      loadMetadata(nodeData.url);
     }
-  }, [nodeData.url, metadata, loadingMeta, fetchMetadata]);
+  }, [nodeData.url, currentMode, iframeFailed, loadMetadata]);
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = useCallback((e?: React.FormEvent) => {
+    e?.preventDefault();
     let url = inputUrl.trim();
     if (!url) return;
     if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    
     updateNodeData(id, { url, title: nodeData.title || url });
     setEditing(false);
-    
-    const isRestricted = isKnownRestricted(url);
-    setIframeFailed(isRestricted);
-    setMetadata(null);
-    iframeLoadedRef.current = false;
-    
-    if (isRestricted) {
-      fetchMetadata(url);
-    }
-  }, [id, inputUrl, nodeData.title, updateNodeData, fetchMetadata]);
+    setIframeFailed(isRestrictedSite(url));
+    setIframeLoading(true);
+  }, [id, inputUrl, nodeData.title, updateNodeData]);
+
+  const handleToggleMode = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newMode = currentMode === 'embed' ? 'bookmark' : 'embed';
+    updateNodeData(id, { preferredMode: newMode } as any);
+    toast.info(`Switched to ${newMode} mode`);
+  }, [currentMode, id, updateNodeData]);
 
   const handleClear = useCallback(() => {
-    updateNodeData(id, { url: '', title: '' });
+    updateNodeData(id, { url: '', title: '', preferredMode: undefined } as any);
     setInputUrl('');
     setEditing(true);
-    setIframeFailed(false);
     setMetadata(null);
+    setIframeFailed(false);
   }, [id, updateNodeData]);
 
-  // Timer to detect iframe blocking for non-known-embeddable URLs
+  // Iframe error detection
   useEffect(() => {
-    if (!nodeData.url || editing || isKnownEmbeddable(nodeData.url) || isKnownRestricted(nodeData.url)) return;
-
+    if (currentMode !== 'embed' || !nodeData.url || editing) return;
+    
+    setIframeLoading(true);
     iframeLoadedRef.current = false;
-    setIframeFailed(false);
-
-    iframeTimerRef.current = setTimeout(() => {
-      if (!iframeLoadedRef.current) {
-        setIframeFailed(true);
-        fetchMetadata(nodeData.url!);
-      }
-    }, 2000); // Reduced from 4000ms
+    
+    if (iframeTimerRef.current) clearTimeout(iframeTimerRef.current);
+    
+    // If not a known embeddable site, start a timer to detect failure
+    const embedConfig = getEmbedConfig(nodeData.url);
+    if (!embedConfig) {
+      iframeTimerRef.current = setTimeout(() => {
+        if (!iframeLoadedRef.current) {
+          setIframeFailed(true);
+          setIframeLoading(false);
+        }
+      }, 3000);
+    }
 
     return () => {
       if (iframeTimerRef.current) clearTimeout(iframeTimerRef.current);
     };
-  }, [nodeData.url, editing, fetchMetadata]);
+  }, [nodeData.url, currentMode, editing]);
 
-  const handleIframeLoad = useCallback(() => {
-    iframeLoadedRef.current = true;
-    if (iframeTimerRef.current) clearTimeout(iframeTimerRef.current);
-    setIframeFailed(false);
-  }, []);
-
-  const handleIframeError = useCallback(() => {
-    if (iframeTimerRef.current) clearTimeout(iframeTimerRef.current);
-    setIframeFailed(true);
-    if (nodeData.url) fetchMetadata(nodeData.url);
-  }, [nodeData.url, fetchMetadata]);
-
-  const embedUrl = nodeData.url ? getEmbedUrl(nodeData.url) : null;
-  const finalIframeSrc = (embedUrl || nodeData.url) ?? '';
+  const embedConfig = nodeData.url ? getEmbedConfig(nodeData.url) : null;
+  const iframeSrc = embedConfig?.embedUrl || nodeData.url || '';
 
   return (
-    <div
-      className={`group relative flex h-full w-full flex-col overflow-hidden rounded-xl border bg-card transition-shadow animate-node-appear ${selected ? 'border-primary shadow-[var(--clay-shadow-md)]' : 'border-border shadow-[var(--clay-shadow-sm)]'
-        }`}
-    >
-      {/* Header */}
-      <div className="flex items-center gap-2 border-b border-border px-3 py-2 cursor-grab active:cursor-grabbing">
-        <Globe className="h-4 w-4 text-cyan" />
-        <span className="flex-1 truncate text-xs font-bold uppercase tracking-wider text-foreground">
-          {nodeData.url ? (nodeData.title || 'Embed') : 'Embed URL'}
-        </span>
-        {nodeData.url && (
+    <BaseNode
+      id={id}
+      title={nodeData.title || 'Embed'}
+      icon={<Globe className="h-4 w-4 text-cyan" />}
+      selected={selected}
+      onTitleChange={(t) => updateNodeData(id, { title: t })}
+      bodyClassName="p-0 flex flex-col min-h-[160px]"
+      nodeType="embed"
+      onMenuClick={(e) => useCanvasStore.getState().setNodeContextMenu({ x: e.clientX, y: e.clientY, nodeId: id })}
+      headerExtra={
+        nodeData.url && (
           <div className="flex items-center gap-1">
             <button
-              onClick={(e) => { e.stopPropagation(); setExpandedNode(id); }}
-              className="rounded p-0.5 text-muted-foreground transition-colors hover:text-primary"
-              title="Fullscreen"
+              onClick={handleToggleMode}
+              className={cn(
+                "rounded-md p-1 transition-all hover:bg-white/10",
+                currentMode === 'bookmark' ? "text-primary bg-primary/10" : "text-muted-foreground/60"
+              )}
+              title={currentMode === 'embed' ? "Switch to Bookmark Card" : "Switch to Live Embed"}
             >
-              <Expand className="h-3.5 w-3.5" />
+              {currentMode === 'embed' ? <LayoutGrid className="h-3.5 w-3.5" /> : <MonitorPlay className="h-3.5 w-3.5" />}
             </button>
-            <a
-              href={nodeData.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded p-0.5 text-muted-foreground transition-colors hover:text-primary"
-              onClick={(e) => e.stopPropagation()}
+            <button
+              onClick={(e) => { e.stopPropagation(); loadMetadata(nodeData.url!); }}
+              className="rounded-md p-1 text-muted-foreground/60 hover:bg-white/10 hover:text-foreground"
+              title="Refresh Metadata"
             >
-              <ExternalLink className="h-3.5 w-3.5" />
-            </a>
+              <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+            </button>
             {!nodeData.locked && canvasMode === 'edit' && (
-              <button
-                onClick={handleClear}
-                className="rounded p-0.5 text-muted-foreground transition-colors hover:text-destructive"
+              <button 
+                onClick={(e) => { e.stopPropagation(); handleClear(); }} 
+                className="rounded-md p-1 text-muted-foreground/60 hover:bg-destructive/10 hover:text-destructive"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
             )}
           </div>
-        )}
-      </div>
-
-      {/* Content */}
-      <div className="flex-1" onClick={(e) => e.stopPropagation()}>
+        )
+      }
+    >
+      <div className="flex-1 overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {editing || !nodeData.url ? (
-          <div className="flex h-full flex-col items-center justify-center gap-3 p-4">
-            <Globe className="h-8 w-8 text-muted-foreground" />
-            <input
-              className="w-full rounded-lg border-2 border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-primary"
-              placeholder="https://example.com"
-              value={inputUrl}
-              onChange={(e) => setInputUrl(e.target.value)}
-              onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') handleSubmit(); }}
-              onClick={(e) => e.stopPropagation()}
-            />
-            <button
-              onClick={handleSubmit}
-              className="brutal-btn rounded-lg bg-primary px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-primary-foreground"
-            >
-              Embed
-            </button>
-          </div>
-        ) : iframeFailed ? (
-          /* Link Preview Fallback */
-          <div className="flex h-full flex-col items-center justify-center gap-3 p-4">
-            {loadingMeta ? (
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            ) : metadata ? (
-              <div className="flex w-full flex-col gap-3 overflow-hidden">
-                {metadata.image && (
-                  <div className="w-full overflow-hidden rounded-lg border-2 border-border">
-                    <img
-                      src={metadata.image}
-                      alt={metadata.title || ''}
-                      className="h-28 w-full object-cover"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                    />
-                  </div>
-                )}
-                <div className="flex items-center gap-2">
-                  <img
-                    src={metadata.favicon || `https://www.google.com/s2/favicons?domain=${metadata.domain}&sz=64`}
-                    alt=""
-                    className="h-5 w-5 rounded"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                  />
-                  <span className="text-xs text-muted-foreground">{metadata.domain}</span>
-                </div>
-                <h4 className="text-sm font-bold text-foreground line-clamp-2">{metadata.title}</h4>
-                {metadata.description && (
-                  <p className="text-xs text-muted-foreground line-clamp-3">{metadata.description}</p>
-                )}
-                <a
-                  href={nodeData.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-1 flex items-center justify-center gap-2 rounded-lg border-2 border-border bg-background px-4 py-2 text-xs font-bold uppercase tracking-wider text-foreground transition-colors hover:border-primary hover:text-primary"
-                >
-                  Open in New Tab
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-                <p className="text-center text-[10px] text-muted-foreground">
-                  This site doesn't allow embedding
-                </p>
-              </div>
+          <form onSubmit={handleSubmit} className="flex h-full flex-col items-center justify-center gap-4 p-6 bg-accent/5">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+              <Globe className="h-6 w-6" />
+            </div>
+            <div className="w-full space-y-2">
+              <input
+                className="w-full rounded-xl border border-border/50 bg-background/50 px-4 py-3 text-sm text-foreground outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20 backdrop-blur-sm"
+                placeholder="Paste a URL (YouTube, Figma, Twitter, etc.)"
+                autoFocus
+                value={inputUrl}
+                onChange={(e) => setInputUrl(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}
+              />
+              <button
+                type="submit"
+                disabled={!inputUrl.trim()}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:translate-y-[-2px] hover:shadow-xl active:translate-y-0 disabled:opacity-50"
+              >
+                Create Embed
+              </button>
+            </div>
+          </form>
+        ) : (currentMode === 'bookmark' || iframeFailed) ? (
+          <div className="h-full p-2 bg-gradient-to-br from-accent/5 to-primary/5">
+            {metadata ? (
+              <LinkPreview 
+                metadata={metadata} 
+                isLoading={loading} 
+                className="h-full border-0 !bg-transparent !backdrop-blur-none"
+              />
             ) : (
-              <div className="flex flex-col items-center gap-2">
-                <Globe className="h-8 w-8 text-muted-foreground" />
-                <p className="text-xs text-muted-foreground">Could not embed this site</p>
-                <a
-                  href={nodeData.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 rounded-lg border-2 border-border bg-background px-4 py-2 text-xs font-bold uppercase tracking-wider text-foreground transition-colors hover:border-primary hover:text-primary"
-                >
-                  Open in New Tab
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
+              <div className="flex h-full flex-col items-center justify-center gap-3 p-4 text-center">
+                {loading ? (
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                ) : (
+                  <>
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                      <X className="h-5 w-5" />
+                    </div>
+                    <p className="text-[11px] font-medium text-muted-foreground">
+                      {iframeFailed ? "This site prevents embedding. Showing as bookmark." : "Loading preview..."}
+                    </p>
+                    <a 
+                      href={nodeData.url} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="flex items-center gap-1.5 text-[10px] font-bold text-primary hover:underline"
+                    >
+                      Open in New Tab <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </>
+                )}
               </div>
             )}
           </div>
         ) : (
-          <iframe
-            src={finalIframeSrc}
-            title={nodeData.title || 'Embedded content'}
-            className="h-full w-full border-0"
-            sandbox="allow-scripts allow-popups allow-forms"
-            loading="lazy"
-            onLoad={handleIframeLoad}
-            onError={handleIframeError}
-          />
+          <div className="relative h-full w-full group">
+            {iframeLoading && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-card/60 backdrop-blur-sm z-10 transition-opacity duration-300">
+                <div className="relative">
+                  <div className="absolute inset-0 animate-ping rounded-full bg-primary/20" />
+                  <Loader2 className="relative h-8 w-8 animate-spin text-primary" />
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50">Securely Connecting</span>
+              </div>
+            )}
+            <iframe
+              src={iframeSrc}
+              title={nodeData.title || 'Embed'}
+              className={cn(
+                "h-full w-full border-0 transition-all duration-700",
+                iframeLoading ? "scale-[0.98] opacity-0" : "scale-100 opacity-100"
+              )}
+              sandbox="allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-same-origin allow-scripts allow-presentation"
+
+              loading="lazy"
+              onLoad={() => {
+                setIframeLoading(false);
+                iframeLoadedRef.current = true;
+              }}
+              onError={() => {
+                setIframeLoading(false);
+                setIframeFailed(true);
+              }}
+            />
+          </div>
         )}
       </div>
-
-      <Handle type="target" position={Position.Top} id={HANDLE_IDS.TARGET.TOP} className="!-top-1.5 !opacity-0 group-hover:!opacity-100" />
-      <Handle type="source" position={Position.Top} id={HANDLE_IDS.SOURCE.TOP} className="!-top-1.5 !opacity-0 group-hover:!opacity-100" />
-      <Handle type="target" position={Position.Bottom} id={HANDLE_IDS.TARGET.BOTTOM} className="!-bottom-1.5 !opacity-0 group-hover:!opacity-100" />
-      <Handle type="source" position={Position.Bottom} id={HANDLE_IDS.SOURCE.BOTTOM} className="!-bottom-1.5 !opacity-0 group-hover:!opacity-100" />
-      <Handle type="target" position={Position.Left} id={HANDLE_IDS.TARGET.LEFT} className="!-left-1.5 !opacity-0 group-hover:!opacity-100" />
-      <Handle type="source" position={Position.Left} id={HANDLE_IDS.SOURCE.LEFT} className="!-left-1.5 !opacity-0 group-hover:!opacity-100" />
-      <Handle type="target" position={Position.Right} id={HANDLE_IDS.TARGET.RIGHT} className="!-right-1.5 !opacity-0 group-hover:!opacity-100" />
-      <Handle type="source" position={Position.Right} id={HANDLE_IDS.SOURCE.RIGHT} className="!-right-1.5 !opacity-0 group-hover:!opacity-100" />
-    </div>
+    </BaseNode>
   );
 });
 

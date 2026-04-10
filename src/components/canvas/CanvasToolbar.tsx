@@ -423,17 +423,63 @@ export function CanvasToolbar() {
           <TipBtn tip="Rename Workspace" onClick={handleRenameWorkspace} className="pro-btn rounded-xl glass-effect p-2.5 text-muted-foreground/60 transition-all hover:text-primary hover:border-primary/20 hover:bg-primary/5">
             <Edit2 className="h-4 w-4" />
           </TipBtn>
-          <div className={cn(
-            "flex items-center gap-2 rounded-xl border border-white/5 glass-effect px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.15em] transition-all",
-            !isOnline ? 'text-amber-500 border-amber-500/20 bg-amber-500/5' :
-            saveStatus === 'saved' ? 'text-primary' : saveStatus === 'error' ? 'text-destructive' : 'text-muted-foreground/40'
-          )} title={!isOnline ? 'You are offline — changes are saved locally' : lastSavedAt ? `Last saved ${lastSavedLabel}` : undefined}>
-            {!isOnline && <><WifiOff className="h-3.5 w-3.5 text-amber-500" />{!isMobile && <span className="pt-0.5">Offline</span>}</>}
-            {isOnline && saveStatus === 'saving' && <><Save className="h-3.5 w-3.5 animate-pulse text-primary" />{!isMobile && <span className="pt-0.5">Saving…</span>}</>}
-            {isOnline && saveStatus === 'saved' && <><CheckCircle className="h-3.5 w-3.5 text-primary animate-scale-in" />{!isMobile && <span className="animate-fade-in pt-0.5">{lastSavedLabel || 'Synced'}</span>}</>}
-            {isOnline && saveStatus === 'error' && <><AlertCircle className="h-3.5 w-3.5 text-destructive animate-bounce-in" />{!isMobile && <span className="pt-0.5">Error</span>}</>}
-            {isOnline && saveStatus === 'idle' && <><Save className="h-3.5 w-3.5" /></>}
-          </div>
+          {/* Premium Sync Status Indicator - "Pro" Approach */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className={cn(
+                "flex items-center gap-1.5 rounded-xl border border-white/5 glass-morphism-light px-3 py-2 cursor-help transition-all duration-300 hover:border-primary/30 hover:bg-primary/5",
+                !isOnline ? 'text-amber-500 border-amber-500/20 bg-amber-500/5' :
+                saveStatus === 'saved' ? 'text-primary' : saveStatus === 'error' ? 'text-destructive' : 'text-muted-foreground/40'
+              )}>
+                {!isOnline && <WifiOff className="h-3.5 w-3.5" />}
+                {isOnline && saveStatus === 'saving' && <Save className="h-3.5 w-3.5 animate-pulse" />}
+                {isOnline && (saveStatus === 'saved' || saveStatus === 'idle') && (
+                  <motion.div
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    key="saved-icon"
+                  >
+                    <CheckCircle className="h-3.5 w-3.5 text-primary" />
+                  </motion.div>
+                )}
+                {isOnline && saveStatus === 'error' && <AlertCircle className="h-3.5 w-3.5" />}
+                
+                {/* Minimalist label - only show "Saving" when active, otherwise let tooltip handle "Saved X ago" */}
+                <AnimatePresence mode="wait">
+                  {saveStatus === 'saving' && !isMobile && (
+                    <motion.span 
+                      initial={{ opacity: 0, x: -5 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 5 }}
+                      className="text-[9px] font-bold uppercase tracking-wider pt-0.5"
+                    >
+                      Saving
+                    </motion.span>
+                  )}
+                  {saveStatus === 'saved' && !isMobile && (
+                    <motion.span 
+                      initial={{ opacity: 0, x: -5 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="text-[9px] font-medium text-primary/60 tracking-wide pt-0.5"
+                    >
+                      Synced
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="premium-tooltip" sideOffset={8}>
+              {!isOnline 
+                ? 'Offline — Changes saved to local cache' 
+                : saveStatus === 'saved' 
+                  ? `Everything synced ${lastSavedLabel ? `· ${lastSavedLabel}` : ''}`
+                  : saveStatus === 'saving' 
+                    ? 'Syncing changes to cloud...' 
+                    : saveStatus === 'error' 
+                      ? 'Sync error — check your connection' 
+                      : 'Idle'}
+            </TooltipContent>
+          </Tooltip>
 
           <TipBtn
             tip={pendingCount > 0 ? `${pendingCount} unsynced change${pendingCount > 1 ? 's' : ''} — click to sync now` : "All changes synced to cloud"}

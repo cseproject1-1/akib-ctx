@@ -88,12 +88,12 @@ export const LectureNotesNode = memo(({ id, data, selected }: NodeProps) => {
       />
 
       {backlinks.length > 0 && (
-        <div className="mt-2 px-3 py-2 border-t border-white/5 bg-white/5 rounded-xl">
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <Link2 className="h-2.5 w-2.5 text-primary/60" />
-            <span className="text-[9px] font-black uppercase tracking-wider text-primary/40">Linked From</span>
+        <div className="mt-auto px-4 py-3 border-t border-white/5 bg-gradient-to-b from-transparent to-white/[0.02]">
+          <div className="flex items-center gap-2 mb-2 opacity-40 group-hover:opacity-100 transition-opacity">
+            <Link2 className="h-3 w-3 text-primary" />
+            <span className="text-[10px] font-black uppercase tracking-[0.1em] text-foreground/80">Backlinks</span>
           </div>
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap gap-1.5">
             {backlinks.map(sourceId => {
               const sourceNode = allNodes.find(n => n.id === sourceId);
               const title = (sourceNode?.data as any)?.title || (sourceNode?.data as any)?.label || 'Untitled Node';
@@ -101,9 +101,12 @@ export const LectureNotesNode = memo(({ id, data, selected }: NodeProps) => {
                 <button
                   key={sourceId}
                   onClick={(e) => { e.stopPropagation(); setFocusedNodeId(sourceId); }}
-                  className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-white/5 hover:bg-primary/20 transition-all border border-white/5"
+                  className="group/link flex items-center gap-2 px-2 py-1 rounded-md bg-white/5 hover:bg-primary/10 transition-all border border-transparent hover:border-primary/20"
                 >
-                  <span className="text-[9px] font-medium text-muted-foreground hover:text-primary transition-colors truncate max-w-[120px]" title={title}>{title}</span>
+                  <div className="w-1 h-1 rounded-full bg-primary/40 group-hover/link:bg-primary transition-colors" />
+                  <span className="text-[10px] font-semibold text-muted-foreground group-hover/link:text-foreground transition-colors truncate max-w-[150px]" title={title}>
+                    {title}
+                  </span>
                 </button>
               );
             })}

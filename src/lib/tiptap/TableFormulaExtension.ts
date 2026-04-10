@@ -38,13 +38,19 @@ export const TableFormulaExtension = Extension.create({
   },
 });
 
+import { evaluate } from 'mathjs';
+
 function evaluateFormula(formula: string, doc: any, cellPos: number): string {
   const expression = formula.replace(/^=/, '').trim();
   try {
-    const cleanExpr = expression.replace(/[^-+*/().\d]/g, '');
-    const result = eval(cleanExpr);
+    // Basic sanitization: only allow math characters for now
+    const cleanExpr = expression.replace(/[^-+*/().\d\s]/g, '');
+    if (!cleanExpr) return '';
+    
+    const result = evaluate(cleanExpr);
     return String(result);
   } catch {
     return '#ERROR!';
   }
 }
+

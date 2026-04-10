@@ -2,6 +2,7 @@ import { ReactFlowProvider } from '@xyflow/react';
 import { CanvasWrapper } from '@/components/canvas/CanvasWrapper';
 import { useParams } from 'react-router-dom';
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { debounce as debounceFn } from 'lodash-es';
 import { useCanvasStore } from '@/store/canvasStore';
 import { useVaultStore } from '@/store/vaultStore';
 import {
@@ -186,26 +187,30 @@ const WorkspacePage = () => {
     let nodesUnsub: (() => void) | null = null;
     let edgesUnsub: (() => void) | null = null;
 
-    nodesUnsub = subscribeCanvasNodes(workspaceId, (freshNodes) => {
+    nodesUnsub = subscribeCanvasNodes(workspaceId, debounceFn((freshNodes) => {
       if (!loadComplete.current) return;
-      const { nodes: currentNodes, edges: currentEdges } = useCanvasStore.getState();
+      const { nodes: currentNodes, edges: currentEdges, _dirtyNodeDataIds: dirtyIds, _recentlyPastedNodeIds: pastedIds, _pendingDeleteNodeIds: storePendingDeletes } = useCanvasStore.getState();
 
       if (freshNodes.length === 0 && currentNodes.length > 0 && !navigator.onLine) {
         console.warn('[sync] Ignoring empty node update while offline');
         return;
       }
 
-      // Filter out nodes that are currently being deleted
+      // Filter out nodes that are currently being deleted (checking both local ref and store flag)
       const filteredFreshNodes = freshNodes.filter(fn => {
-        if (pendingNodeDeletes.current.has(fn.id)) {
-          console.log(`[sync] Skipping restoration of pending delete node: ${fn.id}`);
+        if (pendingNodeDeletes.current.has(fn.id) || storePendingDeletes.has(fn.id)) {
           return false;
         }
         return true;
       });
       
-      const dirtyIds = useCanvasStore.getState()._dirtyNodeDataIds;
       const mergedNodes = filteredFreshNodes.map(fn => {
+        // NM-FIX: Protection for recently pasted nodes - ignore server version for a window
+        if (pastedIds.has(fn.id)) {
+          const localNode = currentNodes.find(n => n.id === fn.id);
+          if (localNode) return localNode;
+        }
+
         if (dirtyIds.has(fn.id)) {
           const localNode = currentNodes.find(n => n.id === fn.id);
           if (localNode) {
@@ -227,7 +232,7 @@ const WorkspacePage = () => {
       // Retain new local nodes that haven't been picked up by the server yet
       const freshNodeIds = new Set(filteredFreshNodes.map(n => n.id));
       const localOnlyNodes = currentNodes.filter(cn => 
-        !freshNodeIds.has(cn.id) && !serverNodeIds.current.has(cn.id) && !pendingNodeDeletes.current.has(cn.id)
+        !freshNodeIds.has(cn.id) && !serverNodeIds.current.has(cn.id) && !pendingNodeDeletes.current.has(cn.id) && !storePendingDeletes.has(cn.id)
       );
       
       const finalMergedNodes = [...mergedNodes, ...localOnlyNodes];
@@ -242,9 +247,9 @@ const WorkspacePage = () => {
           cacheSet('canvas-nodes', workspaceId, finalMergedNodes);
         });
       }
-    });
+    }, 150)); // 150ms settle delay to prevent rebound race conditions
 
-    edgesUnsub = subscribeCanvasEdges(workspaceId, (freshEdges) => {
+    edgesUnsub = subscribeCanvasEdges(workspaceId, debounceFn((freshEdges) => {
       if (!loadComplete.current) return;
       const { edges: currentEdges, nodes } = useCanvasStore.getState();
 
@@ -280,7 +285,7 @@ const WorkspacePage = () => {
           cacheSet('canvas-edges', workspaceId, finalMergedEdges);
         });
       }
-    });
+    }, 150));
 
     const cursorsUnsub = subscribeCursors(workspaceId, (freshCursors) => {
       const { cursors } = useCanvasStore.getState();
@@ -413,10 +418,19 @@ const WorkspacePage = () => {
           styleTimers.current.delete(pNode.id);
           
           // Deletion Guard: Prevent snapshot restoration until server confirms delete
+          // NM-FIX: Mark in store immediately to block debounced snapshots
+          const { markNodeAsPendingDelete } = useCanvasStore.getState();
+          markNodeAsPendingDelete(pNode.id);
           pendingNodeDeletes.current.add(pNode.id);
-          trackSave(deleteCanvasNode(workspaceId, pNode.id).finally(() => {
-            pendingNodeDeletes.current.delete(pNode.id);
-          }));
+          
+          // NM-FIX-5: Small delay before server sync to let local flags settle
+          setTimeout(() => {
+            trackSave(deleteCanvasNode(workspaceId, pNode.id).finally(() => {
+              pendingNodeDeletes.current.delete(pNode.id);
+              // Store flag will be cleared on next full state change or we can leave it
+              // actually the filter checks both, so it's safe.
+            }));
+          }, 50);
         }
       });
 

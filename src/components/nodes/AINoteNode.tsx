@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { extractText } from '../../lib/utils/contentParser';
 
 // Bug 16: Extract debounce delay to constant for configurability
-const CONTENT_DEBOUNCE_MS = 800;
+const CONTENT_DEBOUNCE_MS = 400; // NM-PERF-1: Reduced from 800ms for better response
 const QUICK_DEBOUNCE_MS = 300;
 
 // Allowed keys for extraData validation (Bug 9, 30)
@@ -108,6 +108,7 @@ class ErrorCatcher extends React.Component<
 export const AINoteNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const scanContentForLinks = useCanvasStore((s) => s.scanContentForLinks);
+  const clearNodePasteContent = useCanvasStore((s) => s.clearNodePasteContent);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
   const nodeData = data as AINoteNodeData;
 
@@ -155,22 +156,25 @@ export const AINoteNode = memo(({ id, data, selected }: NodeProps) => {
   }, []);
 
   // Bug 8, 9, 16, 20, 30: Content change handler with validation and cleanup
+  // NM-FIX: Remove scanContentForLinks from deps to prevent recreation loop
   const handleContentChange = useCallback((json: JSONContent, extraData?: Record<string, unknown>) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       if (!mountedRef.current) return;
-      // Bug 9, 30: Validate extraData
+      
       const safeExtra = validateExtraData(extraData);
-      // Bug 20: Clear paste content after first use
+      
+      // NM-FIX: Use clearNodePasteContent action for consistent results
       updateNodeData(id, {
         content: json,
-        pasteContent: undefined,
-        pasteFormat: undefined,
         ...safeExtra,
       });
-      scanContentForLinks(id, json);
+      clearNodePasteContent(id);
+      
+      // Use ref-like stable identity for scanContentForLinks from store
+      useCanvasStore.getState().scanContentForLinks(id, json);
     }, CONTENT_DEBOUNCE_MS);
-  }, [id, updateNodeData, scanContentForLinks]);
+  }, [id, updateNodeData, clearNodePasteContent]);
 
   // Bug 12: Debounced progress updates
   const handleProgressChange = useCallback((progress: number | undefined) => {
@@ -192,7 +196,7 @@ export const AINoteNode = memo(({ id, data, selected }: NodeProps) => {
 
   // Bug 11: Use stable string dependency for useMemo
   const contentKey = useMemo(() => safeJsonStringify(nodeData.content), [nodeData.content]);
-  const stats = useMemo(() => countWords(nodeData.content), [contentKey]);
+  const stats = useMemo(() => countWords(nodeData.content), [contentKey, nodeData.content]);
   
   // Bug 25: Show stats even for empty nodes (0 chars) - Compact technical format
   const footerStats = useMemo(() => {
@@ -292,20 +296,22 @@ export const AINoteNode = memo(({ id, data, selected }: NodeProps) => {
       </EditorErrorBoundary>
 
       {backlinks.length > 0 && backlinkTitles.length > 0 && (
-        <div className="mt-2 px-3 py-2 border-t border-white/5 bg-white/5 rounded-xl">
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <Link2 className="h-2.5 w-2.5 text-primary/60" />
-            <span className="text-[9px] font-black uppercase tracking-wider text-primary/40">Linked From</span>
+        <div className="mt-auto px-4 py-3 border-t border-white/5 bg-gradient-to-b from-transparent to-white/[0.02]">
+          <div className="flex items-center gap-2 mb-2 opacity-40 group-hover:opacity-100 transition-opacity">
+            <Link2 className="h-3 w-3 text-primary" />
+            <span className="text-[10px] font-black uppercase tracking-[0.1em] text-foreground/80">Backlinks</span>
           </div>
-          <div className="flex flex-wrap gap-1">
-            {/* Bug 19, 29: Efficient lookup + expand collapsed on click */}
+          <div className="flex flex-wrap gap-1.5">
             {backlinkTitles.map(({ id: sourceId, title, collapsed: isCollapsed }) => (
               <button
                 key={sourceId}
                 onClick={(e) => handleBacklinkClick(sourceId, isCollapsed, e)}
-                className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-white/5 hover:bg-primary/20 transition-all border border-white/5"
+                className="group/link flex items-center gap-2 px-2 py-1 rounded-md bg-white/5 hover:bg-primary/10 transition-all border border-transparent hover:border-primary/20"
               >
-                <span className="text-[9px] font-medium text-muted-foreground hover:text-primary transition-colors truncate max-w-[120px]" title={title}>{title}</span>
+                <div className="w-1 h-1 rounded-full bg-primary/40 group-hover/link:bg-primary transition-colors" />
+                <span className="text-[10px] font-semibold text-muted-foreground group-hover/link:text-foreground transition-colors truncate max-w-[150px]" title={title}>
+                  {title}
+                </span>
               </button>
             ))}
           </div>

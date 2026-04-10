@@ -10,6 +10,7 @@ import { useReactFlow } from '@xyflow/react';
 import { toast } from 'sonner';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { extractNodeContent } from '@/lib/utils/contentExtractor';
+import { cn } from '@/lib/utils';
 
 const LOD_THRESHOLD = 0.45;
 const ULTIMATE_LOD_THRESHOLD = 0.2;
@@ -95,6 +96,37 @@ interface BaseNodeProps {
   color?: string;
   progress?: number;
   isSyncing?: boolean;
+}
+
+function ToolbarAction({ 
+  icon, 
+  onClick, 
+  tip, 
+  className 
+}: { 
+  icon: React.ReactNode; 
+  onClick: (e: React.MouseEvent) => void; 
+  tip: string; 
+  className?: string;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          onClick={onClick}
+          className={cn(
+            "rounded-lg p-1.5 text-muted-foreground/60 transition-all hover:bg-white/10 hover:text-foreground active:scale-90",
+            className
+          )}
+        >
+          {icon}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent className="premium-tooltip" sideOffset={8}>
+        {tip}
+      </TooltipContent>
+    </Tooltip>
+  );
 }
 
 export const BaseNode = memo(({
@@ -200,6 +232,9 @@ export const BaseNode = memo(({
   const accent = resolvedType ? NODE_TYPE_ACCENTS[resolvedType] : undefined;
   const userColor = color && color !== 'default' ? NODE_COLORS[color] : undefined;
 
+const accentDot = accent?.indicator || 'bg-primary';
+  const accentBorder = resolvedType ? `border-l-[1px] ${accent?.border || 'border-l-border'}` : '';
+
   const Wrapper = motion.div;
   const nodeContent = (
     <Wrapper
@@ -211,24 +246,46 @@ export const BaseNode = memo(({
       }}
       exit={{ opacity: 0, scale: 0.95 }}
       transition={{ duration: 0.15, ease: 'easeOut' }}
-      className={`animate-node-appear group/node flex flex-col h-full bg-card relative rounded-lg ${
+      className={`animate-node-appear group/node flex flex-col h-full bg-card/80 backdrop-blur-sm relative rounded-xl border border-border/30 ${accentBorder} ${
         selected
-          ? 'shadow-[var(--premium-shadow-md)] scale-[1.02] z-50'
-          : 'shadow-[var(--premium-shadow-sm)] hover:scale-[1.02] hover:shadow-[var(--premium-shadow-md)]'
+          ? 'shadow-[var(--premium-shadow-md)] scale-[1.01] z-50 ring-1 ring-primary/20'
+          : 'shadow-[var(--premium-shadow-sm)] hover:shadow-[var(--premium-shadow-md)] hover:scale-[1.01]'
       } ${
-        isFocused ? 'ring-2 ring-primary ring-opacity-40 shadow-[0_0_30px_hsla(var(--primary),0.3)]' : ''
+        isFocused ? 'ring-2 ring-primary/40 shadow-[0_0_20px_hsla(var(--primary),0.2)]' : ''
       } ${
-        isHighlighted ? 'ring-2 ring-yellow-400 ring-opacity-50 shadow-[0_0_30px_rgba(250,204,21,0.4)] z-[100]' : ''
+        isHighlighted ? 'ring-2 ring-yellow-400/50 shadow-[0_0_20px_rgba(250,204,21,0.3)] z-[100]' : ''
       } ${userColor ? userColor.bg : ''} ${className || ''}`}
     >
+      {/* Subtle accent dot indicator */}
+      {resolvedType && (
+        <div className={`absolute top-3 right-3 w-2 h-2 rounded-full ${accentDot} opacity-40`} />
+      )}
+
       {locked && (
-        <div className="absolute top-1.5 right-1.5 z-10 rounded bg-destructive/80 p-0.5">
+        <div className="absolute top-2 right-6 z-10 rounded bg-destructive/80 p-0.5">
+          <Lock className="h-2.5 w-2.5 text-destructive-foreground" />
+        </div>
+      )}
+
+      {edgeCount > 0 && (
+        <div className="absolute -top-2 -left-2 z-10 flex h-4 w-4 items-center justify-center rounded-full border border-border bg-primary text-[8px] font-bold text-primary-foreground shadow-sm">
+          {edgeCount}
+        </div>
+      )}
+
+      {/* Subtle accent line for node type */}
+      {accent && (
+        <div className={cn("absolute top-0 left-0 w-px h-full z-10 opacity-40", accent.indicator)} />
+      )}
+
+{locked && (
+        <div className="absolute top-2 right-2 z-10 rounded-md bg-destructive/80 p-1">
           <Lock className="h-3 w-3 text-destructive-foreground" />
         </div>
       )}
 
       {edgeCount > 0 && (
-        <div className="absolute -top-2.5 -left-2.5 z-10 flex h-5 w-5 items-center justify-center rounded-full border-2 border-border bg-primary text-[9px] font-bold text-primary-foreground shadow-sm">
+        <div className="absolute -top-1.5 -left-1.5 z-10 flex h-4 min-w-[1rem] items-center justify-center rounded-full border border-border bg-primary text-[9px] font-bold text-primary-foreground">
           {edgeCount}
         </div>
       )}
@@ -246,100 +303,114 @@ export const BaseNode = memo(({
               });
             }
           }}
-          lineClassName="!border-primary/50"
-          handleClassName="!w-2.5 !h-2.5 !bg-primary !border-2 !border-background !rounded-sm"
+          lineClassName="!border-primary/30"
+          handleClassName="!w-2.5 !h-2.5 !bg-primary !border-2 !border-background !rounded-full"
         />
       )}
 
       {title !== undefined && (
         <div
-          className={`group/header flex flex-shrink-0 items-center gap-1.5 px-3 py-2 transition-colors ${
-            locked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'
-          } ${headerClassName || ''}`}
+          className={cn(
+            "group/header flex flex-shrink-0 items-center gap-1.5 px-3 py-2",
+            locked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing',
+            headerClassName
+          )}
         >
           {/* Collapse toggle */}
           {onToggleCollapse && (
             <button
-              className="flex-shrink-0 rounded p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+              className="flex-shrink-0 rounded p-0.5 text-muted-foreground/60 hover:text-foreground hover:bg-accent/50 transition-colors"
               onClick={(e) => { e.stopPropagation(); onToggleCollapse(); }}
+              title={collapsed ? "Expand" : "Collapse"}
             >
-              {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+              <ChevronRight className={cn("h-3 w-3 transition-transform", collapsed ? "" : "rotate-90")} />
             </button>
           )}
-          {/* Emoji or icon */}
-          {emoji ? (
-            <span className="flex-shrink-0 text-base">{emoji}</span>
-          ) : (
-            icon && <span className="flex-shrink-0 text-primary">{icon}</span>
+          
+          {/* Subtle accent dot */}
+          {accent && !emoji && (
+            <div className={cn("flex-shrink-0 w-2 h-2 rounded-full", accent.indicator)} />
           )}
+          
+          {/* Node Icon/Emoji */}
+          {emoji && <span className="text-sm">{emoji}</span>}
+          {icon && <span className="text-muted-foreground/70">{icon}</span>}
+
           {onTitleChange && !locked ? (
             <input
-              className="flex-1 min-w-0 bg-transparent text-sm font-medium tracking-tight text-foreground outline-none placeholder:text-muted-foreground/50 overflow-hidden"
+              className="flex-1 min-w-0 bg-transparent text-[13px] font-medium tracking-tight text-foreground outline-none placeholder:text-muted-foreground/40 overflow-hidden"
               value={title}
               onChange={(e) => onTitleChange(e.target.value)}
               onClick={(e) => e.stopPropagation()}
               placeholder="Untitled"
             />
           ) : (
-            <span className="flex-1 min-w-0 truncate text-sm font-medium tracking-tight text-foreground" title={title}>{title}</span>
+            <span className="flex-1 min-w-0 truncate text-[13px] font-medium tracking-tight text-foreground" title={title}>{title}</span>
           )}
+
+          {/* Sync Status Dot - smallest visible */}
           {id && (
-            <div className="flex items-center gap-1 px-1 flex-shrink-0">
-              <div 
-                className={`h-2 w-2 rounded-full transition-all duration-300 ${
-                  hasSyncError ? "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" :
-                  nodeSyncing ? "bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.5)]" : 
-                  "bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.3)]"
-                }`} 
-                title={hasSyncError ? "Sync error" : nodeSyncing ? "Syncing changes..." : "All changes saved"}
-              />
-            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="flex items-center flex-shrink-0">
+                  <div 
+                    className={cn(
+                      "h-1.5 w-1.5 rounded-full",
+                      hasSyncError ? "bg-destructive" :
+                      nodeSyncing ? "bg-yellow-400 animate-pulse" : 
+                      "bg-primary/60"
+                    )} 
+                  />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent className="text-[10px]">
+                {hasSyncError ? "Sync error" : nodeSyncing ? "Syncing..." : "Saved"}
+              </TooltipContent>
+            </Tooltip>
           )}
+
           {headerExtra}
-          {id && (
-            <button
-              className={`rounded p-0.5 text-muted-foreground transition-all duration-300 hover:bg-accent hover:text-foreground ${isMobile ? "opacity-100 scale-100" : "opacity-0 scale-90 group-hover/node:opacity-100 group-hover/node:scale-100"}`}
-              onClick={(e) => { e.stopPropagation(); setExpandedNode(id); }}
-              title="Fullscreen"
-            >
-              <Expand className="h-3.5 w-3.5" />
-            </button>
-          )}
-          {id && (
-            <button
-              className={`rounded p-0.5 text-muted-foreground transition-all duration-300 hover:bg-accent hover:text-foreground ${isMobile ? "opacity-100 scale-100" : "opacity-0 scale-90 group-hover/node:opacity-100 group-hover/node:scale-100"}`}
-              onClick={(e) => { e.stopPropagation(); handleCopyNodeContent(); }}
-              title="Copy node content"
-            >
-              <Copy className="h-3.5 w-3.5" />
-            </button>
-          )}
-          {id && canvasMode === 'edit' && !locked && (
-            <button
-              className={`rounded p-0.5 text-muted-foreground transition-all duration-300 hover:bg-destructive hover:text-destructive-foreground ${isMobile ? "opacity-100 scale-100" : "opacity-0 scale-90 group-hover/node:opacity-100 group-hover/node:scale-100"}`}
-              onClick={(e) => { e.stopPropagation(); deleteNode(id); }}
-              title="Delete node"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          )}
-          <button
-            className={`rounded p-0.5 text-muted-foreground transition-all duration-300 hover:bg-accent hover:text-foreground ${isMobile ? "opacity-100 scale-100" : "opacity-0 scale-90 group-hover/node:opacity-100 group-hover/node:scale-100"}`}
-            onClick={(e) => { e.stopPropagation(); onMenuClick?.(e); }}
-            title="More options"
-          >
-            <MoreHorizontal className="h-4 w-4" />
-          </button>
+
+          {/* Action Buttons - subtle on hover */}
+          <div className="flex items-center gap-0.5 opacity-0 group-hover/node:opacity-100 transition-opacity duration-200">
+            {id && (
+              <ToolbarAction 
+                onClick={(e) => { e.stopPropagation(); setExpandedNode(id); }}
+                tip="Fullscreen (Space)"
+                icon={<Expand className="h-3 w-3" />}
+              />
+            )}
+            {id && (
+              <ToolbarAction 
+                onClick={(e) => { e.stopPropagation(); handleCopyNodeContent(); }}
+                tip="Copy text"
+                icon={<Copy className="h-3 w-3" />}
+              />
+            )}
+            {id && canvasMode === 'edit' && !locked && (
+              <ToolbarAction 
+                onClick={(e) => { e.stopPropagation(); deleteNode(id); }}
+                tip="Delete (Del)"
+                className="hover:bg-destructive/20 hover:text-destructive"
+                icon={<Trash2 className="h-3 w-3" />}
+              />
+            )}
+            <ToolbarAction 
+              onClick={(e) => { e.stopPropagation(); onMenuClick?.(e); }}
+              tip="Node options"
+              icon={<MoreHorizontal className="h-3.5 w-3.5" />}
+            />
+          </div>
         </div>
       )}
 
-      {/* Due date badge */}
+      {/* Tags - subtle pills */}
       {nodeTags.length > 0 && !collapsed && (
-        <div className="flex flex-wrap gap-1 px-2 py-1 border-b border-border/50 bg-background/20">
+        <div className="flex flex-wrap gap-1 px-3 py-1 border-b border-border/10">
           {[...new Set(nodeTags)].filter(Boolean).map((tag) => (
             <span
               key={tag}
-              className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ${TAG_COLORS[tag] || 'bg-muted text-foreground'}`}
+              className="rounded-full px-2 py-0.5 text-[10px] font-medium bg-muted/40 text-muted-foreground/80"
             >
               {tag}
             </span>
@@ -387,39 +458,39 @@ export const BaseNode = memo(({
       )}
 
       {(footerStats || progress !== undefined) && !collapsed && zoom >= LOD_THRESHOLD && (
-        <div className="border-t border-border/20 px-3 py-1.5 text-[10px] text-muted-foreground opacity-60 font-medium flex flex-col gap-1 tracking-wide">
+        <div className="border-t border-border/10 px-3 py-1.5 text-[11px] text-muted-foreground/60 flex items-center gap-2">
           {progress !== undefined && (
-            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden border border-border/20">
+            <div className="h-1 w-full bg-muted/50 rounded-full overflow-hidden flex-1 max-w-[60px]">
               <motion.div 
                 initial={{ width: 0 }}
                 animate={{ width: `${progress}%` }}
-                className={`h-full ${accent?.indicator || "bg-primary"}`}
+                className={cn("h-full rounded-full", accent?.indicator || "bg-primary")}
               />
             </div>
           )}
-          {footerStats && <span>{footerStats}</span>}
+          <span className="truncate">{footerStats}</span>
         </div>
       )}
 
-      {/* Created timestamp (embedded in footer area for stability) */}
+      {/* Created timestamp - subtle, hide by default */}
       {createdAt && !collapsed && zoom >= LOD_THRESHOLD && (
-        <div className="px-3 pb-2 text-[9px] text-muted-foreground opacity-40 font-medium overflow-hidden whitespace-nowrap tracking-wide">
-          Created {formatSafeDate(createdAt, 'recently')}
+        <div className="px-3 pb-1.5 text-[9px] text-muted-foreground/40 overflow-hidden whitespace-nowrap">
+          {formatSafeDate(createdAt, 'recently')}
         </div>
       )}
 
       {handles && (
         <>
-          {/* Target handles (incoming) */}
-          <Handle type="target" position={Position.Top} id={HANDLE_IDS.TARGET.TOP} className={`!rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity ${isMobile ? "!w-4 !h-4" : "!w-2 !h-2"} ${selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100"}`} style={{ left: '50%', transform: 'translateX(-50%)' }} />
-          <Handle type="target" position={Position.Bottom} id={HANDLE_IDS.TARGET.BOTTOM} className={`!rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity ${isMobile ? "!w-4 !h-4" : "!w-2 !h-2"} ${selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100"}`} style={{ left: '50%', transform: 'translateX(-50%)' }} />
-          <Handle type="target" position={Position.Left} id={HANDLE_IDS.TARGET.LEFT} className={`!rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity ${isMobile ? "!w-4 !h-4" : "!w-2 !h-2"} ${selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100"}`} style={{ top: '50%', transform: 'translateY(-50%)' }} />
-          <Handle type="target" position={Position.Right} id={HANDLE_IDS.TARGET.RIGHT} className={`!rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity ${isMobile ? "!w-4 !h-4" : "!w-2 !h-2"} ${selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100"}`} style={{ top: '50%', transform: 'translateY(-50%)' }} />
-          {/* Source handles (outgoing) */}
-          <Handle type="source" position={Position.Top} id={HANDLE_IDS.SOURCE.TOP} className={`!rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity ${isMobile ? "!w-4 !h-4" : "!w-2 !h-2"} ${selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100"}`} style={{ left: '50%', transform: 'translateX(-50%)' }} />
-          <Handle type="source" position={Position.Bottom} id={HANDLE_IDS.SOURCE.BOTTOM} className={`!rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity ${isMobile ? "!w-4 !h-4" : "!w-2 !h-2"} ${selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100"}`} style={{ left: '50%', transform: 'translateX(-50%)' }} />
-          <Handle type="source" position={Position.Left} id={HANDLE_IDS.SOURCE.LEFT} className={`!rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity ${isMobile ? "!w-4 !h-4" : "!w-2 !h-2"} ${selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100"}`} style={{ top: '50%', transform: 'translateY(-50%)' }} />
-          <Handle type="source" position={Position.Right} id={HANDLE_IDS.SOURCE.RIGHT} className={`!rounded-full !bg-primary/60 !border-2 !border-primary transition-opacity ${isMobile ? "!w-4 !h-4" : "!w-2 !h-2"} ${selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100"}`} style={{ top: '50%', transform: 'translateY(-50%)' }} />
+          {/* Target handles */}
+          <Handle type="target" position={Position.Top} id={HANDLE_IDS.TARGET.TOP} className={cn("!rounded-full !bg-primary/70 !border !border-primary/50 transition-opacity", isMobile ? "!w-3 !h-3" : "!w-2 !h-2", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ left: '50%', transform: 'translateX(-50%)' }} />
+          <Handle type="target" position={Position.Bottom} id={HANDLE_IDS.TARGET.BOTTOM} className={cn("!rounded-full !bg-primary/70 !border !border-primary/50 transition-opacity", isMobile ? "!w-3 !h-3" : "!w-2 !h-2", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ left: '50%', transform: 'translateX(-50%)' }} />
+          <Handle type="target" position={Position.Left} id={HANDLE_IDS.TARGET.LEFT} className={cn("!rounded-full !bg-primary/70 !border !border-primary/50 transition-opacity", isMobile ? "!w-3 !h-3" : "!w-2 !h-2", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ top: '50%', transform: 'translateY(-50%)' }} />
+          <Handle type="target" position={Position.Right} id={HANDLE_IDS.TARGET.RIGHT} className={cn("!rounded-full !bg-primary/70 !border !border-primary/50 transition-opacity", isMobile ? "!w-3 !h-3" : "!w-2 !h-2", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ top: '50%', transform: 'translateY(-50%)' }} />
+          {/* Source handles */}
+          <Handle type="source" position={Position.Top} id={HANDLE_IDS.SOURCE.TOP} className={cn("!rounded-full !bg-primary/70 !border !border-primary/50 transition-opacity", isMobile ? "!w-3 !h-3" : "!w-2 !h-2", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ left: '50%', transform: 'translateX(-50%)' }} />
+          <Handle type="source" position={Position.Bottom} id={HANDLE_IDS.SOURCE.BOTTOM} className={cn("!rounded-full !bg-primary/70 !border !border-primary/50 transition-opacity", isMobile ? "!w-3 !h-3" : "!w-2 !h-2", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ left: '50%', transform: 'translateX(-50%)' }} />
+          <Handle type="source" position={Position.Left} id={HANDLE_IDS.SOURCE.LEFT} className={cn("!rounded-full !bg-primary/70 !border !border-primary/50 transition-opacity", isMobile ? "!w-3 !h-3" : "!w-2 !h-2", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ top: '50%', transform: 'translateY(-50%)' }} />
+          <Handle type="source" position={Position.Right} id={HANDLE_IDS.SOURCE.RIGHT} className={cn("!rounded-full !bg-primary/70 !border !border-primary/50 transition-opacity", isMobile ? "!w-3 !h-3" : "!w-2 !h-2", selected ? "opacity-100" : "opacity-0 group-hover/node:opacity-100")} style={{ top: '50%', transform: 'translateY(-50%)' }} />
         </>
       )}
     </Wrapper>

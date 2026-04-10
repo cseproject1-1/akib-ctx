@@ -3,7 +3,7 @@ import { getEditorExtensions } from '@/lib/tiptap/extensions';
 import { cn } from '@/lib/utils';
 import { extensionRegistry, type AnyExtension } from '@/lib/tiptap/extensionRegistry';
 import { Bold, Italic, Strikethrough, Code, Heading1, Heading2, Link as LinkIcon, List, ListOrdered, Quote, Highlighter, Underline as UnderlineIcon, Palette, Type, Superscript, Subscript, RemoveFormatting, Search, Sparkles } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
+import { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle, memo } from 'react';
 import type { JSONContent } from '@tiptap/react';
 import { Markdown } from 'tiptap-markdown';
 import { EditorFooter } from './EditorFooter';
@@ -97,7 +97,7 @@ function loadGlobalExtensions() {
   return globalAsyncExtensionsPromise;
 }
 
-export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEditor(props, ref) {
+export const NoteEditor = memo(forwardRef<NoteEditorHandle, NoteEditorProps>(function NoteEditor(props, ref) {
   const [extensions, setExtensions] = useState<AnyExtension[] | null>(globalAsyncExtensions);
 
   useEffect(() => {
@@ -115,13 +115,15 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(function
   }
 
   return <NoteEditorImpl {...props} asyncExtensions={extensions} ref={ref} />;
-});
+}));
+
+NoteEditor.displayName = 'NoteEditor';
 
 interface NoteEditorImplProps extends NoteEditorProps {
   asyncExtensions: AnyExtension[];
 }
 
-const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(function NoteEditorImpl({ nodeId, initialContent, onChange, placeholder, editable = true, pasteContent, pasteFormat, title, asyncExtensions, onFocusModeChange, onProgressChange }, ref) {
+const NoteEditorImpl = memo(forwardRef<NoteEditorHandle, NoteEditorImplProps>(function NoteEditorImpl({ nodeId, initialContent, onChange, placeholder, editable = true, pasteContent, pasteFormat, title, asyncExtensions, onFocusModeChange, onProgressChange }, ref) {
   const [showBubble, setShowBubble] = useState(false);
   const [bubblePos, setBubblePos] = useState({ top: 0, left: 0 });
   const [showFindReplace, setShowFindReplace] = useState(false);
@@ -379,25 +381,39 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
     appliedPasteContent.current = null;
   }, [nodeId]);
 
+  // NM-FIX: Stabilize onChange reference
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+
   useEffect(() => {
-    if (editor && pasteContent && appliedPasteContent.current !== pasteContent) {
-      appliedPasteContent.current = pasteContent;
-      if (pasteFormat === 'html') {
-        editor.commands.setContent(pasteContent);
-      } else {
-        const html = markdownToHtml(pasteContent);
-        editor.commands.setContent(html);
-      }
-      
-      if (pasteTimeoutRef.current) clearTimeout(pasteTimeoutRef.current);
-      pasteTimeoutRef.current = setTimeout(() => {
-        onChange?.(editor.getJSON());
-      }, 50);
+    if (!editor || !pasteContent) {
+      appliedPasteContent.current = null;
+      return;
     }
+    
+    // Safety matching BlockNote implementation
+    const compositeKey = `${nodeId || 'unknown'}:${pasteContent}`;
+    if (appliedPasteContent.current === compositeKey) return;
+    appliedPasteContent.current = compositeKey;
+
+    if (pasteFormat === 'html') {
+      editor.commands.setContent(pasteContent);
+    } else {
+      const html = markdownToHtml(pasteContent);
+      editor.commands.setContent(html);
+    }
+    
+    if (pasteTimeoutRef.current) clearTimeout(pasteTimeoutRef.current);
+    pasteTimeoutRef.current = setTimeout(() => {
+      if (onChangeRef.current) {
+        onChangeRef.current(editor.getJSON());
+      }
+    }, 50);
+
     return () => {
       if (pasteTimeoutRef.current) clearTimeout(pasteTimeoutRef.current);
     };
-  }, [editor, pasteContent, pasteFormat, onChange]);
+  }, [editor, pasteContent, pasteFormat, nodeId]); // Removed onChange dependency
 
   const reparseTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
@@ -660,7 +676,9 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
       )}
     </div>
   );
-});
+}));
+
+NoteEditorImpl.displayName = 'NoteEditorImpl';
 
 function BubbleBtn({ children, active, onClick, title }: { children: React.ReactNode; active: boolean; onClick: () => void; title: string }) {
   return (

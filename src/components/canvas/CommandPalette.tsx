@@ -57,12 +57,12 @@ export function CommandPalette() {
 
     document.addEventListener('keydown', down);
     return () => document.removeEventListener('keydown', down);
-  }, []);
+  }, [setOpen]);
 
   const runCommand = useCallback((command: () => void) => {
     command();
     setOpen(false);
-  }, []);
+  }, [setOpen]);
 
   const handleAddNode = (type: any) => {
     const center = reactFlow.screenToFlowPosition({

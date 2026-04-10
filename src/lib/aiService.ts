@@ -2,13 +2,14 @@ import { auth } from './firebase/client';
 
 const WORKER_URL = import.meta.env.VITE_WORKER_URL;
 
-async function getAuthHeaders() {
+export async function getAuthHeaders() {
   const token = await auth.currentUser?.getIdToken();
   return {
     'Content-Type': 'application/json',
     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
   };
 }
+
 
 
 export interface AINodeContext {

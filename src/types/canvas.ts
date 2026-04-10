@@ -121,11 +121,11 @@ export interface ShapeNodeData extends SharedNodeFields {
 /** Free-floating drawing overlay (not a node) */
 export interface DrawingOverlay {
   id: string;
-  paths: { d: string; color: string; width: number; opacity?: number }[];
+  paths: { id?: string; d: string; color: string; width: number; opacity?: number }[];
 }
 
 export interface DrawingNodeData extends SharedNodeFields {
-  paths: { d: string; color: string; width: number; opacity?: number }[];
+  paths: { id?: string; d: string; color: string; width: number; opacity?: number }[];
   width?: number;
   height?: number;
   originalWidth?: number;

@@ -4,7 +4,7 @@ import { MantineProvider } from "@mantine/core";
 import "@blocknote/core/fonts/inter.css";
 import "@blocknote/mantine/style.css";
 import "@mantine/core/styles.css";
-import { useEffect, useRef, useMemo, useCallback } from "react";
+import { useEffect, useRef, useMemo, useCallback, memo } from "react";
 import { cn } from "@/lib/utils";
 import {
   BlockNoteSchema,
@@ -114,17 +114,19 @@ interface BlockNoteEditorProps {
   className?: string;
   pasteContent?: string;
   pasteFormat?: 'markdown' | 'html';
+  nodeId?: string;
 }
 
-export const BlockNoteEditor = ({
+export const BlockNoteEditor = memo(({
+  placeholder,
+  className,
+  pasteContent,
+  pasteFormat,
+  nodeId,
   initialContent,
   onChange,
   onLoadError,
   editable = true,
-  placeholder,
-  className,
-  pasteContent,
-  pasteFormat
 }: BlockNoteEditorProps) => {
   const isInitialMount = useRef(true);
   const lastEmittedContent = useRef<string>("");
@@ -438,11 +440,18 @@ export const BlockNoteEditor = ({
     };
   }, [editor, initialContent, sanitizeBlocks]);
 
-  // Handle paste content separately - only once per unique paste
+  // Handle paste content separately - only once per unique paste/node session
   useEffect(() => {
-    if (!editor || !pasteContent) return;
-    if (pasteAppliedRef.current === pasteContent) return;
-    pasteAppliedRef.current = pasteContent;
+    if (!editor || !pasteContent) {
+      // Clear the ref if pasteContent is removed from the store, allowing re-paste later if needed
+      pasteAppliedRef.current = null;
+      return;
+    }
+    
+    // Safety: don't apply same content twice to the same node
+    const compositeKey = `${nodeId || 'unknown'}:${pasteContent}`;
+    if (pasteAppliedRef.current === compositeKey) return;
+    pasteAppliedRef.current = compositeKey;
 
     const handlePasteContent = async () => {
       try {
@@ -461,6 +470,8 @@ export const BlockNoteEditor = ({
             editor.replaceBlocks(editor.document, blocks);
           }
           lastEmittedContent.current = JSON.stringify(editor.document);
+          // Trigger a change to ensure the parent clears the paste fields
+          onChange?.(editor.document);
         }
       } catch (error) {
         console.error('[BlockNote] Paste failed:', error);
@@ -468,7 +479,7 @@ export const BlockNoteEditor = ({
     };
 
     handlePasteContent();
-  }, [editor, pasteContent, pasteFormat]);
+  }, [editor, pasteContent, pasteFormat, nodeId, onChange]);
 
   // Handle content changes
   useEffect(() => {
@@ -505,39 +516,70 @@ export const BlockNoteEditor = ({
             padding: 0 !important;
           }
           .blocknote-wrapper .bn-editor {
-            padding-inline: 48px !important;
+            padding-inline: 40px !important;
+            padding-block: 20px !important;
             font-size: 15px !important;
-            line-height: 1.6;
+            line-height: 1.7;
+            font-family: inherit !important;
+            color: hsl(var(--foreground)) !important;
           }
           .bn-root {
             --bn-colors-editor-background: transparent;
+            --bn-colors-editor-text: hsl(var(--foreground));
+            --bn-colors-cursor: hsl(var(--primary));
+            --bn-border-radius: 12px;
           }
           .blocknote-wrapper .bn-block-content[data-content-type="codeBlock"] {
-            margin: 1rem 0 !important;
+            margin: 1.5rem 0 !important;
           }
           .blocknote-wrapper .bn-code-block {
-            background: #1e1e1e !important;
-            border-radius: 12px !important;
+            background: hsla(var(--muted), 0.5) !important;
+            backdrop-filter: blur(8px);
+            border-radius: 16px !important;
             padding: 1.5rem !important;
-            border: 1px solid rgba(255,255,255,0.1) !important;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3) !important;
-            font-family: 'Fira Code', 'Monaco', 'Consolas', monospace !important;
+            border: 1px solid hsla(var(--glass-border), 0.1) !important;
+            box-shadow: var(--premium-shadow-md) !important;
+            font-family: 'Space Mono', 'Fira Code', monospace !important;
+            position: relative;
+            overflow: hidden;
           }
-          .hljs-keyword { color: #569cd6 !important; font-weight: bold !important; }
+          .blocknote-wrapper .bn-code-block::before {
+            content: 'CODE';
+            position: absolute;
+            top: 0;
+            right: 1.5rem;
+            padding: 2px 8px;
+            background: hsl(var(--primary) / 0.1);
+            color: hsl(var(--primary));
+            font-size: 9px;
+            font-weight: 900;
+            letter-spacing: 0.1em;
+            border-radius: 0 0 8px 8px;
+            border: 1px solid hsl(var(--primary) / 0.2);
+            border-top: none;
+            opacity: 0.6;
+          }
+          /* Premium Syntax Highlighting synced with App Theme */
+          .hljs-keyword { color: hsl(var(--primary)) !important; font-weight: 700 !important; }
           .hljs-string { color: #ce9178 !important; }
-          .hljs-comment { color: #6a9955 !important; font-style: italic !important; }
+          .hljs-comment { color: hsl(var(--muted-foreground)) !important; font-style: italic !important; opacity: 0.6; }
           .hljs-function { color: #dcdcaa !important; }
           .hljs-params { color: #9cdcfe !important; }
           .hljs-number { color: #b5cea8 !important; }
           .hljs-type { color: #4ec9b0 !important; }
           .hljs-title { color: #dcdcaa !important; }
           .hljs-variable { color: #9cdcfe !important; }
-          .hljs-operator { color: #d4d4d4 !important; }
+          .hljs-operator { color: hsl(var(--foreground) / 0.8) !important; }
+          
+          /* Selection color */
+          .bn-editor ::selection {
+            background: hsl(var(--primary) / 0.2) !important;
+          }
         `}</style>
       </div>
     </MantineProvider>
   );
-};
+});
 
 /**
  * @function extractTextFromUnknownBlock
@@ -574,4 +616,5 @@ function extractTextFromUnknownBlock(block: any): string {
   return '';
 }
 
+BlockNoteEditor.displayName = 'BlockNoteEditor';
 export default BlockNoteEditor;

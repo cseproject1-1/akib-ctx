@@ -8,6 +8,7 @@ interface PathData {
   color: string;
   width: number;
   opacity?: number;
+  id?: string;
 }
 
 export const DrawingNode = memo(({ id, data, selected }: NodeProps) => {

@@ -1,181 +1,138 @@
-import { memo, useState, useCallback, useEffect, useRef } from 'react';
+import { memo, useState, useCallback, useEffect } from 'react';
 import { type NodeProps } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { BaseNode } from './BaseNode';
-import { Bookmark, ExternalLink, Globe, Loader2, RefreshCw } from 'lucide-react';
+import { Bookmark, Globe, Loader2, RefreshCw, X } from 'lucide-react';
 import { BookmarkNodeData } from '@/types/canvas';
+import { LinkPreview, LinkMetadata } from '@/components/canvas/LinkPreview';
+import { fetchLinkMetadata } from '@/lib/metadataService';
 
 /**
  * @component BookmarkNode
- * @description URL bookmark card that shows a favicon, title, description, and link preview.
- * Metadata is fetched from an Open Graph proxy.
- * @param {NodeProps} props - React Flow node props
+ * @description A clean URL bookmark card focused on high-quality previews and domain metadata.
  */
 export const BookmarkNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
-  const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
+  const canvasMode = useCanvasStore((s) => s.canvasMode);
   const nodeData = data as unknown as BookmarkNodeData;
 
   const [inputUrl, setInputUrl] = useState(nodeData.url || '');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const abortRef = useRef<AbortController | null>(null);
+  const [metadata, setMetadata] = useState<LinkMetadata | null>(null);
 
-  useEffect(() => {
-    return () => {
-      if (abortRef.current) abortRef.current.abort();
-    };
-  }, []);
-
-  const hasData = !!(nodeData.url && nodeData.ogTitle);
-
-  /**
-   * Fetch OG metadata via an allorigins proxy (no backend needed).
-   * Parses meta tags from the raw HTML.
-   */
-  const fetchMeta = useCallback(async (url: string) => {
-    if (!url.trim()) return;
-    let finalUrl = url.trim();
-    if (!finalUrl.startsWith('http')) finalUrl = 'https://' + finalUrl;
-
-    if (abortRef.current) abortRef.current.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
+  const loadMetadata = useCallback(async (url: string) => {
+    if (!url) return;
     setLoading(true);
-    setError('');
     try {
-      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(finalUrl)}`;
-      const res = await fetch(proxyUrl, { signal: controller.signal });
-      if (!res.ok) throw new Error('Failed to fetch');
-      const html = await res.text();
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
-
-      const getMeta = (name: string) =>
-        doc.querySelector(`meta[property="${name}"]`)?.getAttribute('content') ||
-        doc.querySelector(`meta[name="${name}"]`)?.getAttribute('content') || '';
-
-      const ogTitle = getMeta('og:title') || doc.title || finalUrl;
-      const ogDescription = getMeta('og:description') || getMeta('description') || '';
-      const ogImage = getMeta('og:image') || '';
-      const hostname = new URL(finalUrl).hostname;
-      const favicon = `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`;
-
-      updateNodeData(id, { url: finalUrl, ogTitle, ogDescription, ogImage, favicon, hostname });
-    } catch (err: any) {
-      if (err?.name !== 'AbortError') {
-        setError('Could not load preview. Check the URL and try again.');
-      }
+      const meta = await fetchLinkMetadata(url);
+      setMetadata(meta);
+      
+      // Update store with new metadata for persistence
+      updateNodeData(id, { 
+        url: meta.url,
+        ogTitle: meta.title, 
+        ogDescription: meta.description, 
+        ogImage: meta.image, 
+        favicon: meta.icon,
+        hostname: new URL(meta.url).hostname.replace('www.', '')
+      });
+    } catch (err) {
+      console.error('Bookmark load error:', err);
     } finally {
-      if (abortRef.current === controller) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
   }, [id, updateNodeData]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    fetchMeta(inputUrl);
-  };
+  useEffect(() => {
+    if (nodeData.url && (!nodeData.ogTitle || !metadata)) {
+      setMetadata({
+        url: nodeData.url,
+        title: nodeData.ogTitle,
+        description: nodeData.ogDescription,
+        image: nodeData.ogImage,
+        icon: nodeData.favicon,
+      });
+      if (!nodeData.ogTitle) {
+        loadMetadata(nodeData.url);
+      }
+    }
+  }, [nodeData.url, nodeData.ogTitle, nodeData.ogDescription, nodeData.ogImage, nodeData.favicon, metadata, loadMetadata]);
 
-  const handleReset = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleSubmit = useCallback((e?: React.FormEvent) => {
+    e?.preventDefault();
+    let url = inputUrl.trim();
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    
+    updateNodeData(id, { url });
+    loadMetadata(url);
+  }, [id, inputUrl, loadMetadata, updateNodeData]);
+
+  const handleClear = useCallback(() => {
     updateNodeData(id, { url: '', ogTitle: '', ogDescription: '', ogImage: '', favicon: '', hostname: '' });
     setInputUrl('');
-    setError('');
-  };
+    setMetadata(null);
+  }, [id, updateNodeData]);
 
   return (
     <BaseNode
       id={id}
       title={nodeData.ogTitle || 'Bookmark'}
-      icon={<Bookmark className="h-4 w-4" />}
+      icon={<Bookmark className="h-4 w-4 text-primary" />}
       selected={selected}
-      onMenuClick={(e) => setNodeContextMenu({ x: e.clientX, y: e.clientY, nodeId: id })}
-      tags={nodeData.tags}
-      collapsed={nodeData.collapsed}
-      onToggleCollapse={() => updateNodeData(id, { collapsed: !nodeData.collapsed })}
-      emoji={nodeData.emoji}
-      dueDate={nodeData.dueDate}
-      opacity={nodeData.opacity}
-      createdAt={nodeData.createdAt}
-      color={nodeData.color}
+      onTitleChange={(t) => updateNodeData(id, { ogTitle: t })}
+      bodyClassName="p-2 min-h-[120px] bg-accent/5"
       nodeType="bookmark"
-      bodyClassName="p-3"
-    >
-      {!hasData ? (
-        /* URL input form */
-        <form onSubmit={handleSubmit} className="flex flex-col gap-2">
-          <div className="flex items-center gap-2 rounded-lg border-2 border-border bg-accent/30 px-2 py-1.5">
-            <Globe className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-            <input
-              type="url"
-              value={inputUrl}
-              onChange={(e) => setInputUrl(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-              onKeyDown={(e) => e.stopPropagation()}
-              placeholder="https://example.com"
-              className="flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
-            />
-          </div>
-          {error && <p className="text-[10px] text-destructive">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading || !inputUrl.trim()}
-            className="flex items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
-            {loading ? 'Fetching…' : 'Load Preview'}
-          </button>
-        </form>
-      ) : (
-        /* Rich preview card */
-        <div className="flex flex-col gap-2">
-          {nodeData.ogImage && (
-            <div className="relative h-32 w-full overflow-hidden rounded-lg border border-border">
-              <img
-                src={nodeData.ogImage}
-                alt={nodeData.ogTitle}
-                className="h-full w-full object-cover"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-              />
-            </div>
-          )}
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-1.5">
-              {nodeData.favicon && (
-                <img src={nodeData.favicon} alt="" className="h-4 w-4 flex-shrink-0 rounded" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-              )}
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground truncate">{nodeData.hostname}</span>
-            </div>
-            {nodeData.ogDescription && (
-              <p className="text-[11px] text-muted-foreground line-clamp-3 leading-relaxed">{nodeData.ogDescription}</p>
+      onMenuClick={(e) => useCanvasStore.getState().setNodeContextMenu({ x: e.clientX, y: e.clientY, nodeId: id })}
+      headerExtra={
+        nodeData.url && (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={(e) => { e.stopPropagation(); loadMetadata(nodeData.url!); }}
+              className="rounded-md p-1 text-muted-foreground/60 hover:bg-white/10 hover:text-foreground"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
+            </button>
+            {!nodeData.locked && canvasMode === 'edit' && (
+              <button onClick={(e) => { e.stopPropagation(); handleClear(); }} className="rounded-md p-1 text-muted-foreground/60 hover:bg-destructive/10 hover:text-destructive">
+                <X className="h-3.5 w-3.5" />
+              </button>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            <a
-              href={nodeData.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="flex flex-1 items-center gap-1 rounded-lg border border-border px-2 py-1 text-[10px] font-bold text-muted-foreground transition-colors hover:border-primary hover:text-primary truncate"
-            >
-              <ExternalLink className="h-3 w-3 flex-shrink-0" />
-              <span className="truncate">{nodeData.url}</span>
-            </a>
-            <button
-              onClick={handleReset}
-              className="rounded-lg border border-border p-1 text-muted-foreground hover:text-foreground transition-colors"
-              title="Change URL"
-            >
-              <RefreshCw className="h-3 w-3" />
-            </button>
+        )
+      }
+    >
+      <div className="flex-1" onClick={(e) => e.stopPropagation()}>
+        {!nodeData.url ? (
+          <form onSubmit={handleSubmit} className="flex h-full flex-col items-center justify-center gap-3 p-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Globe className="h-5 w-5" />
+            </div>
+            <input
+              className="w-full rounded-xl border border-border/50 bg-background/50 px-3 py-2 text-sm text-foreground outline-none transition-all focus:border-primary backdrop-blur-sm"
+              placeholder="https://..."
+              autoFocus
+              value={inputUrl}
+              onChange={(e) => setInputUrl(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit(); }}
+            />
+          </form>
+        ) : (
+          <div className="h-full">
+            {metadata ? (
+              <LinkPreview 
+                metadata={metadata} 
+                isLoading={loading} 
+                className="h-full border-0 !bg-transparent !backdrop-blur-none !p-0"
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center p-4">
+                <Loader2 className="h-6 w-6 animate-spin text-primary/30" />
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </BaseNode>
   );
 });

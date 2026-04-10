@@ -1,4 +1,4 @@
-import { Suspense, lazy, useMemo, forwardRef, useImperativeHandle, useRef, useState, useEffect, useCallback } from 'react';
+import { Suspense, lazy, useMemo, forwardRef, useImperativeHandle, useRef, useState, useEffect, useCallback, memo } from 'react';
 import { NoteEditor, type NoteEditorHandle } from '@/components/tiptap/NoteEditor';
 import { EditorGhost } from './EditorGhost';
 import { migrateToBlockNote, migrateToTiPTap, getEditorVersion } from '@/lib/editor/migration';
@@ -26,7 +26,7 @@ interface HybridEditorProps {
   isGhost?: boolean;
 }
 
-export const HybridEditor = forwardRef<any, HybridEditorProps>(function HybridEditor(
+export const HybridEditor = memo(forwardRef<any, HybridEditorProps>(function HybridEditor(
   {
     nodeId,
     initialContent,
@@ -48,6 +48,11 @@ export const HybridEditor = forwardRef<any, HybridEditorProps>(function HybridEd
   const isBlockEditorMode = useCanvasStore((s) => s.isBlockEditorMode);
   const [blockNoteFailed, setBlockNoteFailed] = useState(false);
 
+  // Stability check: store stringified content to avoid re-migration loops during debounced saves
+  const prevContentStrRef = useRef<string>('');
+  const stabilizedBlocksRef = useRef<any[]>([]);
+  const stabilizedTiptapRef = useRef<JSONContent | undefined>(undefined);
+
   // Detect version dynamically based on initialContent
   const detectedVersion = useMemo(() => getEditorVersion(initialContent), [initialContent]);
 
@@ -63,14 +68,42 @@ export const HybridEditor = forwardRef<any, HybridEditorProps>(function HybridEd
   // Convert content for the appropriate editor format - memoized to prevent unnecessary re-conversions
   const blocks = useMemo(() => {
     if (!initialContent) return [];
-    if (detectedVersion === 2) return Array.isArray(initialContent) ? initialContent : [];
-    return migrateToBlockNote(initialContent);
+    
+    const contentStr = JSON.stringify(initialContent);
+    if (contentStr === prevContentStrRef.current && stabilizedBlocksRef.current.length > 0) {
+      return stabilizedBlocksRef.current;
+    }
+
+    let result: any[] = [];
+    if (detectedVersion === 2) {
+      result = Array.isArray(initialContent) ? initialContent : [];
+    } else {
+      result = migrateToBlockNote(initialContent);
+    }
+
+    prevContentStrRef.current = contentStr;
+    stabilizedBlocksRef.current = result;
+    return result;
   }, [initialContent, detectedVersion]);
 
   const tiptapContent = useMemo(() => {
     if (!initialContent) return undefined;
-    if (detectedVersion === 1) return initialContent as JSONContent;
-    return migrateToTiPTap(initialContent);
+    
+    const contentStr = JSON.stringify(initialContent);
+    if (contentStr === prevContentStrRef.current && stabilizedTiptapRef.current) {
+      return stabilizedTiptapRef.current;
+    }
+
+    let result: JSONContent | undefined;
+    if (detectedVersion === 1) {
+      result = initialContent as JSONContent;
+    } else {
+      result = migrateToTiPTap(initialContent);
+    }
+
+    prevContentStrRef.current = contentStr;
+    stabilizedTiptapRef.current = result;
+    return result;
   }, [initialContent, detectedVersion]);
 
   // Bug 17: Ghost content respects editor format
@@ -92,29 +125,41 @@ export const HybridEditor = forwardRef<any, HybridEditorProps>(function HybridEd
   }));
 
   // Handle content changes with version tracking
-  const handleContentChange = useMemo(() => {
-    if (!onChange) return undefined;
-    return (newContent: any, extraData?: any) => {
-      const now = new Date().toISOString();
-      const finalExtra: any = {
-        ...extraData,
-        blockVersion: useBlockNote ? 2 : 1,
-        updatedAt: now,
-      };
+  // Handle content changes with version tracking
+  // NM-FIX: Remove dependencies from handleContentChange to prevent recreation loops
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const initialContentRef = useRef(initialContent);
+  initialContentRef.current = initialContent;
+  const useBlockNoteRef = useRef(useBlockNote);
+  useBlockNoteRef.current = useBlockNote;
+  const detectedVersionRef = useRef(detectedVersion);
+  detectedVersionRef.current = detectedVersion;
 
-      // On first migration from v1 to BlockNote, backup original
-      if (detectedVersion === 1 && useBlockNote && initialContent !== undefined) {
-        finalExtra._v1Backup = initialContent;
+  const handleContentChange = useCallback((newContent: any, extraData?: any) => {
+    if (!onChangeRef.current) return;
+    
+    // Stability Check: don't trigger onChange if the content is literally identical to what just came in
+    try {
+      if (JSON.stringify(newContent) === JSON.stringify(initialContentRef.current)) {
+        return;
       }
+    } catch (e) { /* ignore stringify errors */ }
 
-      // Preserve original createdAt from node data (not from content object)
-      // initialContent is the editor JSON (Tiptap or BlockNote), NOT node.data
-      // We rely on extraData.createdAt passed from AINoteNode's handleContentChange
-      // which gets it from nodeData.createdAt via validateExtraData
-
-      onChange(newContent, finalExtra);
+    const now = new Date().toISOString();
+    const finalExtra: any = {
+      ...extraData,
+      blockVersion: useBlockNoteRef.current ? 2 : 1,
+      updatedAt: now,
     };
-  }, [onChange, useBlockNote, detectedVersion, initialContent]);
+
+    // On first migration from v1 to BlockNote, backup original
+    if (detectedVersionRef.current === 1 && useBlockNoteRef.current && initialContentRef.current !== undefined) {
+      finalExtra._v1Backup = initialContentRef.current;
+    }
+
+    onChangeRef.current(newContent, finalExtra);
+  }, []);
 
   // BlockNote load failure — fallback to Tiptap so content is never silently lost
   const handleBlockNoteLoadError = useCallback(() => {
@@ -150,6 +195,7 @@ export const HybridEditor = forwardRef<any, HybridEditorProps>(function HybridEd
     return (
       <Suspense fallback={<div className="animate-pulse bg-muted/20 h-32 w-full rounded-md" />}>
         <BlockNoteEditor
+          nodeId={nodeId}
           initialContent={blocks}
           editable={editable}
           placeholder={placeholder}
@@ -177,6 +223,7 @@ export const HybridEditor = forwardRef<any, HybridEditorProps>(function HybridEd
       nodeId={nodeId}
     />
   );
-});
+}));
 
+HybridEditor.displayName = 'HybridEditor';
 export default HybridEditor;
