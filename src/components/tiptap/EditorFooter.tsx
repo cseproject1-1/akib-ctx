@@ -22,23 +22,11 @@ export function EditorFooter({
   isTypewriterMode, 
   onToggleTypewriter,
 }: EditorFooterProps) {
-  const [stats, setStats] = useState({ words: 0, chars: 0, readTimeMinutes: 0 });
   const [showExport, setShowExport] = useState(false);
 
   useEffect(() => {
-    if (!editor) return;
-
-    const update = () => {
-      const text = editor.getText();
-      const words = text.trim() ? text.trim().split(/\s+/).length : 0;
-      const chars = text.length;
-      const minutes = Math.max(1, Math.ceil(words / 200));
-      setStats({ words, chars, readTimeMinutes: minutes });
-    };
-
-    update();
-    editor.on('update', update);
-    return () => { editor.off('update', update); };
+    // Stats calculation removed from editor footer to reduce clutter
+    // as it is now handled by the node/modal container.
   }, [editor]);
 
   if (!editor) return null;
@@ -58,14 +46,7 @@ export function EditorFooter({
   };
 
   return (
-    <div className="flex items-center justify-between border-t border-border px-4 py-1.5 select-none">
-      <div className="flex items-center gap-2 text-[10px] font-mono text-muted-foreground">
-        <span>{stats.words}w</span>
-        <span className="text-border">·</span>
-        <span>{stats.chars}c</span>
-        <span className="text-border">·</span>
-        <span>{stats.readTimeMinutes}m</span>
-      </div>
+    <div className="flex items-center justify-end border-t border-border px-4 py-1.5 select-none">
 
       {/* Macro System */}
       <div className="flex items-center gap-2">

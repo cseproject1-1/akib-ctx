@@ -103,6 +103,7 @@ export const DrawingOverlay = memo(function DrawingOverlay() {
     <>
       {/* Main SVG overlay (Static rendering layer) */}
       <div
+        ref={containerRef}
         className="absolute inset-0"
         style={{
           zIndex: isInteractive ? 45 : 44, // Using drawing z-index baseline

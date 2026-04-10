@@ -635,7 +635,7 @@ const NoteEditorImpl = forwardRef<NoteEditorHandle, NoteEditorImplProps>(functio
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1">
         <EditorContent 
           editor={editor} 
           className={cn(

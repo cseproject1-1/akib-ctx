@@ -193,8 +193,14 @@ export const AINoteNode = memo(({ id, data, selected }: NodeProps) => {
   // Bug 11: Use stable string dependency for useMemo
   const contentKey = useMemo(() => safeJsonStringify(nodeData.content), [nodeData.content]);
   const stats = useMemo(() => countWords(nodeData.content), [contentKey]);
-  // Bug 25: Show stats even for empty nodes (0 chars)
-  const footerStats = stats.words > 0 ? `${stats.words} words · ${stats.chars} chars` : `${stats.chars} chars`;
+  
+  // Bug 25: Show stats even for empty nodes (0 chars) - Compact technical format
+  const footerStats = useMemo(() => {
+    const readTime = Math.max(1, Math.ceil(stats.words / 200));
+    return stats.words > 0 
+      ? `${stats.words}w · ${stats.chars}c · ${readTime}m` 
+      : `${stats.chars}c`;
+  }, [stats]);
 
   // Bug 28: Store previous height before collapsing
   const handleToggleCollapse = useCallback(() => {
@@ -249,8 +255,8 @@ export const AINoteNode = memo(({ id, data, selected }: NodeProps) => {
       isSyncing={isNodeDirty}
       headerExtra={
         <button
-          className={`rounded-md p-0.5 text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground ${
-            isMobile ? "opacity-100" : "opacity-0 group-hover/header:opacity-100"
+          className={`rounded p-0.5 text-muted-foreground transition-all duration-300 hover:bg-accent hover:text-foreground ${
+            isMobile ? "opacity-100 scale-100" : "opacity-0 scale-90 group-hover/node:opacity-100 group-hover/node:scale-100"
           }`}
           onClick={(e) => { 
             e.stopPropagation(); 

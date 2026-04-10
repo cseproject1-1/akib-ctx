@@ -48,7 +48,12 @@ export const LectureNotesNode = memo(({ id, data, selected }: NodeProps) => {
   }, [id, updateNodeData]);
 
   const stats = useMemo(() => countWords(nodeData.content), [nodeData.content]);
-  const footerStats = stats.words > 0 ? `${stats.words} words · ${stats.chars} chars` : undefined;
+  const footerStats = useMemo(() => {
+    const readTime = Math.max(1, Math.ceil(stats.words / 200));
+    return stats.words > 0 
+      ? `${stats.words}w · ${stats.chars}c · ${readTime}m` 
+      : stats.chars > 0 ? `${stats.chars}c` : undefined;
+  }, [stats]);
 
   return (
     <BaseNode
@@ -57,7 +62,7 @@ export const LectureNotesNode = memo(({ id, data, selected }: NodeProps) => {
       icon={<BookOpen className="h-4 w-4" />}
       selected={selected}
       onTitleChange={(title) => updateNodeData(id, { title })}
-      bodyClassName="min-h-[200px] overflow-auto"
+      bodyClassName="flex-1 overflow-y-auto min-h-[120px] h-full"
       onMenuClick={(e) => setNodeContextMenu({ x: e.clientX, y: e.clientY, nodeId: id })}
       tags={nodeData.tags}
       collapsed={nodeData.collapsed}

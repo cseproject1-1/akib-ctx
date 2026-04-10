@@ -253,7 +253,7 @@ export const BaseNode = memo(({
 
       {title !== undefined && (
         <div
-          className={`group/header flex flex-shrink-0 items-center gap-2 px-3 py-2.5 transition-colors ${
+          className={`group/header flex flex-shrink-0 items-center gap-1.5 px-3 py-2 transition-colors ${
             locked ? 'cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'
           } ${headerClassName || ''}`}
         >
@@ -298,7 +298,7 @@ export const BaseNode = memo(({
           {headerExtra}
           {id && (
             <button
-              className={`rounded p-0.5 text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground ${isMobile ? "opacity-100" : "opacity-0 group-hover/node:opacity-100"}`}
+              className={`rounded p-0.5 text-muted-foreground transition-all duration-300 hover:bg-accent hover:text-foreground ${isMobile ? "opacity-100 scale-100" : "opacity-0 scale-90 group-hover/node:opacity-100 group-hover/node:scale-100"}`}
               onClick={(e) => { e.stopPropagation(); setExpandedNode(id); }}
               title="Fullscreen"
             >
@@ -307,7 +307,7 @@ export const BaseNode = memo(({
           )}
           {id && (
             <button
-              className={`rounded p-0.5 text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground ${isMobile ? "opacity-100" : "opacity-0 group-hover/node:opacity-100"}`}
+              className={`rounded p-0.5 text-muted-foreground transition-all duration-300 hover:bg-accent hover:text-foreground ${isMobile ? "opacity-100 scale-100" : "opacity-0 scale-90 group-hover/node:opacity-100 group-hover/node:scale-100"}`}
               onClick={(e) => { e.stopPropagation(); handleCopyNodeContent(); }}
               title="Copy node content"
             >
@@ -316,7 +316,7 @@ export const BaseNode = memo(({
           )}
           {id && canvasMode === 'edit' && !locked && (
             <button
-              className={`rounded p-0.5 text-muted-foreground transition-opacity hover:bg-destructive hover:text-destructive-foreground ${isMobile ? "opacity-100" : "opacity-0 group-hover/node:opacity-100"}`}
+              className={`rounded p-0.5 text-muted-foreground transition-all duration-300 hover:bg-destructive hover:text-destructive-foreground ${isMobile ? "opacity-100 scale-100" : "opacity-0 scale-90 group-hover/node:opacity-100 group-hover/node:scale-100"}`}
               onClick={(e) => { e.stopPropagation(); deleteNode(id); }}
               title="Delete node"
             >
@@ -324,7 +324,7 @@ export const BaseNode = memo(({
             </button>
           )}
           <button
-            className={`rounded p-0.5 text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground ${isMobile ? "opacity-100" : "opacity-0 group-hover/node:opacity-100"}`}
+            className={`rounded p-0.5 text-muted-foreground transition-all duration-300 hover:bg-accent hover:text-foreground ${isMobile ? "opacity-100 scale-100" : "opacity-0 scale-90 group-hover/node:opacity-100 group-hover/node:scale-100"}`}
             onClick={(e) => { e.stopPropagation(); onMenuClick?.(e); }}
             title="More options"
           >
@@ -387,7 +387,7 @@ export const BaseNode = memo(({
       )}
 
       {(footerStats || progress !== undefined) && !collapsed && zoom >= LOD_THRESHOLD && (
-        <div className="border-t-2 border-border/50 px-3 py-1 text-[10px] text-muted-foreground font-bold flex flex-col gap-1">
+        <div className="border-t border-border/20 px-3 py-1.5 text-[10px] text-muted-foreground opacity-60 font-medium flex flex-col gap-1 tracking-wide">
           {progress !== undefined && (
             <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden border border-border/20">
               <motion.div 
@@ -403,7 +403,7 @@ export const BaseNode = memo(({
 
       {/* Created timestamp (embedded in footer area for stability) */}
       {createdAt && !collapsed && zoom >= LOD_THRESHOLD && (
-        <div className="px-3 pb-1 text-[9px] text-muted-foreground/60 italic overflow-hidden whitespace-nowrap">
+        <div className="px-3 pb-2 text-[9px] text-muted-foreground opacity-40 font-medium overflow-hidden whitespace-nowrap tracking-wide">
           Created {formatSafeDate(createdAt, 'recently')}
         </div>
       )}

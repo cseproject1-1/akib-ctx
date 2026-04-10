@@ -11,6 +11,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import type { JSONContent } from '@tiptap/react';
 import katex from 'katex';
 import { cn } from '@/lib/utils';
+import { extractText } from '@/lib/utils/contentParser';
 
 /* ─── Expandable node types ─── */
 const EXPANDABLE_TYPES = ['aiNote', 'lectureNotes', 'checklist', 'summary', 'codeSnippet', 'math', 'termQuestion', 'stickyNote', 'flashcard', 'table', 'image', 'embed', 'drawing', 'video', 'text'];
@@ -18,6 +19,19 @@ const POSITION_THRESHOLD = 20; // NM-ADD-1: Constant for navigation threshold
 
 /* ─── Checklist helpers ─── */
 interface CheckItem { id: string; text: string; done: boolean; }
+
+function countWords(content: any): { words: number; chars: number } {
+  if (!content) return { words: 0, chars: 0 };
+  try {
+    const text = extractText(content);
+    if (!text) return { words: 0, chars: 0 };
+    const chars = text.length;
+    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    return { words, chars };
+  } catch {
+    return { words: 0, chars: 0 };
+  }
+}
 
 function ChecklistFullscreen({ items, onUpdate, editable }: { items: CheckItem[]; onUpdate: (items: CheckItem[]) => void; editable: boolean }) {
   const toggle = (itemId: string) => editable && onUpdate(items.map(i => i.id === itemId ? { ...i, done: !i.done } : i));
@@ -567,6 +581,16 @@ export function NodeExpandModal() {
     return () => window.removeEventListener('keydown', handleKey);
   }, [expandedNode, handleClose, handlePrev, handleNext, isEditorFocused]);
 
+  // Calculate stats before early returns to satisfy React rules of hooks
+  const contentForStats = node?.data && typeof node.data === 'object' && 'content' in node.data ? node.data.content : null;
+  const stats = useMemo(() => countWords(contentForStats), [contentForStats]);
+  const footStatsText = useMemo(() => {
+    const readTime = Math.max(1, Math.ceil(stats.words / 200));
+    return stats.words > 0 
+      ? `${stats.words}w · ${stats.chars}c · ${readTime}m` 
+      : stats.chars > 0 ? `${stats.chars}c` : '';
+  }, [stats]);
+
   if (!node || !expandedNode) return null;
   if (!node.data || typeof node.data !== 'object') return null; // NM-CRITICAL-3, 4: Safety guards
 
@@ -621,7 +645,6 @@ export function NodeExpandModal() {
     return nodeData.title ?? nodeData.year ?? 'Untitled';
   };
 
-  // Format node type for display (NM12)
   const formatNodeType = (type: string | undefined) => {
     if (!type) return 'Note';
     return type
@@ -629,6 +652,8 @@ export function NodeExpandModal() {
       .replace(/^./, str => str.toUpperCase())
       .trim();
   };
+
+
 
   const isShareView = typeof window !== 'undefined' && window.location.pathname.startsWith('/view/');
 
@@ -865,6 +890,7 @@ export function NodeExpandModal() {
                 <ChevronLeft className="h-4 w-4" /> Previous
               </button>
               <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest" aria-live="polite">
+                {footStatsText && <span className="mr-3 lowercase font-mono opacity-60">{footStatsText}</span>}
                 {expandableIndex + 1} / {expandableNodes.length}
               </span>
               <button 
@@ -1050,9 +1076,17 @@ export function NodeExpandModal() {
                 Next →
               </button>
            </div>
-           <span id="node-modal-desc" className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40" aria-live="polite">
-             {expandableIndex + 1} / {expandableNodes.length}
-           </span>
+           <div className="flex items-center gap-4">
+              {footStatsText && (
+                <>
+                  <span className="text-[10px] font-mono opacity-50 lowercase">{footStatsText}</span>
+                  <div className="h-3 w-[1px] bg-border opacity-50" />
+                </>
+              )}
+              <span id="node-modal-desc" className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40" aria-live="polite">
+                {expandableIndex + 1} / {expandableNodes.length}
+              </span>
+           </div>
         </div>
       </div>
     </div>

@@ -78,7 +78,7 @@ export const DrawingNode = memo(({ id, data, selected }: NodeProps) => {
       
       {/* Selection outline */}
       {selected && (
-        <div className="pointer-events-none absolute -inset-0.5 rounded border-2 border-primary" />
+        <div className="pointer-events-none absolute -inset-1 rounded-xl border border-primary/50 shadow-[0_0_20px_hsla(var(--primary),0.15)] ring-2 ring-primary/20" />
       )}
       
       {/* Connection handles */}

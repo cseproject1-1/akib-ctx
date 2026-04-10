@@ -142,9 +142,10 @@ export const BlockNoteEditor = ({
         supportedLanguages,
         createHighlighter: () => Promise.resolve({
           codeToHast: highlightCode,
-          // BlockNote calls getLoadedLanguages() on the highlighter instance.
-          // Return the lowlight language list to satisfy this requirement.
+          // BlockNote calls getLoadedLanguages() and getLoadedThemes() on the highlighter.
           getLoadedLanguages: () => lowlight.listLanguages(),
+          getLoadedThemes: () => [],
+          loadTheme: () => Promise.resolve(),
         } as any),
       }),
     };
