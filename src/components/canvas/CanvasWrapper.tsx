@@ -195,6 +195,7 @@ export function CanvasWrapper() {
   const setAISynthesisOpen = useCanvasStore((s) => s.setAISynthesisOpen);
   const zoomOnScroll = useCanvasStore((s) => s.zoomOnScroll);
   const exportProgress = useCanvasStore((s) => s.exportProgress);
+  const disableVirtualization = useCanvasStore((s) => s.disableVirtualization);
 
   const hotkeys = useSettingsStore((s) => s.hotkeys);
 
@@ -438,16 +439,15 @@ export function CanvasWrapper() {
   const processedNodes = useMemo(() => {
     return localNodes
       .map((n) => {
-        // Explicitly skip virtualization for heavy media or complex components that 
-        // are expensive to reload or maintain internal state.
-        const skipVirtualization = [
-          'video', 'image', 'audio', 'embed', 'pdf', 'fileAttachment', 
-          'spreadsheet', 'focusTimer', 'dailyLog', 'kanban'
-        ].includes(n.type || '');
+        // When virtualization is disabled, ALL nodes are always rendered (shouldRender: true)
+        // When enabled, heavy media nodes skip virtualization via shouldRender in data
+        const forceRender = disableVirtualization;
 
         return {
           ...n,
-          data: { ...n.data, shouldRender: true },
+          // Force render at node level for React Flow virtualization
+          shouldRender: forceRender,
+          data: { ...n.data, shouldRender: forceRender },
           draggable: !n.data?.locked,
           selectable: !n.data?.locked,
           connectable: !n.data?.locked,
@@ -458,7 +458,7 @@ export function CanvasWrapper() {
           },
         };
       }) as Node[];
-  }, [localNodes, focusMode, focusedNodeId]);
+  }, [localNodes, focusMode, focusedNodeId, disableVirtualization]);
 
   const throttledUpdateCursor = useMemo(() => 
     throttle((x: number, y: number) => {
@@ -777,10 +777,44 @@ export function CanvasWrapper() {
   );
 
   // Auto bring-to-front all selected nodes after box select
+  // Also auto-pan to show selected nodes (bypasses virtualization issues with far-away nodes)
   const handleSelectionChange = useCallback(({ nodes: selectedNodes }: { nodes: Node[] }) => {
     if (selectedNodes.length > 1) {
       const ids = selectedNodes.map((n) => n.id);
       useCanvasStore.getState().bringNodesToFront(ids);
+    }
+    
+    // Auto-pan to show selected node(s) - ensures selected nodes are always visible
+    if (selectedNodes.length === 1 && reactFlowInstance.current) {
+      const node = selectedNodes[0];
+      const instance = reactFlowInstance.current;
+      const viewport = instance.getViewport();
+      const nodeWidth = (node.style?.width as number) || node.measured?.width || 300;
+      const nodeHeight = (node.style?.height as number) || node.measured?.height || 200;
+      const x = node.position.x;
+      const y = node.position.y;
+      
+      // Calculate viewport bounds
+      const viewWidth = window.innerWidth / viewport.zoom;
+      const viewHeight = window.innerHeight / viewport.zoom;
+      const viewX = -viewport.x / viewport.zoom;
+      const viewY = -viewport.y / viewport.zoom;
+      
+      // Check if node is outside viewport
+      const isOutsideX = x < viewX || x + nodeWidth > viewX + viewWidth;
+      const isOutsideY = y < viewY || y + nodeHeight > viewY + viewHeight;
+      
+      // Pan to show node if outside viewport
+      if (isOutsideX || isOutsideY) {
+        const padding = 100;
+        const centerX = x + nodeWidth / 2 - viewWidth / 2;
+        const centerY = y + nodeHeight / 2 - viewHeight / 2;
+        instance.setViewport({
+          x: -centerX * viewport.zoom + padding,
+          y: -centerY * viewport.zoom + padding,
+          zoom: viewport.zoom,
+        }, { duration: 300 });
+      }
     }
   }, []);
 
@@ -1014,6 +1048,8 @@ export function CanvasWrapper() {
         </div>
       )}
       <ReactFlow
+        key={`rf-${disableVirtualization}`}
+        onlyRenderVisibleElements={!disableVirtualization}
         className={cn(isZoomedOut && 'zoom-out')}
         nodes={processedNodes}
         edges={edges.map(e => ({ ...e, zIndex: 0 }))}
@@ -1102,7 +1138,6 @@ export function CanvasWrapper() {
         deleteKeyCode={['Delete', 'Backspace']}
         onSelectionChange={handleSelectionChange}
         selectionOnDrag={!isViewMode && !connectMode}
-        onlyRenderVisibleElements
         selectionMode={SelectionMode.Partial}
         // Pan: view mode = any button, connect mode = middle only, edit mode = left+middle
         panOnDrag={isViewMode ? true : connectMode ? [2] : [1, 2]}

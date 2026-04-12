@@ -91,6 +91,8 @@ export function CanvasToolbar() {
   const { isOnline } = useNetworkStatus();
   const enableHybridEditor = useSettingsStore((s) => s.enableHybridEditor);
   const setHybridEditorEnabled = useSettingsStore((s) => s.setHybridEditorEnabled);
+  const disableVirtualization = useCanvasStore((s) => s.disableVirtualization);
+  const setDisableVirtualization = useCanvasStore((s) => s.setDisableVirtualization);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menus when clicking outside
@@ -281,6 +283,22 @@ export function CanvasToolbar() {
     setTimeout(() => fitView({ duration: 400 }), 50);
     toast.success('Circular layout applied');
     setShowLayoutMenu(false);
+  };
+
+  const handleToggleVirtualization = async () => {
+    const newValue = !disableVirtualization;
+    setDisableVirtualization(newValue);
+    console.log('Virtualization set to:', newValue, 'workspaceId:', workspaceId);
+    try {
+      if (workspaceId) {
+        await updateWorkspace(workspaceId, { disableVirtualization: newValue });
+        console.log('Saved to Firestore');
+      }
+      toast.success(newValue ? 'Virtualization OFF - all nodes always visible' : 'Virtualization ON - better performance');
+    } catch (err) {
+      console.error('Failed to update workspace:', err);
+      toast.error('Failed to save setting');
+    }
   };
 
   const handleImportJson = () => {
@@ -584,6 +602,9 @@ export function CanvasToolbar() {
           </ToolbarBtn>
           <ToolbarBtn onClick={() => toggleLockAll()} tip={allLocked ? 'Unlock all nodes (L)' : 'Lock all nodes (L)'} className={cn(allLocked ? 'text-primary bg-primary/5 border border-primary/20' : 'hover:bg-primary/10')}>
             {allLocked ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
+          </ToolbarBtn>
+          <ToolbarBtn onClick={handleToggleVirtualization} tip={disableVirtualization ? 'Enable virtualization (faster)' : 'Disable virtualization (show all nodes)'} className={cn(disableVirtualization ? 'text-primary bg-primary/5 border border-primary/20' : 'hover:bg-primary/10')}>
+            {disableVirtualization ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
           </ToolbarBtn>
           {selectedCount > 1 && (
             <ToolbarBtn 

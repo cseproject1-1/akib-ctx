@@ -41,6 +41,7 @@ interface CanvasState {
   workspaceId: string | null;
   workspaceName: string;
   workspaceColor: string;
+  disableVirtualization: boolean;
   contextMenu: { x: number; y: number; canvasX: number; canvasY: number } | null;
   nodeContextMenu: { x: number; y: number; nodeId: string } | null;
   edgeContextMenu: { x: number; y: number; edgeId: string } | null;
@@ -94,6 +95,7 @@ interface CanvasState {
   // Actions
   setWorkspaceId: (id: string | null) => void;
   setWorkspaceMeta: (name: string, color: string) => void;
+  setDisableVirtualization: (value: boolean) => void;
   cursors: Record<string, { x: number; y: number; name: string; color: string; lastSeen: number }>;
   updateCursorPosition: (userId: string, x: number, y: number, name: string, color: string) => void;
   removeCursor: (userId: string) => void;
@@ -209,6 +211,7 @@ export const useCanvasStore = create<CanvasState>()(
   workspaceId: null,
   workspaceName: 'Untitled',
   workspaceColor: '#3b82f6',
+  disableVirtualization: false,
   contextMenu: null,
   nodeContextMenu: null,
   edgeContextMenu: null,
@@ -344,6 +347,7 @@ export const useCanvasStore = create<CanvasState>()(
 
   setWorkspaceId: (id) => set({ workspaceId: id }),
   setWorkspaceMeta: (name, color) => set({ workspaceName: name, workspaceColor: color }),
+  setDisableVirtualization: (value: boolean) => set({ disableVirtualization: value }),
   cursors: {},
   updateCursorPosition: (userId, x, y, name, color) => {
     set((state) => ({
@@ -1226,6 +1230,7 @@ export const useCanvasStore = create<CanvasState>()(
       workspaceId: null,
       workspaceName: 'Untitled',
       workspaceColor: '#3b82f6',
+      disableVirtualization: false,
       saveStatus: 'idle',
       _saveCounter: 0,
       _skipSync: false,

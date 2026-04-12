@@ -120,7 +120,13 @@ const WorkspacePage = () => {
 
       getWorkspaces().then((workspaces) => {
         const ws = workspaces?.find(w => w.id === workspaceId);
-        if (ws) setWorkspaceMeta(ws.name, ws.color);
+        console.log('Loaded workspace:', ws);
+        if (ws) {
+          setWorkspaceMeta(ws.name, ws.color);
+          // Load virtualization setting
+          console.log('disableVirtualization:', ws.disableVirtualization);
+          useCanvasStore.getState().setDisableVirtualization(ws.disableVirtualization || false);
+        }
       }).catch(() => toast.error('Failed to load workspace metadata'));
 
       try {

@@ -184,12 +184,16 @@ export interface AttachedFile {
   size: number;
   type: string;
   url: string;
-  path?: string; // For R2 storage path
-  storageType?: 'r2' | 'google_drive'; // Storage provider
-  driveFileId?: string; // Google Drive file ID
-  category?: string; // File category
-  tags?: string[]; // File-specific tags
-  lastModified?: string; // ISO date string
+  path?: string;
+  storageType?: 'r2' | 'google_drive';
+  driveFileId?: string;
+  category?: string;
+  tags?: string[];
+  lastModified?: string;
+  isDirectory?: boolean;
+  zipEntryCount?: number;
+  zipEntries?: { name: string; size: number; isDirectory: boolean }[];
+  thumbnailUrl?: string;
 }
 
 export interface FileAttachmentNodeData extends SharedNodeFields {
@@ -259,4 +263,6 @@ export interface Workspace {
   // Locked folder visibility (optional)
   is_in_vault?: boolean;
   shared_with?: string[];
+  // Canvas virtualization setting (workspace-specific)
+  disableVirtualization?: boolean;
 }

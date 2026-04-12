@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { type NodeProps } from '@xyflow/react';
+import { type NodeProps, NodeResizer } from '@xyflow/react';
 import { ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { GroupNodeData } from '@/types/canvas';
@@ -19,10 +19,13 @@ export const GroupNode = memo(({ id, data, selected }: NodeProps) => {
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
   const toggleGroupCollapse = useCanvasStore((s) => s.toggleGroupCollapse);
   const setNodeContextMenu = useCanvasStore((s) => s.setNodeContextMenu);
+  const canvasMode = useCanvasStore((s) => s.canvasMode);
   const nodeData = data as unknown as GroupNodeData;
   const isCollapsed = nodeData.collapsed;
   const colorKey = nodeData.color || 'default';
   const colors = groupColors[colorKey] || groupColors.default;
+  const w = nodeData.width || 200;
+  const h = nodeData.height || (isCollapsed ? 48 : 150);
 
   return (
     <div
@@ -31,7 +34,7 @@ export const GroupNode = memo(({ id, data, selected }: NodeProps) => {
       } ${colors.border} ${colors.bg} ${
         selected ? 'ring-2 ring-primary ring-offset-2' : ''
       }`}
-      style={{ minWidth: 200, minHeight: isCollapsed ? 48 : 150 }}
+      style={{ width: w, height: h }}
       onContextMenu={(e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -68,6 +71,20 @@ export const GroupNode = memo(({ id, data, selected }: NodeProps) => {
           </div>
         )}
       </div>
+      {!nodeData.locked && canvasMode === 'edit' && selected && (
+        <NodeResizer
+          minWidth={100}
+          minHeight={48}
+          onResizeEnd={(_event, params) => {
+            updateNodeData(id, {
+              width: Math.round(params.width),
+              height: Math.round(params.height),
+            });
+          }}
+          lineClassName="!border-primary/30"
+          handleClassName="!w-2.5 !h-2.5 !bg-primary !border-2 !border-background !rounded-full"
+        />
+      )}
     </div>
   );
 });

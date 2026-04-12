@@ -1,5 +1,5 @@
 import { memo, useState, useCallback, useEffect } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { Handle, Position, type NodeProps, NodeResizer } from '@xyflow/react';
 import { useCanvasStore } from '@/store/canvasStore';
 import { ShapeNodeData } from '@/types/canvas';
 import { HANDLE_IDS } from '@/lib/constants/canvas';
@@ -53,8 +53,8 @@ export const ShapeNode = memo(({ id, data, selected }: NodeProps) => {
   const nodeData = data as unknown as ShapeNodeData;
   const [editing, setEditing] = useState(false);
   const [labelValue, setLabelValue] = useState(nodeData.label || '');
-  const w = 160;
-  const h = 120;
+  const w = nodeData.width || 160;
+  const h = nodeData.height || 120;
 
   // Sync label when not editing
   useEffect(() => {
@@ -103,6 +103,21 @@ export const ShapeNode = memo(({ id, data, selected }: NodeProps) => {
       <div className="anchor-dot bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2" />
       <div className="anchor-dot left-0 top-1/2 -translate-x-1/2 -translate-y-1/2" />
       <div className="anchor-dot right-0 top-1/2 translate-x-1/2 -translate-y-1/2" />
+      {!nodeData.locked && (
+        <NodeResizer
+          isVisible={selected}
+          minWidth={80}
+          minHeight={60}
+          onResizeEnd={(_event, params) => {
+            updateNodeData(id, {
+              width: Math.round(params.width),
+              height: Math.round(params.height),
+            });
+          }}
+          lineClassName="!border-primary/30"
+          handleClassName="!w-2.5 !h-2.5 !bg-primary !border-2 !border-background !rounded-full"
+        />
+      )}
     </div>
   );
 });

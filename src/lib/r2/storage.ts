@@ -121,11 +121,20 @@ export async function uploadCanvasFile(
         'text/csv', 'text/plain', 'text/html', 'text/markdown', 'text/xml',
         'application/json', 'application/xml',
         'video/', 'audio/',
+        'application/zip', 'application/x-zip-compressed',
+        'application/x-rar-compressed', 'application/vnd.rar',
+        'application/x-7z-compressed',
+        'application/x-tar', 'application/gzip',
     ];
     const isAllowed = ALLOWED_TYPES.some(t => file.type.startsWith(t) || file.type === t);
     // Also allow by extension for files with blank/octet-stream type
     const fileExt = file.name.split('.').pop()?.toLowerCase() || '';
-    const ALLOWED_EXTENSIONS = ['txt', 'html', 'htm', 'md', 'csv', 'json', 'xml', 'log'];
+    const ALLOWED_EXTENSIONS = [
+        'txt', 'html', 'htm', 'md', 'csv', 'json', 'xml', 'log',
+        'zip', 'rar', '7z', 'tar', 'gz', 'bz2',
+        'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx',
+        'js', 'ts', 'css', 'scss', 'py', 'java', 'c', 'cpp', 'go', 'rs',
+    ];
     const isAllowedByExt = ALLOWED_EXTENSIONS.includes(fileExt);
     if (!isAllowed && !isAllowedByExt && file.type !== '') {
         throw new Error(`File type "${file.type}" is not allowed`);

@@ -161,6 +161,24 @@ export const BaseNode = memo(({
   const reactFlowNodeId = useNodeId();
   const nodeId = id || reactFlowNodeId;
 
+  // Get current node from store to check for persisted style dimensions
+  const currentNode = useCanvasStore((s) => {
+    const nid = id || reactFlowNodeId;
+    if (!nid) return undefined;
+    return s.nodes.find(n => n.id === nid);
+  });
+
+  // Initialize from style if available (preserves resized dimensions)
+  const initialStyle = useMemo(() => {
+    if (currentNode?.style?.width && currentNode?.style?.height) {
+      return {
+        width: currentNode.style.width as number,
+        height: currentNode.style.height as number,
+      };
+    }
+    return undefined;
+  }, [currentNode?.style?.width, currentNode?.style?.height]);
+
   // Performance: Only subscribe to edges connected to this specific node
   // Using useStore carefully to avoid global re-renders
   const edgeCount = useStore(useCallback((s) => {
@@ -177,6 +195,7 @@ export const BaseNode = memo(({
   const setExpandedNode = useCanvasStore((s) => s.setExpandedNode);
   const deleteNode = useCanvasStore((s) => s.deleteNode);
   const updateNodeData = useCanvasStore((s) => s.updateNodeData);
+  const updateNodeStyle = useCanvasStore((s) => s.updateNodeStyle);
   const canvasMode = useCanvasStore((s) => s.canvasMode);
   const focusedNodeId = useCanvasStore((s) => s.focusedNodeId);
   const isFocused = nodeId && focusedNodeId === nodeId;
@@ -295,11 +314,16 @@ const accentDot = accent?.indicator || 'bg-primary';
           isVisible={selected}
           minWidth={120}
           minHeight={80}
+          defaultWidth={initialStyle?.width}
+          defaultHeight={initialStyle?.height}
           onResizeEnd={(_event, params) => {
             if (nodeId) {
-              updateNodeData(nodeId, {
-                width: Math.round(params.width),
-                height: Math.round(params.height),
+              const newWidth = Math.round(params.width);
+              const newHeight = Math.round(params.height);
+              // Only update style (this is what ReactFlow uses for display)
+              updateNodeStyle(nodeId, {
+                width: newWidth,
+                height: newHeight,
               });
             }
           }}

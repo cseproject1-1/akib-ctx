@@ -4,7 +4,8 @@ import { HybridEditor, type NoteEditorHandle } from '@/components/editor/HybridE
 import { getEditorVersion } from '@/lib/editor/migration';
 import { useSettingsStore } from '@/store/settingsStore';
 import { OutlinePanel } from '@/components/tiptap/OutlinePanel';
-import { X, Maximize2, Minimize2, List as ListIcon, ChevronRight, ChevronLeft, Share2, LayoutList } from 'lucide-react';
+import { X, Maximize2, Minimize2, List as ListIcon, ChevronRight, ChevronLeft, Share2, LayoutList, Plus } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameDay, isSameMonth, isToday, addMonths, subMonths } from 'date-fns';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { Drawer } from 'vaul';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -18,7 +19,7 @@ import { getEmbedConfig, isRestrictedSite } from '@/lib/utils/embedUtils';
 
 
 /* ─── Expandable node types ─── */
-const EXPANDABLE_TYPES = ['aiNote', 'lectureNotes', 'checklist', 'summary', 'codeSnippet', 'math', 'termQuestion', 'stickyNote', 'flashcard', 'table', 'image', 'embed', 'drawing', 'video', 'text'];
+const EXPANDABLE_TYPES = ['aiNote', 'lectureNotes', 'checklist', 'summary', 'codeSnippet', 'math', 'termQuestion', 'stickyNote', 'flashcard', 'table', 'image', 'embed', 'drawing', 'video', 'text', 'calendar', 'kanban', 'databaseNode', 'spreadsheet', 'fileAttachment', 'group', 'shape', 'dailyLog'];
 const POSITION_THRESHOLD = 20;
 
 /* ─── Checklist helpers ─── */
@@ -322,9 +323,449 @@ function TableFullscreen({ headers, rows, onUpdate, editable }: { headers: strin
   );
 }
 
+interface CalendarEvent { id: string; date: string; label: string; color: string; }
+
+function CalendarFullscreen({ events, onUpdate, editable }: { events: CalendarEvent[]; onUpdate: (e: { events: CalendarEvent[] }) => void; editable: boolean }) {
+  const [viewDate, setViewDate] = useState(() => new Date());
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+  const [newLabel, setNewLabel] = useState('');
+  const [newColor, setNewColor] = useState('bg-primary text-primary-foreground');
+
+  const EVENT_COLORS = [
+    'bg-primary text-primary-foreground',
+    'bg-green-500 text-white',
+    'bg-orange-500 text-white',
+    'bg-red-500 text-white',
+    'bg-purple-500 text-white',
+    'bg-cyan-500 text-white',
+  ];
+
+  const monthStart = startOfMonth(viewDate);
+  const monthEnd = endOfMonth(viewDate);
+  const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
+  const startPad = getDay(monthStart);
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  const eventsForDay = (day: Date) => events.filter((e) => isSameDay(new Date(e.date), day));
+
+  const addEvent = () => {
+    if (!selectedDay || !newLabel.trim()) return;
+    onUpdate({ events: [...events, { id: crypto.randomUUID(), date: selectedDay.toISOString(), label: newLabel.trim(), color: newColor }] });
+    setNewLabel('');
+  };
+
+  const removeEvent = (evtId: string) => onUpdate({ events: events.filter((e) => e.id !== evtId) });
+
+  const selectDay = (day: Date) => setSelectedDay(day);
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex items-center justify-between mb-4">
+        <button onClick={() => setViewDate(subMonths(viewDate, 1))} className="p-2 hover:bg-accent rounded-lg"><ChevronLeft className="h-4 w-4" /></button>
+        <span className="text-lg font-bold">{format(viewDate, 'MMMM yyyy')}</span>
+        <button onClick={() => setViewDate(addMonths(viewDate, 1))} className="p-2 hover:bg-accent rounded-lg"><ChevronRight className="h-4 w-4" /></button>
+      </div>
+      <div className="grid grid-cols-7 gap-1 mb-2">
+        {dayNames.map(d => <div key={d} className="text-center text-xs font-bold text-muted-foreground py-1">{d}</div>)}
+      </div>
+      <div className="grid grid-cols-7 gap-1 flex-1">
+        {Array(startPad).fill(null).map((_, i) => <div key={`pad-${i}`} />)}
+        {days.map(day => {
+          const dayEvents = eventsForDay(day);
+          const isSelected = selectedDay && isSameDay(day, selectedDay);
+          return (
+            <div
+              key={day.toISOString()}
+              onClick={() => selectDay(day)}
+              className={`p-1 rounded border min-h-[60px] cursor-pointer ${isSelected ? 'border-primary bg-primary/5' : 'border-border'} ${isToday(day) ? 'ring-1 ring-primary' : ''}`}
+            >
+              <div className={`text-xs font-bold mb-1 ${!isSameMonth(day, viewDate) ? 'text-muted-foreground/50' : ''}`}>{format(day, 'd')}</div>
+              {dayEvents.slice(0, 2).map(evt => (
+                <div key={evt.id} className={`text-[10px] px-1 py-0.5 rounded truncate ${evt.color}`}>
+                  {evt.label}
+                </div>
+              ))}
+              {dayEvents.length > 2 && <div className="text-[10px] text-muted-foreground">+{dayEvents.length - 2}</div>}
+            </div>
+          );
+        })}
+      </div>
+      {selectedDay && editable && (
+        <div className="mt-4 p-3 bg-muted/30 rounded-lg">
+          <div className="text-sm font-bold mb-2">{format(selectedDay, 'MMM d, yyyy')}</div>
+          <div className="flex gap-2 flex-wrap">
+            {eventsForDay(selectedDay).map(evt => (
+              <div key={evt.id} className={`flex items-center gap-1 text-xs px-2 py-1 rounded ${evt.color}`}>
+                <span>{evt.label}</span>
+                <button onClick={() => removeEvent(evt.id)}><X className="h-3 w-3" /></button>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2 mt-2">
+            <input
+              value={newLabel}
+              onChange={e => setNewLabel(e.target.value)}
+              placeholder="New event..."
+              className="flex-1 bg-background border rounded px-2 py-1 text-sm"
+              onKeyDown={e => e.key === 'Enter' && addEvent()}
+            />
+            <select value={newColor} onChange={e => setNewColor(e.target.value)} className="text-xs border rounded px-2">
+              {EVENT_COLORS.map(c => <option key={c} value={c}>{c.split(' ')[1]}</option>)}
+            </select>
+            <button onClick={addEvent} className="px-3 py-1 bg-primary text-primary-foreground rounded text-sm font-bold">Add</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function KanbanFullscreen({ columns, onUpdate, editable }: { columns: { id: string; title: string; color: string; cards: { id: string; text: string }[] }[]; onUpdate: (d: { columns: typeof columns }) => void; editable: boolean }) {
+  const [editingCard, setEditingCard] = useState<{ colId: string; cardId: string } | null>(null);
+  const [editText, setEditText] = useState('');
+
+  const updateCard = (colId: string, cardId: string, text: string) => {
+    if (!editable) return;
+    onUpdate({
+      columns: columns.map(col =>
+        col.id === colId
+          ? { ...col, cards: col.cards.map(c => c.id === cardId ? { ...c, text } : c) }
+          : col
+      ),
+    });
+  };
+
+  const addCard = (colId: string) => {
+    if (!editable) return;
+    onUpdate({
+      columns: columns.map(col =>
+        col.id === colId
+          ? { ...col, cards: [...col.cards, { id: crypto.randomUUID(), text: '' }] }
+          : col
+      ),
+    });
+    setEditingCard({ colId, cardId: '' });
+  };
+
+  const deleteCard = (colId: string, cardId: string) => {
+    if (!editable) return;
+    onUpdate({
+      columns: columns.map(col =>
+        col.id === colId
+          ? { ...col, cards: col.cards.filter(c => c.id !== cardId) }
+          : col
+      ),
+    });
+  };
+
+  const startEdit = (colId: string, cardId: string, text: string) => {
+    setEditingCard({ colId, cardId });
+    setEditText(text);
+  };
+
+  const saveEdit = () => {
+    if (!editingCard) return;
+    if (editingCard.cardId) {
+      updateCard(editingCard.colId, editingCard.cardId, editText);
+    } else {
+      onUpdate({
+        columns: columns.map(col =>
+          col.id === editingCard.colId
+            ? { ...col, cards: [...col.cards.map(c => c.id === editingCard.cardId ? { ...c, text: editText } : c)] }
+            : col
+        ),
+      });
+    }
+    setEditingCard(null);
+  };
+
+  return (
+    <div className="flex gap-4 h-full overflow-x-auto pb-2">
+      {columns.map(col => (
+        <div key={col.id} className="flex-shrink-0 w-72 flex flex-col rounded-lg border border-border bg-muted/20">
+          <div className="p-3 font-bold border-b border-border flex items-center gap-2">
+            <div className={`w-3 h-3 rounded-full ${col.color}`} />
+            {col.title}
+            <span className="text-xs text-muted-foreground">({col.cards.length})</span>
+          </div>
+          <div className="flex-1 overflow-y-auto p-2 space-y-2">
+            {col.cards.map(card => {
+              const isEditing = editingCard?.colId === col.id && editingCard?.cardId === card.id;
+              return (
+                <div key={card.id} className="p-2 bg-background rounded border shadow-sm">
+                  {isEditing ? (
+                    <div className="space-y-2">
+                      <textarea
+                        value={editText}
+                        onChange={e => setEditText(e.target.value)}
+                        className="w-full border rounded p-1 text-sm"
+                        autoFocus
+                      />
+                      <div className="flex gap-1">
+                        <button onClick={saveEdit} className="px-2 py-1 bg-primary text-primary-foreground rounded text-xs font-bold">Save</button>
+                        <button onClick={() => setEditingCard(null)} className="px-2 py-1 border rounded text-xs">Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start justify-between">
+                      <p className="text-sm flex-1">{card.text}</p>
+                      {editable && (
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => startEdit(col.id, card.id, card.text)} className="text-muted-foreground hover:text-primary">✎</button>
+                          <button onClick={() => deleteCard(col.id, card.id)} className="text-muted-foreground hover:text-destructive">×</button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {editable && (
+            <button onClick={() => addCard(col.id)} className="p-2 text-sm font-bold text-muted-foreground hover:text-foreground border-t border-border">
+              + Add Card
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Helper interfaces for remaining fullscreen components
+interface DbColumn { name: string; type: string }
+interface DbRow { id: string; values: Record<string, string> }
+
+function DatabaseFullscreen({ title, columns, rows, onUpdate, editable }: { title?: string; columns?: DbColumn[]; rows?: DbRow[]; onUpdate: (d: { columns?: DbColumn[]; rows?: DbRow[] }) => void; editable: boolean }) {
+  const [cols, setCols] = useState<DbColumn[]>(columns || []);
+  const [rowsData, setRowsData] = useState<DbRow[]>(rows || []);
+
+  const addCol = () => editable && setCols([...cols, { name: `Column${cols.length + 1}`, type: 'text' }]);
+  const addRow = () => editable && setRowsData([...rowsData, { id: crypto.randomUUID(), values: {} }]);
+
+  const updateCell = (rowId: string, colName: string, value: string) => {
+    if (!editable) return;
+    setRowsData(rowsData.map(r => r.id === rowId ? { ...r, values: { ...r.values, [colName]: value } } : r));
+  };
+
+  return (
+    <div className="overflow-auto">
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr>
+            {cols.map(col => (
+              <th key={col.name} className="border border-border bg-muted px-3 py-2 text-left font-bold uppercase tracking-wider text-muted-foreground">
+                {col.name}
+                {editable && <button onClick={() => setCols(cols.filter(c => c.name !== col.name))} className="ml-2 text-muted-foreground/50 hover:text-destructive">×</button>}
+              </th>
+            ))}
+            {editable && <th className="border-none w-8"><button onClick={addCol} className="text-xs font-bold text-primary">+ Col</button></th>}
+          </tr>
+        </thead>
+        <tbody>
+          {rowsData.map(row => (
+            <tr key={row.id} className="hover:bg-accent/30 group">
+              {cols.map(col => (
+                <td key={col.name} className="border border-border px-3 py-2">
+                  <input
+                    className="w-full bg-transparent outline-none"
+                    value={row.values[col.name] || ''}
+                    onChange={e => updateCell(row.id, col.name, e.target.value)}
+                    readOnly={!editable}
+                  />
+                </td>
+              ))}
+              {editable && (
+                <td className="border-none opacity-0 group-hover:opacity-100">
+                  <button onClick={() => setRowsData(rowsData.filter(r => r.id !== row.id))} className="text-muted-foreground hover:text-destructive"><X className="h-3.5 w-3.5" /></button>
+                </td>
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {editable && (
+        <button onClick={addRow} className="mt-3 text-xs font-bold text-primary hover:underline">+ Add Row</button>
+      )}
+    </div>
+  );
+}
+
+function SpreadsheetFullscreen({ rows: initialRows, onUpdate, editable }: { rows?: { cells: string[][] }[]; onUpdate: (d: { rows?: { cells: string[][] }[] }) => void; editable: boolean }) {
+  const [rowsData, setRowsData] = useState<{ cells: string[][] }[]>(initialRows || [{ cells: Array(10).fill('').map(() => Array(10).fill('')) }]);
+
+  const COLS = Array(10).fill(0).map((_, i) => String.fromCharCode(65 + i));
+
+  const updateCell = (ri: number, ci: number, value: string) => {
+    if (!editable) return;
+    const newRows = [...rowsData];
+    while (newRows.length <= ri) newRows.push({ cells: Array(10).fill('').map(() => Array(10).fill('')) });
+    if (!newRows[ri].cells[ci]) newRows[ri].cells[ci] = Array(10).fill('');
+    newRows[ri].cells[ci][ci] = value;
+    setRowsData(newRows);
+  };
+
+  const addRow = () => editable && setRowsData([...rowsData, { cells: Array(10).fill('').map(() => Array(10).fill('')) }]);
+
+  return (
+    <div className="overflow-auto">
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr>
+            <th className="w-10 border border-border bg-muted" />
+            {COLS.map(c => <th key={c} className="border border-border bg-muted px-3 py-2 font-bold uppercase text-muted-foreground">{c}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {rowsData.map((row, ri) => (
+            <tr key={ri}>
+              <td className="border border-border bg-muted px-2 py-2 text-center font-bold text-muted-foreground">{ri + 1}</td>
+              {row.cells && row.cells.map((cell, ci) => (
+                <td key={ci} className="border border-border">
+                  <input
+                    className="w-full bg-transparent px-2 py-2 outline-none"
+                    value={cell || ''}
+                    onChange={e => updateCell(ri, ci, e.target.value)}
+                    readOnly={!editable}
+                  />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {editable && (
+        <button onClick={addRow} className="mt-3 text-xs font-bold text-primary hover:underline">+ Add Row</button>
+      )}
+    </div>
+  );
+}
+
+function FileAttachmentFullscreen({ files, onUpdate, editable }: { files?: { id: string; name: string; size: number; type: string; url: string }[]; onUpdate: (d: { files: typeof files }) => void; editable: boolean }) {
+  const formatSize = (bytes: number) => bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  const formatType = (type: string) => type.split('/')[1] || 'file';
+
+  const removeFile = (id: string) => editable && onUpdate({ files: files?.filter(f => f.id !== id) || [] });
+
+  return (
+    <div className="space-y-2">
+      {files?.length === 0 && <p className="text-muted-foreground text-center py-8">No files attached</p>}
+      {files?.map(file => (
+        <div key={file.id} className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
+          <div className="flex-1 min-w-0">
+            <p className="font-medium truncate">{file.name}</p>
+            <p className="text-xs text-muted-foreground">{formatSize(file.size)} · {formatType(file.type)}</p>
+          </div>
+          <a href={file.url} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 bg-primary text-primary-foreground rounded text-sm font-bold">Open</a>
+          {editable && <button onClick={() => removeFile(file.id)} className="text-muted-foreground hover:text-destructive"><X className="h-4 w-4" /></button>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function GroupFullscreen({ childNodeIds, title, onUpdate, editable }: { childNodeIds?: string[]; title?: string; onUpdate: (d: { title?: string }) => void; editable: boolean }) {
+  return (
+    <div className="flex flex-col items-center justify-center h-full text-center">
+      <p className="text-lg font-bold">{title || 'Group'}</p>
+      <p className="text-muted-foreground mt-2">{childNodeIds?.length || 0} child nodes</p>
+      <p className="text-sm text-muted-foreground/50 mt-4">Group fullscreen view shows all contained nodes</p>
+    </div>
+  );
+}
+
+function ShapeFullscreen({ shapeType, label, color, onUpdate, editable }: { shapeType?: string; label?: string; color?: string; onUpdate: (d: { label?: string }) => void; editable: boolean }) {
+  const [editLabel, setEditLabel] = useState(label || '');
+  const [isEditing, setIsEditing] = useState(false);
+
+  const shapeColors: Record<string, string> = {
+    default: 'hsl(0 0% 25%)',
+    blue: 'hsl(217, 91%, 60%)',
+    green: 'hsl(142, 76%, 46%)',
+    red: 'hsl(0, 84%, 60%)',
+    purple: 'hsl(262, 83%, 58%)',
+    yellow: 'hsl(52, 100%, 50%)',
+    orange: 'hsl(25, 95%, 53%)',
+    cyan: 'hsl(188, 85%, 50%)',
+  };
+
+  const fill = shapeColors[color || 'default'] || shapeColors.default;
+  const fillOpacity = '0.15';
+  const stroke = fill;
+
+  const renderShape = (w: number, h: number) => {
+    switch (shapeType) {
+      case 'circle':
+        return <ellipse cx={w / 2} cy={h / 2} rx={w / 2 - 4} ry={h / 2 - 4} fill={fill} fillOpacity={fillOpacity} stroke={stroke} strokeWidth={2.5} />;
+      case 'diamond':
+        return <polygon points={`${w/2},4 ${w-4},${h/2} ${w/2},${h-4} 4,${h/2}`} fill={fill} fillOpacity={fillOpacity} stroke={stroke} strokeWidth={2.5} />;
+      case 'triangle':
+        return <polygon points={`${w/2},4 ${w-4},${h-4} 4,${h-4}`} fill={fill} fillOpacity={fillOpacity} stroke={stroke} strokeWidth={2.5} />;
+      default:
+        return <rect x="4" y="4" width={w - 8} height={h - 8} rx="8" fill={fill} fillOpacity={fillOpacity} stroke={stroke} strokeWidth={2.5} />;
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center h-full p-8">
+      <svg width="300" height="200" viewBox="0 0 300 200" className="mb-4">
+        {renderShape(300, 200)}
+      </svg>
+      {isEditing ? (
+        <div className="flex gap-2">
+          <input value={editLabel} onChange={e => setEditLabel(e.target.value)} className="border rounded px-2 py-1" autoFocus />
+          <button onClick={() => { onUpdate({ label: editLabel }); setIsEditing(false); }} className="px-2 py-1 bg-primary text-primary-foreground rounded">Save</button>
+          <button onClick={() => setIsEditing(false)} className="px-2 py-1 border rounded">Cancel</button>
+        </div>
+      ) : (
+        <p className="text-lg font-bold">{label}</p>
+      )}
+      {editable && !isEditing && <button onClick={() => setIsEditing(true)} className="mt-2 text-sm text-primary hover:underline">Edit Label</button>}
+    </div>
+  );
+}
+
+function DailyLogFullscreen({ entries, onUpdate, editable }: { entries?: { id: string; time: string; text: string }[]; onUpdate: (d: { entries: typeof entries }) => void; editable: boolean }) {
+  const [newEntry, setNewEntry] = useState('');
+
+  const addEntry = () => {
+    if (!editable || !newEntry.trim()) return;
+    const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    onUpdate({ entries: [...(entries || []), { id: crypto.randomUUID(), time, text: newEntry.trim() }] });
+    setNewEntry('');
+  };
+
+  const removeEntry = (id: string) => editable && onUpdate({ entries: entries?.filter(e => e.id !== id) || [] });
+
+  return (
+    <div className="space-y-3">
+      {entries?.length === 0 && <p className="text-muted-foreground text-center py-8">No entries yet</p>}
+      {entries?.map(entry => (
+        <div key={entry.id} className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg group">
+          <span className="text-xs font-mono text-muted-foreground shrink-0">{entry.time}</span>
+          <p className="flex-1">{entry.text}</p>
+          {editable && <button onClick={() => removeEntry(entry.id)} className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"><X className="h-4 w-4" /></button>}
+        </div>
+      ))}
+      {editable && (
+        <div className="flex gap-2 mt-4">
+          <input
+            value={newEntry}
+            onChange={e => setNewEntry(e.target.value)}
+            placeholder="Log entry..."
+            className="flex-1 border rounded px-3 py-2"
+            onKeyDown={e => e.key === 'Enter' && addEntry()}
+          />
+          <button onClick={addEntry} className="px-4 py-2 bg-primary text-primary-foreground rounded font-bold">Add</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════
    Main Modal Components
-   ═══════════════════════════════════════════════════════ */
+   ═══════════════════════════════════════════════ */
 
 function ViewerErrorBoundary({ children, onRetry }: { children: React.ReactNode; onRetry?: () => void }) {
   const [hasError, setHasError] = useState(false);
@@ -634,6 +1075,30 @@ export function NodeExpandModal() {
         const src = isOffice ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(nodeData.storageUrl)}` : nodeData.storageUrl;
         return <iframe src={src} title="Doc" className="w-full h-[70vh] border-0 rounded-lg" allowFullScreen />;
       }
+
+      case 'calendar':
+        return <CalendarFullscreen events={nodeData.events || []} onUpdate={(updates) => updateNodeData(expandedNode, updates)} editable={!isViewMode} />;
+
+      case 'kanban':
+        return <KanbanFullscreen columns={nodeData.columns || []} onUpdate={(updates) => updateNodeData(expandedNode, updates)} editable={!isViewMode} />;
+
+      case 'databaseNode':
+        return <DatabaseFullscreen title={nodeData.title} columns={nodeData.columns} rows={nodeData.rows} onUpdate={(updates) => updateNodeData(expandedNode, updates)} editable={!isViewMode} />;
+
+      case 'spreadsheet':
+        return <SpreadsheetFullscreen rows={nodeData.rows} onUpdate={(updates) => updateNodeData(expandedNode, updates)} editable={!isViewMode} />;
+
+      case 'fileAttachment':
+        return <FileAttachmentFullscreen files={nodeData.files || []} onUpdate={(updates) => updateNodeData(expandedNode, updates)} editable={!isViewMode} />;
+
+      case 'group':
+        return <GroupFullscreen childNodeIds={nodeData.childNodeIds} title={nodeData.title} onUpdate={(updates) => updateNodeData(expandedNode, updates)} editable={!isViewMode} />;
+
+      case 'shape':
+        return <ShapeFullscreen shapeType={nodeData.shapeType} label={nodeData.label} color={nodeData.color} onUpdate={(updates) => updateNodeData(expandedNode, updates)} editable={!isViewMode} />;
+
+      case 'dailyLog':
+        return <DailyLogFullscreen entries={nodeData.entries || []} onUpdate={(updates) => updateNodeData(expandedNode, updates)} editable={!isViewMode} />;
 
       default:
         return <div className="text-muted-foreground text-center py-8">Not supported yet.</div>;
